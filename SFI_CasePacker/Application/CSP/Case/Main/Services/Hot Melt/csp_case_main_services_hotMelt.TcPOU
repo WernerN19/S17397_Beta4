@@ -1,0 +1,209 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_main_services_hotMelt" Id="{8af86318-8e24-4aec-8a57-fa5878b1e8e8}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/10/07 	0000.00	 	W.Gerstner		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_case_main_services_hotMelt
+VAR
+	prc:								process;
+	prc_path:							STRING;
+	OS_lower_glue_gun_disabled_wem: 	message;
+	OS_upper_glue_gun_disabled_wem: 	message;
+	LS_lower_glue_gun_disabled_wem: 	message;
+	LS_upper_glue_gun_disabled_wem: 	message;
+	Hotmelt_Ready_Signal_Bypassed_wem: 	message;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF descriptor_mode_is_absent(csp_case_glue_hotMelt.ready_dchk.descriptor)
+THEN
+	process_message_set(1,1,1,Hotmelt_Ready_Signal_Bypassed_wem);
+ELSE
+	process_message_reset(Hotmelt_Ready_Signal_Bypassed_wem);
+END_IF
+IF process_mode_is_absent(csp_case_glue.prc)
+THEN
+	process_message_set(1,1,1,OS_lower_glue_gun_disabled_wem);
+	process_message_set(1,1,1,OS_upper_glue_gun_disabled_wem);
+	process_message_set(1,1,1,LS_lower_glue_gun_disabled_wem);
+	process_message_set(1,1,1,LS_upper_glue_gun_disabled_wem);
+ELSE
+	process_message_reset(OS_lower_glue_gun_disabled_wem);
+	process_message_reset(OS_upper_glue_gun_disabled_wem);
+	process_message_reset(LS_lower_glue_gun_disabled_wem);
+	process_message_reset(LS_upper_glue_gun_disabled_wem);
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{82dd7a3e-39c1-4eb2-83cc-cf9e53549699}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{b1eac2e7-4991-4829-822d-36463c2fe01a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{cf469d64-1b83-4de8-8331-9df52fe8e1bb}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{56ba0a6a-7f7e-4155-a354-903346de434f}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name						:= 'csp_case_main_services_hotMelt.prc', 
+		process							:= csp_case_main_services.prc, 
+		CONVERSION_this					:= prc);
+		
+	prc_path 							:= process_get_path(prc);
+	
+		//PRS 7/14/2021	
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_OS_lower_glue_gun_disabled_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NORMAL, 
+        process:= prc,
+        CONVERSION_this:= OS_lower_glue_gun_disabled_wem);
+	
+	//PRS 7/14/2021	
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_OS_upper_glue_gun_disabled_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NORMAL, 
+        process:= prc,
+        CONVERSION_this:= OS_upper_glue_gun_disabled_wem);	
+
+	//PRS 7/14/2021	
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_LS_lower_glue_gun_disabled_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NORMAL, 
+        process:= prc,
+        CONVERSION_this:= LS_lower_glue_gun_disabled_wem);
+	
+	//PRS 7/14/2021	
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_LS_upper_glue_gun_disabled_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NORMAL, 
+        process:= prc,
+        CONVERSION_this:= LS_upper_glue_gun_disabled_wem);	
+
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_Hotmelt_Ready_Signal_Bypassed_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NORMAL, 
+        process:= prc,
+        CONVERSION_this:= Hotmelt_Ready_Signal_Bypassed_wem);		
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{b07d642f-a72e-4e84-8dad-50496df288ea}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{1d75d96e-821c-4704-9d41-6b65d57de620}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{5925695d-3362-4786-bb83-a606d4ae83ac}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{2c4da929-8b71-4a2d-be41-0a697114c87d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,52 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_transfer_crosspusher_virtualmaster" Id="{86c285cd-367b-48a2-972d-e8faacb96047}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_transfer_crosspusher_virtualmaster
+VAR
+  axis_shd : axis_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{7c7da721-2fc9-4198-aeb7-ff3726469b2f}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	axis_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_crosspusher_virtualmaster.axis, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= axis_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	axis_shadow_cycle(axis_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

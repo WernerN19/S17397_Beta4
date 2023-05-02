@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_main_configurator_struct" Id="{e4174ed2-4415-496d-a645-fadb60558b04}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine configurator data structure declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/24 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_main_configurator_struct:
+STRUCT
+	motman_ref:																POINTER TO motorization_manager;
+	machine_ref:															POINTER TO machine;
+	service_stop_reclassification_present:									BOOL := TRUE;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

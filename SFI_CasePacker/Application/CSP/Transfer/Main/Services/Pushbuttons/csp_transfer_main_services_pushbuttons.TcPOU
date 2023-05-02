@@ -1,0 +1,500 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_main_services_pushbuttons" Id="{1d9c05a7-4f50-40bf-a45d-5d9ff20ee964}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main keyboard
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_transfer_main_services_pushbuttons
+VAR
+	prc:							process;
+	prc_path:						STRING;
+
+	(* MAIN KEYBOARD BUTTONS *)	
+	reset_di:						digital_input;
+	reset_lamp_do:					digital_output;
+	reset_btn:						button;
+	
+	start_di:						digital_input;
+	start_lamp_do:					digital_output;
+	start_btn:						button;
+	
+	stop_di:						digital_input;
+	stop_lamp_do:					digital_output;
+	stop_btn:						button;
+	stop_dchk:						digital_check;
+	service_stop_dchk:				digital_check;
+
+	(* TWINCAT VISUALIZATION PANEL BUTTONS *)
+
+	visu_emergency_open:			BOOL;
+	
+	
+	visu_stop_bool:					boolean;
+	visu_stop_dchk:					digital_check;
+	
+	(* LOCAL VARIABLES *)
+	reset_pressed:					BOOL;
+	start_pressed:					BOOL;	
+	stop_pressed:					BOOL;
+	emergency_open_pressed:			BOOL;	
+	emergency_close_pressed:		BOOL;
+	reset_command:					BOOL;
+	start_command:					BOOL;
+	
+	debug:							BOOL:=TRUE;
+	
+	emergency_open_di:				digital_input;
+	emergency_open_lamp_do:			digital_output;
+	emergency_open_btn:				button;
+	
+	emergency_close_di:				digital_input;
+	emergency_close_lamp_do:		digital_output;
+	emergency_close_btn:			button;
+	
+
+END_VAR
+
+VAR_INPUT
+	visu_reset:						BOOL;
+	visu_stop:						BOOL;
+	visu_start:						BOOL;
+	visu_emergency_close:			BOOL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+//reset_pressed := button_is_pressed(reset_btn);
+//start_pressed := button_is_pressed(start_btn);
+//stop_pressed := button_is_pressed(stop_btn);
+
+
+(*Physical light logic*)
+IF csp_main_services_pushbuttons.reset_lamp_on
+THEN
+	button_lamp_on(reset_btn);
+ELSIF csp_main_services_pushbuttons.reset_lamp_blink
+THEN
+	button_lamp_blink(reset_btn);
+ELSE
+	button_lamp_off(reset_btn);
+END_IF
+
+IF csp_main_services_pushbuttons.stop_lamp_on
+THEN 
+	button_lamp_on(stop_btn);
+ELSIF csp_main_services_pushbuttons.stop_lamp_blink
+THEN
+	button_lamp_blink(stop_btn);
+ELSE
+	button_lamp_off(stop_btn);
+END_IF
+
+IF csp_main_services_pushbuttons.start_lamp_on
+THEN 
+	button_lamp_on(start_btn);
+ELSIF csp_main_services_pushbuttons.start_lamp_blink
+THEN
+	button_lamp_blink(start_btn);
+ELSE
+	button_lamp_off(start_btn);
+END_IF
+
+IF machine_is_stop_emergency_active(csp.mch)
+AND NOT csp_transfer_main_safety_emergency.HMI_Emergency_closed
+	THEN
+		button_lamp_on(emergency_close_btn);
+	ELSE
+		button_lamp_off(emergency_close_btn);
+END_IF
+
+IF	(
+		(
+			motorization_manager_is_held(csp_main_motorization_manager.motm) 
+			OR motorization_manager_is_suspended(csp_main_motorization_manager.motm)
+		)
+		AND csp_main_motorization_manager.debug_Enable_new_conditioners (* Selector on HMI while still being tested *)
+	)
+	OR
+	(
+		NOT csp_main_motorization_manager.debug_Enable_new_conditioners (* Selector on HMI while still being tested *)
+		AND csp_main_motorization_manager.suspend_conditions
+	)
+THEN
+	digital_check_disable(stop_dchk);
+	digital_check_enable(service_stop_dchk);	
+ELSE
+	digital_check_enable(stop_dchk);
+	digital_check_disable(service_stop_dchk);
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{e52abcca-de4d-42fa-987b-6ce24b314a81}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{c4923e3c-1eef-43ce-9c98-43ada9b3b2ec}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{a5cd9249-afaa-4c07-805b-b72957f9a4e4}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{bb14bfd7-41e3-4936-b7fd-2fed7dffae15}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_main_services_pushbuttons.prc', 
+		process						:= csp_transfer_main_services.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+
+	(* RESET BUTTON *)	
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_reset_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= reset_di);
+		
+	digital_output_init(
+		object_name					:= CONCAT(prc_path, '_reset_lamp_do'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= reset_lamp_do);
+		
+	button_init(
+		object_name					:= CONCAT(prc_path, 'reset_btn'), 
+		_type						:= BUTTON_TYPE_MOMENTARY_ON, 
+		enabled_at_powerup			:= TRUE, 
+		filter_off_on				:= 10, 
+		filter_on_off				:= 10, 
+		di							:= reset_di, 
+		process						:= prc, 
+		CONVERSION_this				:= reset_btn);
+		
+	button_add_dout(
+		dout						:= reset_lamp_do, 
+		CONVERSION_this				:= reset_btn);
+		
+	(* START BUTTON *)
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_start_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= start_di);
+		
+	digital_output_init(
+		object_name					:= CONCAT(prc_path, '_start_lamp_do'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= start_lamp_do);
+		
+	button_init(
+		object_name					:= CONCAT(prc_path, 'start_btn'), 
+		_type						:= BUTTON_TYPE_MOMENTARY_ON, 
+		enabled_at_powerup			:= TRUE, 
+		filter_off_on				:= 10, 
+		filter_on_off				:= 10, 
+		di							:= start_di, 
+		process						:= prc, 
+		CONVERSION_this				:= start_btn);
+		
+	button_add_dout(
+		dout						:= start_lamp_do, 
+		CONVERSION_this				:= start_btn);
+
+	(* STOP BUTTON 
+	IF	framework_is_local_simulated()
+	THEN
+		digital_input_init(
+			object_name					:= CONCAT(prc_path, '_stop_di'), 
+			polarity_direct				:= TRUE, 
+			process						:= prc, 
+			CONVERSION_this				:= stop_di);		
+	ELSE
+		digital_input_init(
+			object_name					:= CONCAT(prc_path, '_stop_di'), 
+			polarity_direct				:= FALSE, 
+			process						:= prc, 
+			CONVERSION_this				:= stop_di);	
+	END_IF *)
+
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_stop_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= stop_di);
+	
+	digital_output_init(
+		object_name					:= CONCAT(prc_path, '_stop_lamp_do'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= stop_lamp_do);
+		
+	button_init(
+		object_name					:= CONCAT(prc_path, 'stop_btn'), 
+		_type						:= BUTTON_TYPE_MOMENTARY_ON, 
+		enabled_at_powerup			:= TRUE, 
+		filter_off_on				:= 10, 
+		filter_on_off				:= 10, 
+		di							:= stop_di, 
+		process						:= prc, 
+		CONVERSION_this				:= stop_btn);
+
+	button_add_dout(
+		dout						:= stop_lamp_do, 
+		CONVERSION_this				:= stop_btn);
+
+	digital_check_and_message_init(
+		object_name					:= CONCAT(prc_path, '_stop_dchk'), 
+		alarm_if_input_off			:= FALSE, 
+		alarm_delay					:= 0, 
+		enabled_at_powerup			:= TRUE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_EMPTY_STOP_IN_PHASE_ONE, 
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= stop_dchk);
+
+	digital_check_add_di(
+		di							:= stop_di, 
+		CONVERSION_this				:= stop_dchk);
+
+	
+	IF	csp_main_configurator.service_stop_reclassification_present
+	THEN
+		message_reclassification_add_service_stop(
+			stop							:=	stop_dchk.alarm_asm.message,
+			CONVERSION_this					:=	csp_main_services_pushbuttons.stop_message_reclassification_instance);
+	END_IF;	
+		
+	boolean_init(
+		object_name					:= CONCAT(prc_path, '_visu_stop_bool'), 
+		process						:= prc, 
+		CONVERSION_this				:= visu_stop_bool);	
+		
+	digital_check_and_message_init(
+		object_name					:= CONCAT(prc_path, '_visu_stop_dchk'), 
+		alarm_if_input_off			:= FALSE, 
+		alarm_delay					:= 0, 
+		enabled_at_powerup			:= TRUE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_EMPTY_STOP_IN_PHASE_ONE, 
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= visu_stop_dchk);
+
+	digital_check_add_boolean(
+		boolean						:= visu_stop_bool, 
+		CONVERSION_this				:= visu_stop_dchk);	
+		
+	digital_check_and_message_init(
+		object_name					:= CONCAT(prc_path, '_service_stop_dchk'), 
+		alarm_if_input_off			:= FALSE, 
+		alarm_delay					:= 0, 
+		enabled_at_powerup			:= TRUE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_EMPTY_STOP_IN_PHASE_ONE, 
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= service_stop_dchk);
+	
+	digital_check_add_di(
+		di							:= stop_di, 
+		CONVERSION_this				:= service_stop_dchk);
+		
+	IF	csp_main_configurator.service_stop_reclassification_present
+	THEN
+		message_reclassification_add_service_stop(
+			stop							:=	service_stop_dchk.alarm_asm.message,
+			CONVERSION_this					:=	csp_main_services_pushbuttons.stop_message_reclassification_instance);
+	END_IF;
+	
+	IF debug
+	THEN	
+
+				(* EMERGENCY BUTTON *)
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_emergency_open_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= emergency_open_di);
+		
+	digital_output_init(
+		object_name					:= CONCAT(prc_path, '_emergency_open_lamp_do'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= emergency_open_lamp_do);
+		
+	button_init(
+		object_name					:= CONCAT(prc_path, 'emergency_open_btn'), 
+		_type						:= BUTTON_TYPE_MOMENTARY_ON, 
+		enabled_at_powerup			:= TRUE, 
+		filter_off_on				:= 10, 
+		filter_on_off				:= 10, 
+		di							:= emergency_open_di, 
+		process						:= prc, 
+		CONVERSION_this				:= emergency_open_btn);
+		
+	button_add_dout(
+		dout						:= emergency_open_lamp_do, 
+		CONVERSION_this				:= emergency_open_btn);
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_emergency_close_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= emergency_close_di);
+		
+	digital_output_init(
+		object_name					:= CONCAT(prc_path, '_emergency_close_lamp_do'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= emergency_close_lamp_do);
+		
+	button_init(
+		object_name					:= CONCAT(prc_path, 'emergency_close_btn'), 
+		_type						:= BUTTON_TYPE_MOMENTARY_ON, 
+		enabled_at_powerup			:= TRUE, 
+		filter_off_on				:= 10, 
+		filter_on_off				:= 10, 
+		di							:= emergency_close_di, 
+		process						:= prc, 
+		CONVERSION_this				:= emergency_close_btn);
+		
+	button_add_dout(
+		dout						:= emergency_close_lamp_do, 
+		CONVERSION_this				:= emergency_close_btn);
+	END_IF
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	button_cycle(reset_btn);
+	button_cycle(start_btn);
+	button_cycle(stop_btn);
+	
+	digital_check_cycle(stop_dchk);
+	digital_check_cycle(visu_stop_dchk);
+	digital_check_cycle(service_stop_dchk);
+	
+	IF debug
+	THEN
+		button_cycle(emergency_open_btn);
+		button_cycle(emergency_close_btn);
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{47566be3-1175-4e2d-a49a-efe30e9b821d}">
+      <Implementation>
+        <ST><![CDATA[reset_pressed := 
+	button_is_pressed(reset_btn)
+	OR
+	visu_reset;
+	
+start_pressed := 
+	button_is_pressed(start_btn)
+	OR
+	visu_start;
+
+stop_pressed :=
+	button_is_pressed(stop_btn)
+	OR
+	visu_stop;
+	
+emergency_open_pressed := 
+	button_is_pressed(emergency_open_btn)
+	OR
+	visu_emergency_open;
+	
+emergency_close_pressed := 
+	button_is_pressed(emergency_close_btn)
+	OR
+	visu_emergency_close;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{c5d0be74-f9df-43cb-9f31-1c774a482411}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{9ac5167f-429f-4e96-a6b6-8cd715a988d2}">
+      <Implementation>
+        <ST><![CDATA[IF visu_stop
+THEN	
+	boolean_set(visu_stop_bool);
+ELSE
+	boolean_reset(visu_stop_bool);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{4ececec8-31d3-42a3-bf3b-b6a5dfade7ab}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

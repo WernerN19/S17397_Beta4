@@ -1,0 +1,147 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_accumulator_accU_topRailLength" Id="{c564bb10-403b-42eb-aaec-17fdf7970e89}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_accumulator_accU_topRailLength
+VAR
+	
+	prc:									process;
+	prc_path:								STRING;
+	
+	axis:									axis;
+	
+END_VAR
+
+VAR CONSTANT
+	(*Just in case you prefer having constants instead of numbers*)
+	MOTOR_MAX_VELOCITY_DEGPS:				LREAL := 9600;
+	MOTOR_MAX_ACCELLERATION_DEGPS2:			LREAL := 4800;
+	MOTOR_MAX_DECELLERATION_DEGPS2:			LREAL := 4800;
+	MOTOR_MAX_JERK_DEGPS3:					LREAL := 100000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:			LREAL := 2;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{c977799a-9465-41f5-b151-bd1f6421f0a3}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{d7413c05-fd08-4b58-a1cb-6fb570f12969}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{1d70414a-a16b-4660-999c-a555c8767548}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{e8d9d6eb-38eb-41f1-8363-ffab98251d81}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_transfer_accumulator_accU_topRailLength.prc', 
+		process									:= csp_transfer_accumulator_accU.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+	
+	axis_init(
+		object_name								:= CONCAT(prc_path, '_axis'), 
+		axis_type								:= AXIS_TYPE_VIRTUAL, 
+		encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo									:= G_MODULO_360_DEG, 
+		process									:= prc, 
+		CONVERSION_this							:= axis);
+		
+	axis_set_max_dynamic(
+		reference_velocity						:=	MOTOR_MAX_VELOCITY_DEGPS,
+		velocity								:=	MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration							:=	MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration							:=	MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk									:=	MOTOR_MAX_JERK_DEGPS3,
+		following_error							:=	MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this							:=	axis);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{c2f7e0d8-034f-43e2-8201-30a071b1baf8}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{66383d63-81eb-4b31-b4e6-b1311a580d76}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{7c76e4c0-369f-4ba2-b016-aecd49481b56}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{f81188f4-7dea-48f1-8ce2-8c5c84d9f377}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

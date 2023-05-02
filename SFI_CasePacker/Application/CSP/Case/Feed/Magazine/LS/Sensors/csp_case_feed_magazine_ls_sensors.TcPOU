@@ -1,0 +1,162 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_magazine_ls_sensors" Id="{19f35e49-9238-4077-9771-f2ad8956e1dc}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_magazine_ls_sensors
+VAR
+		
+	prc:											process;
+	prc_path:										STRING;
+	
+	feed_di:										digital_input;
+	fault_bool:										BOOL:=FALSE;
+	
+	pusher_clear:									BOOL;
+	
+	feed_di_flt:									filter;
+	feed_di_status:									BOOL;
+	feed_di_presence:								BOOL; (*$M $*)
+	feed_flt_timer_off_on:							DINT:= 5000; (*$P min := 0; max := 10000; step := 1; unit :=  ms; desc := Timer OFF to ON; $*)
+	feed_flt_timer_on_off:							DINT:= 5000; (*$P min := 0; max := 10000; step := 1; unit :=  ms; desc := Timer ON to OFF; $*)
+
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+feed_di_status := digital_input_is_active(feed_di);
+
+IF 	digital_input_is_active(csp_case_feed_magazine_ls_pusher.retracted_di) 
+	AND 
+	digital_input_is_active(csp_case_feed_magazine_ls_pusherTilt.upstream_di)
+THEN
+	pusher_clear :=TRUE;
+ELSE
+	pusher_clear :=FALSE;
+END_IF
+	
+filter_set_delays(
+	delay_off_on := feed_flt_timer_off_on,
+	delay_on_off := feed_flt_timer_on_off,
+	CONVERSION_this := feed_di_flt);
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{8641951f-8fe6-4dc5-9a41-05ce70dae014}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{c5e3c5ec-972b-4832-8eb4-1b94c725da04}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{17866258-f7b9-4442-8f32-8dec1552e7ad}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{1d10df2a-d2e8-4bd2-9540-944ec3d143c8}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_feed_magazine_ls_sensors.prc', 
+		process						:= csp_case_feed_magazine_ls.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_feed_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= feed_di);
+		
+	filter_init(
+		object_name 				:= CONCAT(prc_path, '_feed_di_flt'),
+		delay_off_on				:= feed_flt_timer_off_on,
+		delay_on_off 				:= feed_flt_timer_on_off,
+		process			 			:= prc,
+		CONVERSION_this 			:= feed_di_flt);	
+
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	filter_cycle(
+				input 			:= feed_di_status,
+				CONVERSION_this := feed_di_flt);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{1d0ba140-0186-4293-a2df-d3b30ed60ae8}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{a4a4c39f-7496-44af-ba79-b4dab141e476}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{3b0e056e-a797-4d80-a3a4-678d8fa478cc}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{94209062-59e8-4554-89ee-c7c44b41aa36}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

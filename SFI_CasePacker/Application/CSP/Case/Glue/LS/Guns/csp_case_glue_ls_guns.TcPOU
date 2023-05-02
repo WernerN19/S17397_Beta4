@@ -1,0 +1,135 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_glue_ls_guns" Id="{e40ec133-e747-44c2-8dcb-402690ccdb1b}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/02/19 	0000.00	 	G.Imbriaco		
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_glue_ls_guns
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+END_VAR
+
+VAR CONSTANT
+
+END_VAR
+	
+	]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+_read_var_input();
+
+_object_manager();
+
+IF 	NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{98697f43-79ef-4eaa-ad41-2b79c7d7a3d8}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{9a6a2900-55a7-4ca2-85b2-01b59b3c4e7f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{1818fe3d-2b4c-4f9a-97f8-3fb821caa734}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{e3a1725c-49ce-4844-a3a0-ff13d8f8fea2}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_glue_ls_guns.prc', 
+		process						:= csp_case_glue_ls.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{2ec8170a-e0f9-4f7d-be57-be8f3b9f4da9}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{8aec96ef-baad-4488-913a-0887f528260d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{4116a1fe-e21e-49b2-a8ae-b8d637aac873}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{ee0e213e-ca37-4e84-8edb-b35ea1aeffbc}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,132 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_productionData" Id="{c957fb50-c97c-4a43-bc33-65f1170703ac}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Production data management
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/02/07 	0000.00	 	Gavagni			Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref:= prc; $*)
+
+PROGRAM csp_main_productionData
+VAR	
+	prc:												process;
+	prc_path:											STRING;
+
+	reject_reason_code:									reject_reasons_enum;		(*$M $*)
+	aux_reason_code:									auxiliary_counters_code_enum; (*$M $*)
+
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		;
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+_handle_messages();
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{04fa693e-3426-4ec7-8c5e-56c326de61bb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{41243587-e06c-443a-b6f0-675a8988932e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{a24d853b-be26-4346-a7e5-5927a9b41cdf}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{b16f0a87-ffd0-4c79-a9b2-5f86c9587b0a}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_main_productionData.prc', 
+		process						:= csp_main.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{3bcb538a-a2ab-49c9-82e0-d34f47f8ea55}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{41de966e-aeca-4d26-aed8-c036e03fc3a4}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{aba4f379-8d04-4879-851b-b61b74b51aeb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{6f32bfbf-c116-46ce-87e2-a14d1f6a2592}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

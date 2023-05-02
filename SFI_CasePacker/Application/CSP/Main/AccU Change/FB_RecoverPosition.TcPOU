@@ -1,0 +1,79 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="FB_RecoverPosition" Id="{ef42fb1e-cbf5-0e20-061e-ad443e3f6535}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_RecoverPosition
+VAR_INPUT
+	/// recover position - recovery position will be calculated prior to this being set true
+	bRecover: BOOL;
+	/// ex: 360*0.00000095367431640625
+	lrScaling: LREAL;
+	/// Absolute Encoder Pulses; Link to Position Feed Back Value Of The Drive
+	diEncoderValue: DINT;
+	/// Link To Persistent Variable; Current Encoder Position
+	udiRetainedEncoderPos: UDINT;
+	/// Link To Persistent Variable; Current Axis Position
+	lrRetainedAxisPos: LREAL;
+END_VAR
+VAR_IN_OUT
+	axis_ref: AXIS_REF;
+END_VAR
+VAR_OUTPUT
+	lrRecovevedAxisPos: LREAL;
+	bPositionRecovered: BOOL;
+END_VAR
+VAR
+	udiPwrUpEncoderPos: UDINT;
+	lrMaxPosAtEncRollOver: LREAL;
+	udiRollPosition: UDINT;
+	lrRollCorrection: LREAL;
+	lrPwrOffDistance: LREAL;
+	/// Maximum Count of Absolute Encoder Pulses
+	cudiMaxEncoderCount: UDINT := 4294967295;
+	cudiHalfMaxCount: UDINT := 2147483647;
+	mcSetPosition: MC_SetPosition;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[udiPwrUpEncoderPos := DINT_TO_UDINT(diEncoderValue);
+lrRollCorrection := 0;
+lrMaxPosAtEncRollOver := UDINT_TO_LREAL(cudiMaxEncoderCount) * lrScaling;
+
+// Find Roll Over/Under Position
+IF udiRetainedEncoderPos > cudiHalfMaxCount THEN
+	// Roll Over
+	udiRollPosition := udiRetainedEncoderPos - cudiHalfMaxCount;
+	IF udiPwrUpEncoderPos <= udiRollPosition THEN
+		lrRollCorrection := lrMaxPosAtEncRollOver;
+	END_IF
+ELSE
+	// Roll Under
+	udiRollPosition := udiRetainedEncoderPos + cudiHalfMaxCount;
+	IF udiPwrUpEncoderPos >= udiRollPosition THEN
+		lrRollCorrection := -1.0 * lrMaxPosAtEncRollOver;
+	END_IF		
+END_IF
+
+// How Far Did Encoder Move During Power Off
+IF udiPwrUpEncoderPos > udiRetainedEncoderPos THEN
+	lrPwrOffDistance := UDINT_TO_LREAL(udiPwrUpEncoderPos - udiRetainedEncoderPos) * lrScaling;
+ELSE
+	lrPwrOffDistance := -1.0 * UDINT_TO_LREAL(udiRetainedEncoderPos - udiPwrUpEncoderPos) * lrScaling;
+END_IF
+
+// Recovered Axis Position
+lrRecovevedAxisPos := lrRetainedAxisPos + lrPwrOffDistance + lrRollCorrection;
+
+
+mcSetPosition(
+	Axis:= axis_ref, 
+	Execute:= bRecover, 
+	Position:= lrRecovevedAxisPos, 
+	Mode:= FALSE, // absolute 
+	Options:= , 
+	Done=> bPositionRecovered, 
+	Busy=> , 
+	Error=> , 
+	ErrorID=> );]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

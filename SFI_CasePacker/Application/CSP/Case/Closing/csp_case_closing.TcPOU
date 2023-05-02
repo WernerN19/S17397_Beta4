@@ -1,0 +1,887 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_closing" Id="{322fd3ae-67bc-4ac6-b0f5-0bc6cc66982a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_closing
+VAR
+		
+	prc:												process;
+	prc_path:											STRING;
+	RFID_status:										csp_case_closing_rfid_status_enum;
+	RFID_status_next:									csp_case_closing_rfid_status_enum;
+	
+	Closing_RFID_Check_Complete: 						BOOL := FALSE;
+	Closing_Upper_RFID_Check_Req: 						BOOL := FALSE;
+	
+	(* RFID *)
+	check_pos_tolerance:								LREAL := 2;
+	rfid_value_to_check: 								BYTE;
+	os_rfid_value:										BYTE;
+	ls_rfid_value:										BYTE;
+	
+	
+	rfid_value_to_write:								BYTE;
+	
+	(*OS*)
+	os_rfid_input_buffer:								iol_slave_bis00lh_pdo_input;
+	os_rfid_input_bitheader_1:							iol_slave_bis00lh_bitheader_input;
+	os_rfid_input_bitheader_2:							iol_slave_bis00lh_bitheader_input;
+			
+	os_rfid_output_buffer:								iol_slave_bis00lh_pdo_output;
+	os_rfid_output_bitheader_1:							iol_slave_bis00lh_bitheader_output;
+	os_rfid_output_bitheader_2:							iol_slave_bis00lh_bitheader_output;
+	os_upper_rfid_read_value: 							BYTE;
+	os_lower_rfid_read_value: 							BYTE;
+	
+	(*LS*)
+	ls_rfid_input_buffer:								iol_slave_bis00lh_pdo_input;
+	ls_rfid_input_bitheader_1:							iol_slave_bis00lh_bitheader_input;
+	ls_rfid_input_bitheader_2:							iol_slave_bis00lh_bitheader_input;
+			
+	ls_rfid_output_buffer:								iol_slave_bis00lh_pdo_output;
+	ls_rfid_output_bitheader_1:							iol_slave_bis00lh_bitheader_output;
+	ls_rfid_output_bitheader_2:							iol_slave_bis00lh_bitheader_output;
+	ls_upper_rfid_read_value: 							BYTE;
+	ls_lower_rfid_read_value: 							BYTE;
+
+
+	rfid_start_toggle:									BOOL := FALSE;
+	rfid_shutdown_toggle:								BOOL := FALSE;
+	rfid_write_toggle:									BOOL := FALSE;
+	rfid_write_done:									BOOL := FALSE;
+	rfid_read_toggle:									BOOL := FALSE;
+	rfid_read_done:										BOOL := FALSE;
+	rfid_read_success: 									BOOL := FALSE;
+	Closing_paddle_rfid_error: 							message;
+
+	RFID_read_write_debug: 								BOOL := FALSE;
+	RFID_read_write_one_step: 							BOOL := FALSE;
+	
+	LS_Lower_RFID_Failed: 								message;
+	OS_Lower_RFID_Failed: 								message;
+	LS_Upper_RFID_Failed: 								message;
+	OS_Upper_RFID_Failed: 								message;
+	
+	RFID_read_bypass: 									BOOL;	//added 05/17/21 PRS	
+	
+	OS_Closing_Paddles_cleanout_position:				BOOL := FALSE; (*$P $*)
+	ClosingRfidCheckVel:								REAL := 10;
+	
+END_VAR
+
+VAR CONSTANT
+	MOTOR_MAX_VELOCITY_DEGPS:							LREAL := 9600;
+	MOTOR_MAX_ACCELLERATION_DEGPS2:						LREAL := 4800;
+	MOTOR_MAX_DECELLERATION_DEGPS2:						LREAL := 4800;
+	MOTOR_MAX_JERK_DEGPS3:								LREAL := 100000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:						LREAL := 2;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF csp_main_accuChange.RFID_reader_list_accuchange = CLOSING_PADDLES_READER
+THEN
+	RFID();
+END_IF
+IF
+	( 
+	NOT csp_main_accuChange.RFID_read_write_running
+	AND (RFID_status = CSP_CASE_CLOSING_RFID_STATUS_COMPLETE 
+	OR RFID_status = CSP_CASE_CLOSING_RFID_STATUS_ERROR) 
+	)	
+THEN
+	RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_START;
+END_IF
+IF csp_main_accuChange.RFID_check_request AND Closing_RFID_Check_Complete 
+THEN
+	Closing_RFID_Check_Complete := FALSE;
+END_IF
+IF csp_main_accuChange.RFID_writing 
+	OR csp_main_accuChange.RFID_reading
+THEN
+	CASE RFID_status OF
+		
+		CSP_CASE_CLOSING_RFID_STATUS_START:
+		
+			rfid_read_done := FALSE;
+			rfid_write_done := FALSE;
+			
+			rfid_value_to_write := csp_main_accuchange.RFID_Setup_write_value;
+		
+			IF 	machine_is_ready(csp.mch)
+			THEN
+				axis_enable(csp_case_closing_ls_horizontal.axis);
+				axis_enable(csp_case_closing_os_horizontal.axis);
+				axis_enable(csp_case_closing_ls_lower.axis);
+				axis_enable(csp_case_closing_ls_upper.axis);
+				axis_enable(csp_case_closing_os_lower.axis);
+				axis_enable(csp_case_closing_os_upper.axis);
+				RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_ENABLED;
+			END_IF
+			
+		CSP_CASE_CLOSING_RFID_STATUS_ENABLED:
+			
+						
+			IF 	axis_is_standstill(csp_case_closing_ls_horizontal.axis)
+				AND axis_is_standstill(csp_case_closing_os_horizontal.axis)
+				AND axis_is_standstill(csp_case_closing_ls_lower.axis)
+				AND axis_is_standstill(csp_case_closing_ls_upper.axis)
+				AND axis_is_standstill(csp_case_closing_os_lower.axis)
+				AND axis_is_standstill(csp_case_closing_os_upper.axis)
+			THEN
+				axis_move_absolute(
+					position 		:= csp_case_closing_ls_horizontal.accu_safe_pos,
+					velocity 		:= ClosingRfidCheckVel,
+					direction		:= AXIS_SHORTEST_WAY,
+					acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+					buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_ls_horizontal.axis); 
+				axis_move_absolute(
+					position 		:= csp_case_closing_os_horizontal.accu_safe_pos,
+					velocity 		:= ClosingRfidCheckVel,
+					direction		:= AXIS_SHORTEST_WAY,
+					acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+					buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_os_horizontal.axis); 			
+			END_IF;				
+					
+			IF 	axis_is_absolute_moving(csp_case_closing_os_horizontal.axis) 
+				AND axis_is_absolute_moving(csp_case_closing_ls_horizontal.axis)
+			THEN
+				RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_PADDLES_START;
+			END_IF				
+		
+			
+		CSP_CASE_CLOSING_RFID_STATUS_PADDLES_START://requests upper paddle to move to rfid check position
+			
+			IF 	csp_main_accuChange.closing_horizontal_safe // AND csp_main_accuchange.Case_Motors_Safe_accU
+				AND axis_is_standstill(csp_case_closing_ls_horizontal.axis)
+				AND axis_is_standstill(csp_case_closing_os_horizontal.axis)
+			THEN
+				Closing_Upper_RFID_Check_Req := TRUE;
+				axis_move_absolute(
+					position         := csp_case_closing_os_upper.accu_safe_pos, //highest point of paddle
+					velocity         := ClosingRfidCheckVel,
+					direction        := AXIS_SHORTEST_WAY,
+					acceleration     := MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration     := MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk             := MOTOR_MAX_JERK_DEGPS3,
+					buffer_mode     := AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_os_upper.axis);  
+					
+				axis_move_absolute(
+					position         := csp_case_closing_ls_upper.accu_safe_pos, //highest point of paddle
+					velocity         := ClosingRfidCheckVel*0.76,
+					direction        := AXIS_SHORTEST_WAY,
+					acceleration     := MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration     := MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk             := MOTOR_MAX_JERK_DEGPS3,
+					buffer_mode     := AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_ls_upper.axis);  
+				axis_move_absolute(
+					position         := csp_case_closing_os_lower.accu_safe_pos, //lowest point of paddle
+					velocity         := ClosingRfidCheckVel,
+					direction        := AXIS_SHORTEST_WAY,
+					acceleration     := MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration     := MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk             := MOTOR_MAX_JERK_DEGPS3,
+					buffer_mode     := AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_os_lower.axis);  
+					
+				axis_move_absolute(
+					position         := csp_case_closing_ls_lower.accu_safe_pos, //lowest point of paddle
+					velocity         := ClosingRfidCheckVel,
+					direction        := AXIS_SHORTEST_WAY,
+					acceleration     := MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration     := MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk             := MOTOR_MAX_JERK_DEGPS3,
+					buffer_mode     := AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_ls_lower.axis);
+				
+				IF 	(axis_is_absolute_moving(csp_case_closing_ls_upper.axis) OR csp_case_closing_ls_upper.in_accu_safe_pos)
+					AND (axis_is_absolute_moving(csp_case_closing_os_upper.axis) OR csp_case_closing_os_upper.in_accu_safe_pos)
+					AND (axis_is_absolute_moving(csp_case_closing_os_lower.axis) OR csp_case_closing_os_lower.in_accu_safe_pos)
+					AND (axis_is_absolute_moving(csp_case_closing_ls_lower.axis) OR csp_case_closing_ls_lower.in_accu_safe_pos)
+				THEN
+					RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_VERIFY_AXIS_SAFE_POS;
+				END_IF
+			END_IF
+		
+			
+		CSP_CASE_CLOSING_RFID_STATUS_VERIFY_AXIS_SAFE_POS:	
+		
+			IF 	csp_case_closing_ls_upper.in_accu_safe_pos
+				AND csp_case_closing_os_upper.in_accu_safe_pos
+				AND csp_case_closing_os_lower.in_accu_safe_pos
+				AND csp_case_closing_ls_lower.in_accu_safe_pos
+				AND axis_is_standstill(csp_case_closing_ls_lower.axis)
+				AND axis_is_standstill(csp_case_closing_ls_upper.axis)
+				AND axis_is_standstill(csp_case_closing_os_lower.axis)
+				AND axis_is_standstill(csp_case_closing_os_upper.axis)
+			THEN
+				RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_UPPER_START;
+			END_IF
+				
+		CSP_CASE_CLOSING_RFID_STATUS_UPPER_START:	
+					
+			axis_move_absolute(
+					position         := csp_case_closing_os_upper.RFID_check_pos, 
+					velocity         := ClosingRfidCheckVel,
+					direction        := AXIS_SHORTEST_WAY,
+					acceleration     := MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration     := MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk             := MOTOR_MAX_JERK_DEGPS3,
+					buffer_mode     := AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_os_upper.axis);  
+					
+				axis_move_absolute(
+					position         := csp_case_closing_ls_upper.RFID_check_pos,
+					velocity         := ClosingRfidCheckVel*0.76,
+					direction        := AXIS_SHORTEST_WAY,
+					acceleration     := MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration     := MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk             := MOTOR_MAX_JERK_DEGPS3,
+					buffer_mode     := AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_ls_upper.axis);  
+			IF axis_is_absolute_moving(csp_case_closing_ls_upper.axis) 
+				AND axis_is_absolute_moving(csp_case_closing_os_upper.axis) 
+			THEN
+				RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_UPPER_VERIFY_AXIS_POS;
+			END_IF
+			
+		CSP_CASE_CLOSING_RFID_STATUS_UPPER_VERIFY_AXIS_POS:
+			
+			IF 	(ABS(csp_case_closing_ls_upper.axis.actual_modulo_position - csp_case_closing_ls_upper.rfid_check_pos)) < check_pos_tolerance
+				AND
+				(ABS(csp_case_closing_os_upper.axis.actual_modulo_position - csp_case_closing_os_upper.rfid_check_pos)) < check_pos_tolerance
+				THEN
+					RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_UPPER_READ_START;
+			END_IF
+		
+			
+		CSP_CASE_CLOSING_RFID_STATUS_UPPER_READ_START: 
+		
+			IF 	(
+					(
+						ls_rfid_input_bitheader_1.CP 
+						AND ls_rfid_input_bitheader_2.CP
+						AND os_rfid_input_bitheader_1.CP 
+						AND os_rfid_input_bitheader_2.CP
+					)
+					OR RFID_read_bypass
+				)  //added 05/17/21 PRS
+				AND axis_is_standstill(csp_case_closing_ls_upper.axis)
+				AND axis_is_standstill(csp_case_closing_os_upper.axis)
+			THEN
+				rfid_start_toggle := TRUE; 
+				rfid_read_toggle := csp_main_accuchange.RFID_reading;
+				rfid_write_toggle := csp_main_accuchange.RFID_writing;
+				RFID_status_next := SEL(rfid_read_toggle,CSP_CASE_CLOSING_RFID_STATUS_UPPER_RETURN_TO_SAFE_POS,CSP_CASE_CLOSING_RFID_STATUS_UPPER_READ_CHECK_RESULT);
+			END_IF
+				
+					
+		CSP_CASE_CLOSING_RFID_STATUS_UPPER_READ_CHECK_RESULT: //wait for successful read and store values
+		
+			IF 	rfid_read_success
+			THEN
+				ls_upper_rfid_read_value := ls_rfid_value;
+				os_upper_rfid_read_value := os_rfid_value;
+				IF 	ls_rfid_value = os_rfid_value
+					OR RFID_read_bypass 
+				THEN
+					rfid_value_to_check := os_rfid_value;
+					RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_UPPER_RETURN_TO_SAFE_POS;					
+				END_IF
+			END_IF
+			
+			
+		CSP_CASE_CLOSING_RFID_STATUS_UPPER_RETURN_TO_SAFE_POS:
+			
+				axis_move_absolute(
+					position         := csp_case_closing_os_upper.accu_safe_pos, //highest point of paddle
+					velocity         := ClosingRfidCheckVel,
+					direction        := AXIS_SHORTEST_WAY,
+					acceleration     := MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration     := MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk             := MOTOR_MAX_JERK_DEGPS3,
+					buffer_mode     := AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_os_upper.axis);  
+					
+				axis_move_absolute(
+					position         := csp_case_closing_ls_upper.accu_safe_pos, //highest point of paddle
+					velocity         := ClosingRfidCheckVel*0.76,
+					direction        := AXIS_SHORTEST_WAY,
+					acceleration     := MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration     := MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk             := MOTOR_MAX_JERK_DEGPS3,
+					buffer_mode     := AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_ls_upper.axis); 
+					
+				IF 	axis_is_absolute_moving(csp_case_closing_ls_upper.axis) 
+					AND axis_is_absolute_moving(csp_case_closing_os_upper.axis) 
+				THEN
+					RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_UPPER_READ_DONE;
+				END_IF						
+			
+			
+		CSP_CASE_CLOSING_RFID_STATUS_UPPER_READ_DONE://upper has been checked, and is clear to return to safe pos. waits until uppers moved back to safe position
+		
+			IF csp_case_closing_ls_upper.in_accu_safe_pos 
+				AND csp_case_closing_os_upper.in_accu_safe_pos
+			THEN
+				RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_LOWER_START;
+			END_IF
+			
+		CSP_CASE_CLOSING_RFID_STATUS_LOWER_START:	
+					
+			axis_move_absolute(
+					position         := csp_case_closing_os_LOWER.RFID_check_pos, 
+					velocity         := ClosingRfidCheckVel,
+					direction        := AXIS_SHORTEST_WAY,
+					acceleration     := MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration     := MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk             := MOTOR_MAX_JERK_DEGPS3,
+					buffer_mode     := AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_os_lower.axis);  
+					
+				axis_move_absolute(
+					position         := csp_case_closing_ls_lower.RFID_check_pos,
+					velocity         := ClosingRfidCheckVel,
+					direction        := AXIS_SHORTEST_WAY,
+					acceleration     := MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration     := MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk             := MOTOR_MAX_JERK_DEGPS3,
+					buffer_mode      := AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_ls_lower.axis);  
+				IF axis_is_absolute_moving(csp_case_closing_ls_lower.axis) 
+					AND axis_is_absolute_moving(csp_case_closing_os_LOWER.axis) 
+				THEN
+					RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_LOWER_VERIFY_AXIS_POS;
+				END_IF
+				
+		CSP_CASE_CLOSING_RFID_STATUS_LOWER_VERIFY_AXIS_POS:
+			
+			IF 	ABS(csp_case_closing_os_LOWER.axis.actual_modulo_position - csp_case_closing_os_LOWER.rfid_check_pos) < check_pos_tolerance
+				AND
+				ABS(csp_case_closing_ls_lower.axis.actual_modulo_position - csp_case_closing_ls_lower.rfid_check_pos) < check_pos_tolerance
+				
+			THEN
+				RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_LOWER_READ_START;
+			END_IF
+		
+			
+		CSP_CASE_CLOSING_RFID_STATUS_LOWER_READ_START: 
+		
+			IF (
+					(
+						ls_rfid_input_bitheader_1.CP 
+						AND ls_rfid_input_bitheader_2.CP
+						AND os_rfid_input_bitheader_1.CP 
+						AND os_rfid_input_bitheader_2.CP
+					)
+					OR RFID_read_bypass
+				)
+				AND axis_is_standstill(csp_case_closing_os_LOWER.axis)
+				AND axis_is_standstill(csp_case_closing_ls_LOWER.axis)
+			THEN
+				rfid_start_toggle := TRUE; 
+				rfid_read_toggle := csp_main_accuchange.RFID_reading;
+				rfid_write_toggle := csp_main_accuchange.RFID_writing;
+				RFID_status_next := SEL(rfid_read_toggle,CSP_CASE_CLOSING_RFID_STATUS_LOWER_RETURN_TO_SAFE_POS,CSP_CASE_CLOSING_RFID_STATUS_LOWER_READ_CHECK_RESULT);
+			END_IF
+				
+					
+		CSP_CASE_CLOSING_RFID_STATUS_LOWER_READ_CHECK_RESULT: //wait for successful read and store values
+		
+			IF rfid_read_success
+			THEN
+				ls_lower_rfid_read_value := ls_rfid_value;
+				os_lower_rfid_read_value := os_rfid_value;
+				IF ls_rfid_value = os_rfid_value
+				THEN
+					rfid_value_to_check := os_rfid_value;
+					RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_LOWER_RETURN_TO_SAFE_POS;
+				END_IF
+			END_IF
+			
+		CSP_CASE_CLOSING_RFID_STATUS_LOWER_RETURN_TO_SAFE_POS:
+			
+				axis_move_absolute(
+					position         := csp_case_closing_os_lower.accu_safe_pos, //highest point of paddle
+					velocity         := ClosingRfidCheckVel,
+					direction        := AXIS_SHORTEST_WAY,
+					acceleration     := MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration     := MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk             := MOTOR_MAX_JERK_DEGPS3,
+					buffer_mode     := AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_os_lower.axis);  
+					
+				axis_move_absolute(
+					position         := csp_case_closing_ls_lower.accu_safe_pos, //highest point of paddle
+					velocity         := ClosingRfidCheckVel,
+					direction        := AXIS_SHORTEST_WAY,
+					acceleration     := MOTOR_MAX_ACCELLERATION_DEGPS2 / 10,
+					deceleration     := MOTOR_MAX_DECELLERATION_DEGPS2 / 10,
+					jerk             := MOTOR_MAX_JERK_DEGPS3,
+					buffer_mode     := AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_closing_ls_lower.axis); 
+					
+				IF 	axis_is_absolute_moving(csp_case_closing_os_lower.axis) 
+					AND axis_is_absolute_moving(csp_case_closing_ls_lower.axis) 
+				THEN
+					RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_LOWER_READ_DONE;
+				END_IF						
+			
+			
+		CSP_CASE_CLOSING_RFID_STATUS_LOWER_READ_DONE://upper has been checked, and is clear to return to safe pos. waits until uppers moved back to safe position
+		
+			IF	csp_case_closing_ls_lower.in_accu_safe_pos 
+				AND csp_case_closing_os_lower.in_accu_safe_pos
+			THEN
+				RFID_status_next := SEL(rfid_read_toggle, CSP_CASE_CLOSING_RFID_STATUS_COMPLETE, CSP_CASE_CLOSING_RFID_STATUS_VERIFY_VALUES);
+			END_IF
+			
+		CSP_CASE_CLOSING_RFID_STATUS_VERIFY_VALUES://checks all four paddles rfid value to be equal
+		
+			IF ls_lower_rfid_read_value = rfid_value_to_check
+				AND os_lower_rfid_read_value = rfid_value_to_check
+				AND ls_upper_rfid_read_value = rfid_value_to_check
+				AND os_upper_rfid_read_value = rfid_value_to_check
+			THEN
+				RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_COMPLETE;
+			ELSE
+				RFID_status_next := CSP_CASE_CLOSING_RFID_STATUS_ERROR;
+			END_IF
+			
+		CSP_CASE_CLOSING_RFID_STATUS_COMPLETE://checks are complete
+		
+			rfid_write_done := TRUE;
+			rfid_read_done := TRUE;			
+			Closing_RFID_Check_Complete := TRUE;
+			
+		
+		CSP_CASE_CLOSING_RFID_STATUS_ERROR: //rfid error
+		
+			rfid_write_done := TRUE;
+			rfid_read_done := TRUE;		
+			Closing_RFID_Check_Complete :=FALSE;
+			//process_message_set(0,0,0,Closing_paddle_rfid_error); (* Moved to csp_main_accuChange *)
+			IF ls_lower_rfid_read_value <> rfid_value_to_check
+			THEN
+				process_message_set(0,0,0,LS_Lower_RFID_Failed);
+			ELSIF os_lower_rfid_read_value <> rfid_value_to_check THEN
+				process_message_set(0,0,0,OS_Lower_RFID_Failed);
+			ELSIF ls_upper_rfid_read_value <> rfid_value_to_check THEN
+				process_message_set(0,0,0,LS_Upper_RFID_Failed);
+			ELSIF os_upper_rfid_read_value <> rfid_value_to_check THEN
+				process_message_set(0,0,0,OS_Upper_RFID_Failed);
+			END_IF
+			
+	END_CASE
+END_IF
+(* Resets RFID Failed Messages on Reset  *)
+IF machine_get_reset_edge(csp.mch)
+THEN
+	process_message_reset(LS_Lower_RFID_Failed);
+	process_message_reset(OS_Lower_RFID_Failed);
+	process_message_reset(LS_Upper_RFID_Failed);
+	process_message_reset(OS_Upper_RFID_Failed);
+END_IF
+
+
+
+
+(* ADVANCES TO NEXT STEP *)
+IF 	NOT RFID_read_write_debug
+	OR
+	RFID_read_write_one_step	
+THEN
+	RFID_status := RFID_status_next;
+	RFID_read_write_one_step := FALSE;
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{1d8bee07-5ca4-46c6-bd84-7ae9a42df426}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{21cd6d53-120c-4f84-b066-d49ee65f5257}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{55be8bd2-b4c4-43e0-8e52-8a04f74953c5}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{e55d8f5d-eb9a-4d62-8d43-4b0ccaebed19}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_closing.prc', 
+		process						:= csp_case.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	process_message_init(
+        object_name:= CONCAT(prc_path, 'Closing_paddle_rfid_error'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_OBLIGATION, 
+        process:= prc,
+        CONVERSION_this:= Closing_paddle_rfid_error);
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, 'LS_Lower_RFID_Failed'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NORMAL_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL, 
+        process:= prc,
+        CONVERSION_this:= LS_Lower_RFID_Failed);
+
+	process_message_init(
+        object_name:= CONCAT(prc_path, 'OS_Lower_RFID_Failed'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NORMAL_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL, 
+        process:= prc,
+        CONVERSION_this:= OS_Lower_RFID_Failed);
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, 'LS_Upper_RFID_Failed'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NORMAL_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL, 
+        process:= prc,
+        CONVERSION_this:= LS_Upper_RFID_Failed);
+
+	process_message_init(
+        object_name:= CONCAT(prc_path, 'OS_Upper_RFID_Failed'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NORMAL_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL,
+        process:= prc,
+        CONVERSION_this:= OS_Upper_RFID_Failed);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{dc9ae972-2cd4-42f8-8b53-48051231ed92}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{c3937f32-d454-4a4c-a462-0069da2d8b90}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{92fa9845-ca0f-4bd4-8ba5-58f7ab9d219a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{8e15b9fd-9cfe-470a-b781-750507d90121}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="RFID" Id="{550be2fc-9414-0cd5-1780-43c4227889a9}">
+      <Implementation>
+        <ST><![CDATA[(* LS *)
+ls_rfid_input_bitheader_1.CP := ls_rfid_input_buffer.ByteArr[0].0;
+ls_rfid_input_bitheader_1.AA := ls_rfid_input_buffer.ByteArr[0].1;
+ls_rfid_input_bitheader_1.AE := ls_rfid_input_buffer.ByteArr[0].2;
+ls_rfid_input_bitheader_1.AF := ls_rfid_input_buffer.ByteArr[0].3;
+ls_rfid_input_bitheader_1.Bit4 := ls_rfid_input_buffer.ByteArr[0].4;
+ls_rfid_input_bitheader_1._TO := ls_rfid_input_buffer.ByteArr[0].5;
+ls_rfid_input_bitheader_1.HF := ls_rfid_input_buffer.ByteArr[0].6;
+ls_rfid_input_bitheader_1.BB := ls_rfid_input_buffer.ByteArr[0].7;
+
+ls_rfid_input_bitheader_2.CP := ls_rfid_input_buffer.ByteArr[0].0;
+ls_rfid_input_bitheader_2.AA := ls_rfid_input_buffer.ByteArr[0].1;
+ls_rfid_input_bitheader_2.AE := ls_rfid_input_buffer.ByteArr[0].2;
+ls_rfid_input_bitheader_2.AF := ls_rfid_input_buffer.ByteArr[0].3;
+ls_rfid_input_bitheader_2.Bit4 := ls_rfid_input_buffer.ByteArr[0].4;
+ls_rfid_input_bitheader_2._TO := ls_rfid_input_buffer.ByteArr[0].5;
+ls_rfid_input_bitheader_2.HF := ls_rfid_input_buffer.ByteArr[0].6;
+ls_rfid_input_bitheader_2.BB := ls_rfid_input_buffer.ByteArr[0].7;
+
+ls_rfid_output_buffer.ByteArr[0].0 := ls_rfid_output_bitheader_1.AV ;
+ls_rfid_output_buffer.ByteArr[0].1 := ls_rfid_output_bitheader_1.Bit1;
+ls_rfid_output_buffer.ByteArr[0].2 := ls_rfid_output_bitheader_1.GR;
+ls_rfid_output_buffer.ByteArr[0].3 := ls_rfid_output_bitheader_1.Bit3;
+ls_rfid_output_buffer.ByteArr[0].4 := ls_rfid_output_bitheader_1.Bit4;
+ls_rfid_output_buffer.ByteArr[0].5 := ls_rfid_output_bitheader_1.KA;
+ls_rfid_output_buffer.ByteArr[0].6 := ls_rfid_output_bitheader_1.TI;
+ls_rfid_output_buffer.ByteArr[0].7 := ls_rfid_output_bitheader_1.Bit7;
+
+ls_rfid_output_buffer.ByteArr[9].0 := ls_rfid_output_bitheader_2.AV ;
+ls_rfid_output_buffer.ByteArr[9].1 := ls_rfid_output_bitheader_2.Bit1;
+ls_rfid_output_buffer.ByteArr[9].2 := ls_rfid_output_bitheader_2.GR;
+ls_rfid_output_buffer.ByteArr[9].3 := ls_rfid_output_bitheader_2.Bit3;
+ls_rfid_output_buffer.ByteArr[9].4 := ls_rfid_output_bitheader_2.Bit4;
+ls_rfid_output_buffer.ByteArr[9].5 := ls_rfid_output_bitheader_2.KA;
+ls_rfid_output_buffer.ByteArr[9].6 := ls_rfid_output_bitheader_2.TI;
+ls_rfid_output_buffer.ByteArr[9].7 := ls_rfid_output_bitheader_2.Bit7;
+
+
+(* OS *)
+os_rfid_input_bitheader_1.CP := os_rfid_input_buffer.ByteArr[0].0;
+os_rfid_input_bitheader_1.AA := os_rfid_input_buffer.ByteArr[0].1;
+os_rfid_input_bitheader_1.AE := os_rfid_input_buffer.ByteArr[0].2;
+os_rfid_input_bitheader_1.AF := os_rfid_input_buffer.ByteArr[0].3;
+os_rfid_input_bitheader_1.Bit4 := os_rfid_input_buffer.ByteArr[0].4;
+os_rfid_input_bitheader_1._TO := os_rfid_input_buffer.ByteArr[0].5;
+os_rfid_input_bitheader_1.HF := os_rfid_input_buffer.ByteArr[0].6;
+os_rfid_input_bitheader_1.BB := os_rfid_input_buffer.ByteArr[0].7;
+
+os_rfid_input_bitheader_2.CP := os_rfid_input_buffer.ByteArr[0].0;
+os_rfid_input_bitheader_2.AA := os_rfid_input_buffer.ByteArr[0].1;
+os_rfid_input_bitheader_2.AE := os_rfid_input_buffer.ByteArr[0].2;
+os_rfid_input_bitheader_2.AF := os_rfid_input_buffer.ByteArr[0].3;
+os_rfid_input_bitheader_2.Bit4 := os_rfid_input_buffer.ByteArr[0].4;
+os_rfid_input_bitheader_2._TO := os_rfid_input_buffer.ByteArr[0].5;
+os_rfid_input_bitheader_2.HF := os_rfid_input_buffer.ByteArr[0].6;
+os_rfid_input_bitheader_2.BB := os_rfid_input_buffer.ByteArr[0].7;
+
+os_rfid_output_buffer.ByteArr[0].0 := os_rfid_output_bitheader_1.AV ;
+os_rfid_output_buffer.ByteArr[0].1 := os_rfid_output_bitheader_1.Bit1;
+os_rfid_output_buffer.ByteArr[0].2 := os_rfid_output_bitheader_1.GR;
+os_rfid_output_buffer.ByteArr[0].3 := os_rfid_output_bitheader_1.Bit3;
+os_rfid_output_buffer.ByteArr[0].4 := os_rfid_output_bitheader_1.Bit4;
+os_rfid_output_buffer.ByteArr[0].5 := os_rfid_output_bitheader_1.KA;
+os_rfid_output_buffer.ByteArr[0].6 := os_rfid_output_bitheader_1.TI;
+os_rfid_output_buffer.ByteArr[0].7 := os_rfid_output_bitheader_1.Bit7;
+
+os_rfid_output_buffer.ByteArr[9].0 := os_rfid_output_bitheader_2.AV ;
+os_rfid_output_buffer.ByteArr[9].1 := os_rfid_output_bitheader_2.Bit1;
+os_rfid_output_buffer.ByteArr[9].2 := os_rfid_output_bitheader_2.GR;
+os_rfid_output_buffer.ByteArr[9].3 := os_rfid_output_bitheader_2.Bit3;
+os_rfid_output_buffer.ByteArr[9].4 := os_rfid_output_bitheader_2.Bit4;
+os_rfid_output_buffer.ByteArr[9].5 := os_rfid_output_bitheader_2.KA;
+os_rfid_output_buffer.ByteArr[9].6 := os_rfid_output_bitheader_2.TI;
+os_rfid_output_buffer.ByteArr[9].7 := os_rfid_output_bitheader_2.Bit7;
+
+
+IF rfid_start_toggle
+THEN
+	ls_rfid_output_bitheader_1.GR := FALSE;
+	ls_rfid_output_bitheader_1.KA := FALSE;
+	ls_rfid_output_bitheader_1.AV := FALSE;
+	ls_rfid_output_bitheader_2.GR := FALSE;
+	ls_rfid_output_bitheader_2.KA := FALSE;
+	ls_rfid_output_bitheader_2.AV := FALSE;
+	
+	os_rfid_output_bitheader_1.GR := FALSE;
+	os_rfid_output_bitheader_1.KA := FALSE;
+	os_rfid_output_bitheader_1.AV := FALSE;
+	os_rfid_output_bitheader_2.GR := FALSE;
+	os_rfid_output_bitheader_2.KA := FALSE;
+	os_rfid_output_bitheader_2.AV := FALSE;
+	
+	rfid_start_toggle := FALSE;
+END_IF
+
+IF rfid_shutdown_toggle
+THEN
+	ls_rfid_output_bitheader_1.KA := TRUE;
+	ls_rfid_output_bitheader_2.KA := TRUE;
+	
+	os_rfid_output_bitheader_1.KA := TRUE;
+	os_rfid_output_bitheader_2.KA := TRUE;
+		
+	IF 	ls_rfid_input_bitheader_1.HF
+		AND ls_rfid_input_bitheader_2.HF
+	
+		AND os_rfid_input_bitheader_1.HF
+		AND os_rfid_input_bitheader_2.HF
+	
+		AND NOT ls_rfid_input_bitheader_1.CP
+		AND NOT ls_rfid_input_bitheader_2.CP
+	
+		AND NOT os_rfid_input_bitheader_1.CP
+		AND NOT os_rfid_input_bitheader_2.CP
+	THEN
+		ls_rfid_output_bitheader_1.KA := FALSE;
+		ls_rfid_output_bitheader_2.KA := FALSE;
+		
+		os_rfid_output_bitheader_1.KA := FALSE;
+		os_rfid_output_bitheader_2.KA := FALSE;
+		
+		rfid_shutdown_toggle := FALSE;
+	END_IF	
+END_IF
+
+IF rfid_write_toggle //OR i_rfid_write_from_hmi
+THEN	
+	ls_rfid_output_buffer.ByteArr[1] := 16#0032;
+	ls_rfid_output_buffer.ByteArr[2] := 16#00;
+	ls_rfid_output_buffer.ByteArr[3] := 16#00;
+	ls_rfid_output_buffer.ByteArr[4] := 16#0001;
+	ls_rfid_output_buffer.ByteArr[5] := 16#00;
+	ls_rfid_output_buffer.ByteArr[6] := rfid_value_to_write;
+	
+	os_rfid_output_buffer.ByteArr[1] := 16#0032;
+	os_rfid_output_buffer.ByteArr[2] := 16#00;
+	os_rfid_output_buffer.ByteArr[3] := 16#00;
+	os_rfid_output_buffer.ByteArr[4] := 16#0001;
+	os_rfid_output_buffer.ByteArr[5] := 16#00;
+	os_rfid_output_buffer.ByteArr[6] := rfid_value_to_write;
+	
+	ls_rfid_output_bitheader_1.AV := TRUE;
+	ls_rfid_output_bitheader_2.AV := TRUE;
+	
+	os_rfid_output_bitheader_1.AV := TRUE;
+	os_rfid_output_bitheader_2.AV := TRUE;
+	
+	IF ls_rfid_input_bitheader_1.AA 
+		AND ls_rfid_input_bitheader_2.AA 
+		AND ls_rfid_input_bitheader_1.AE
+		AND ls_rfid_input_bitheader_2.AE
+		
+		AND os_rfid_input_bitheader_1.AA 
+		AND os_rfid_input_bitheader_2.AA 
+		AND os_rfid_input_bitheader_1.AE
+		AND os_rfid_input_bitheader_2.AE
+	THEN
+		ls_rfid_output_bitheader_1.AV := FALSE;
+		ls_rfid_output_bitheader_2.AV := FALSE;
+		
+		os_rfid_output_bitheader_1.AV := FALSE;
+		os_rfid_output_bitheader_2.AV := FALSE;
+		
+		rfid_write_toggle := FALSE;
+	END_IF		
+END_IF
+
+IF rfid_read_toggle 
+THEN
+	rfid_read_success := FALSE;	
+	ls_rfid_output_buffer.ByteArr[1] := 16#0001;
+	ls_rfid_output_buffer.ByteArr[2] := 16#00;
+	ls_rfid_output_buffer.ByteArr[3] := 16#00;
+	ls_rfid_output_buffer.ByteArr[4] := 16#0001;
+	ls_rfid_output_buffer.ByteArr[5] := 16#00;
+	
+	os_rfid_output_buffer.ByteArr[1] := 16#0001;
+	os_rfid_output_buffer.ByteArr[2] := 16#00;
+	os_rfid_output_buffer.ByteArr[3] := 16#00;
+	os_rfid_output_buffer.ByteArr[4] := 16#0001;
+	os_rfid_output_buffer.ByteArr[5] := 16#00;
+	
+	ls_rfid_output_bitheader_1.AV := TRUE;
+	ls_rfid_output_bitheader_2.AV := TRUE;
+	ls_rfid_value := 0;
+	
+	os_rfid_output_bitheader_1.AV := TRUE;
+	os_rfid_output_bitheader_2.AV := TRUE;
+	os_rfid_value := 0;
+	
+	IF ls_rfid_input_bitheader_1.AA 
+		AND ls_rfid_input_bitheader_2.AA 
+		AND ls_rfid_input_bitheader_1.AE
+		AND ls_rfid_input_bitheader_2.AE
+		
+		AND os_rfid_input_bitheader_1.AA 
+		AND os_rfid_input_bitheader_2.AA 
+		AND os_rfid_input_bitheader_1.AE
+		AND os_rfid_input_bitheader_2.AE
+	THEN
+		// SAVE VALUES IN INPUT BUFFER [1...8] - CHECK WITH BRAND FOR WHAT VALUE SHOULD BE PRESENT
+		ls_rfid_value := ls_rfid_input_buffer.ByteArr[1];
+		ls_rfid_output_bitheader_1.AV := FALSE;
+		ls_rfid_output_bitheader_2.AV := FALSE;
+		
+		os_rfid_value := os_rfid_input_buffer.ByteArr[1];
+		os_rfid_output_bitheader_1.AV := FALSE;
+		os_rfid_output_bitheader_2.AV := FALSE;
+		
+		IF ls_rfid_value <> 0 AND os_rfid_value <> 0
+		THEN
+			rfid_read_success := TRUE;
+		END_IF
+		rfid_read_toggle := FALSE;
+	END_IF		
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

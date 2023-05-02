@@ -1,0 +1,491 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_loader" Id="{317c2714-1b36-4a4a-94bd-5af0a173937b}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_loader
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	load_request:                                   BOOL:=FALSE;
+ 	case_at_loading_sr:								INT:=26;
+	product_at_loading_sr:							INT:=25;
+	
+	shift_test1: 									BOOL;
+	test_1: 										BOOL := FALSE;
+	
+	follower_clear_test: 							BOOL := FALSE;
+	follower_tolerance: 							INT := 16;
+	follower_clear: 								BOOL := FALSE;
+	horizontal_clear: 								BOOL := FALSE;
+	load_ready_at_loader: 							BOOL := FALSE;
+	cases_primed:									BOOL := FALSE;
+	case_at_loader:									BOOL := FALSE;
+	
+	dry_cycle_on:									BOOL := FALSE;
+	dry_cycle_turned_off_clear_prime:				BOOL;
+	
+	case_removed_at_feed:							BOOL := FALSE;
+	case_removed_at_feed_cbtn:						command_button;
+
+	case_removed_at_loader_cbtn:                    command_button;
+    case_removed_at_loader:                         BOOL := FALSE;
+	
+	phasing_order_done:								BOOL;
+	phase_leading_minor:							BOOL;
+	phase_loader_guides:							BOOL;
+	phase_loader_pusher:							BOOL;
+	phase_follower:									BOOL;
+	
+	phasing_status:									csp_case_phasing_enum;
+	phasing_status_next:							csp_case_phasing_enum;
+		
+	phase_conditions:								BOOL;
+	
+	
+	cases_primed_ph:								phase;
+	cases_primed_check_deg:							LREAL := 353;
+	
+	
+	Clear_out_cartons_at_Loader: 					message;
+	bypass_new_phase: 								BOOL := TRUE;
+	
+	phase_timer:									TON;
+	phase_timer_enable:								BOOL := FALSE;
+	phase_timer_limit:								TIME := T#20S;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF 	shift_register_step_has_status_item(
+		step_id := 25,
+		status_bits_to_be_true := ITEM_CASE_FEED,
+		status_bits_to_be_false := 0,
+		CONVERSION_this :=csp_case_main_statistics.sr) 
+THEN
+	cases_primed := TRUE;
+ELSE 
+	cases_primed := FALSE;
+END_IF
+
+IF 	shift_register_step_has_status_item(
+		step_id := 26,
+		status_bits_to_be_true := ITEM_CASE_FEED,
+		status_bits_to_be_false := 0,
+		CONVERSION_this :=csp_case_main_statistics.sr) 
+THEN
+	case_at_loader := TRUE;
+ELSE 
+	case_at_loader := FALSE;
+END_IF
+
+(* AT RESET IT TURNS ON THE FOLLOWER IS CLEAR TO START*)
+IF 	machine_get_reset_edge(CSP.mch)
+THEN
+	follower_clear_test := TRUE;
+END_IF
+
+
+(* VERIFIES LOADER IS CLEAR AND WILL NOT RUN *)
+IF 	follower_clear_test
+	OR ABS(csp_transfer_crosspusher_follower.axis.actual_position - csp_transfer_crosspusher_follower.slave_scaling) < follower_tolerance
+THEN
+	follower_clear := TRUE;
+ELSE
+	follower_clear := FALSE;
+END_IF	
+
+IF 	csp_transfer_crosspusher_horizontal.axis.actual_position > -1  
+THEN
+	horizontal_clear := TRUE;
+ELSE
+	horizontal_clear := FALSE;
+END_IF
+
+
+//IF phase_edge(csp_case_loader_virtualMaster.load_check_ph)
+IF 	csp_transfer_upstacker.stack_at_loader (* STACK HAS BEEN PUSHED FROM UPSTACKER TO LOAD *)
+//AND horizontal_clear(* FOLLOWER AT LOAD *)
+//AND follower_Clear
+	AND NOT csp_transfer_crosspusher_sensors.reject_stack (* NOT REJECT STACK *)
+	AND NOT csp_transfer_crosspusher_sensors.stack_fail (* NOT STACK FAIL *)
+	AND NOT csp_transfer_crosspusher_sensors.no_load_bool.status (* NOT NO LOAD *)
+THEN
+	load_ready_at_loader := TRUE; // STACK AT LOADER AND HORIZONTAL AND FOLLOWER CLEAR
+ELSE
+	load_ready_at_loader := FALSE;
+END_IF
+
+
+(* PRIMES CASES - KEEPS PRIMED IF IN JOG *)
+IF 	jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)	
+THEN
+	shift_register_set_status_item(
+		step_id                 :=  25,
+		status_bits_to_set      :=  ITEM_CASE_FEED,
+		status_bits_to_reset    :=  0,
+		CONVERSION_this         :=  csp_case_main_statistics.sr);//cases_primed := TRUE;
+END_IF
+
+
+(* MANUAL REMOVAL OF CASES PRIMED*)
+IF 	command_button_is_pressed(case_removed_at_feed_cbtn) 
+THEN
+	case_removed_at_feed := TRUE;
+ELSE
+	case_removed_at_feed := FALSE;
+END_IF
+
+
+(* CONDITIONS TO CLEAR CASES PRIMED *)
+IF 	case_removed_at_feed
+//OR csp_case_transport_virtualMaster.STOP_FOR_REJECT
+//OR csp_case_transport_virtualMaster.Bad_case_detected
+//OR dry_cycle_turned_off_clear_prime //MOVED TO CSP_CASE_MAIN_STATISTICS TO CLEAR OUT WHOLE SR!
+//OR csp_case_feed_arm_sensors.mispick_count >= 1 //AMR 3_16_2021
+	OR process_message_is_on(csp_case_virtualMaster.runout_complete)
+	OR message_is_on(csp_case_feed_arm_sensors.Mispicked_Case_aem)	
+	OR csp_main_accuChange.Brand_Change_Occurred
+THEN
+	shift_register_set_default_step(25,csp_case_main_statistics.sr);//cases_primed := FALSE;
+	dry_cycle_turned_off_clear_prime := FALSE;
+END_IF
+
+
+
+
+(* TOGGLES ON DRY CYCLE TO SET FOR BIT CLEARING *)
+IF 	csp_case_main_services.dry_cycle_mode
+THEN
+	dry_cycle_on := TRUE;
+END_IF
+
+IF 	dry_cycle_on
+	AND NOT csp_case_main_services.dry_cycle_mode
+THEN
+	dry_cycle_turned_off_clear_prime := TRUE;
+	dry_cycle_on := FALSE;
+END_IF
+
+
+
+(* PHASE EDGE FOR CASE VIRTUAL TO DETERMINE CASES PRIMED *)
+phase_set_data(
+	phase				:= cases_primed_check_deg,
+	delay				:= 0,			
+	max_compensation	:= 0,			
+	CONVERSION_this		:= cases_primed_ph);
+
+
+
+IF 	shift_register_step_has_status_item(
+		step_id := product_at_loading_sr,
+		status_bits_to_be_true := ITEM_HAS_TRANSFER_LOAD_BUILD_COMPLETE, // ITEM_PRESENT,
+		status_bits_to_be_false := 0,
+		CONVERSION_this :=csp_case_main_statistics.sr)
+THEN
+	shift_test1 := TRUE;
+ELSE
+	shift_test1 := FALSE;
+END_IF
+
+
+IF  shift_register_step_has_status_item(
+   		step_id := case_at_loading_sr,
+    	status_bits_to_be_true :=  ITEM_HAS_LS_LOWER_FLAP + ITEM_HAS_LS_UPPER_FLAP + ITEM_HAS_OS_LOWER_FLAP + ITEM_HAS_OS_UPPER_FLAP,
+    	status_bits_to_be_false := 0,
+    	CONVERSION_this :=csp_case_main_statistics.sr)
+		
+	AND load_ready_at_loader
+	AND NOT csp_case_loader_virtualMaster.product_loaded 
+	AND NOT test_1
+THEN
+    load_request :=TRUE;
+ELSE
+    load_request :=FALSE;
+END_IF
+
+IF 	(csp_case_transport_virtualMaster.axis.actual_modulo_position = 358//csp_case_loader_virtualMaster.At_Reject_product_loaded 
+	AND csp_case_transport_virtualMaster.stop_for_reject)
+THEN
+	test_1 := TRUE;
+ELSIF csp_case_feed.Feed_request
+THEN
+	test_1 := FALSE;
+END_IF
+	
+(* Axes engaged for jog management *) 
+jog_manager_set_all_slave_axis_engaged(
+	index					:= JOG_LIST_CSP_CASE_loader_VIRTUAL, 
+	all_slave_axis_engaged	:= csp_case_loader_virtualMaster.loader_slaves_cammed,						 	
+	CONVERSION_this			:= csp_main_jogManager.jog_manager_virtual);
+
+	
+	
+(* LOGIC TO HANDLE PHASING SEQUENCE OF TRAILING MINOR CLOSER LS, LOADER GUIDES UP/DOWN, LOADER PUSHER, CROSSPUSHER FOLLOWER *)
+
+(* TURNS OFF PHASING ORDER DONE IF ANY AXES BECOME NOT CAM ENGAGED *)
+(*IF NOT axis_is_cam_engaged(csp_case_fc_ls_upper_leadingMinorCloser.axis)
+AND NOT axis_is_cam_engaged(csp_case_loader_guide_downstream.axis)
+AND NOT axis_is_cam_engaged(csp_case_loader_guide_upstream.axis)
+AND NOT axis_is_cam_engaged(csp_case_loader_pusher.axis)
+AND NOT axis_is_cam_engaged(csp_transfer_crosspusher_follower.axis)
+AND NOT bypass_new_phase*)
+IF 	csp.o_machine_is_stopped
+	AND NOT bypass_new_phase
+THEN
+	phasing_order_done := FALSE;
+	
+	phase_leading_minor := FALSE;
+	phase_loader_guides := FALSE;
+	phase_loader_pusher := FALSE;
+	phase_follower := FALSE;
+	//phasing_status := CSP_CASE_PHASING_START;
+		
+END_IF
+
+IF 	NOT csp_main_accuChange.machine_size_complete //bypass logic during size change
+THEN
+	bypass_new_phase := TRUE;
+ELSE
+	;//bypass_new_phase := FALSE;
+END_IF
+
+IF 	bypass_new_phase
+THEN
+	phasing_order_done := TRUE;
+	phasing_status := CSP_CASE_PHASING_DONE;
+END_IF
+
+
+
+phase_conditions := 
+	process_is_ready(prc)
+	AND
+	process_subtree_is_ready(prc)
+	AND
+	NOT phasing_order_done;
+	
+(*Initialize phase timer*)	
+phase_timer(IN:= phase_timer_enable, PT:= phase_timer_limit);
+
+(*If time is elapsed, end phasing as to not get stuck and hang up other parts*)
+IF 	phase_timer.Q
+THEN
+	phasing_status := CSP_CASE_PHASING_DONE;
+END_IF
+	
+(* Exit condition *)
+IF 	NOT phase_conditions
+	OR csp_case_main_services_pushbuttons.reset_pressed
+	OR csp_transfer_main_services_pushbuttons.reset_pressed
+THEN
+	phasing_status_next := CSP_CASE_PHASING_ERROR;
+	phasing_status := phasing_status_next;	
+END_IF
+
+
+phasing_status := phasing_status_next;
+
+
+(* MANUAL REMOVAL OF CASES AT LOADER*)
+IF 	command_button_is_pressed(case_removed_at_loader_cbtn)
+THEN
+	shift_register_set_default_step(26,csp_case_main_statistics.sr);//case_at_loader := FALSE;
+	IF 	csp_transfer_upstacker.stack_in_case_at_loader
+	THEN
+		case_removed_at_loader := TRUE;
+	END_IF
+END_IF
+
+
+IF 	case_removed_at_loader
+	AND NOT case_at_loader
+	AND csp_transfer_upstacker.stack_at_loader
+	AND csp_case_loader_pusher.axis.actual_position > 700
+THEN
+    process_message_set(1,1,1, Clear_out_cartons_at_Loader);
+    case_removed_at_loader := FALSE;
+end_if
+
+ 
+
+IF 	NOT csp_case_main_safety_guards.sis.is_safely_closed //or NOT csp_transfer_main_safety_guards.sis.is_safely_closed
+    AND
+    process_message_is_on(Clear_out_cartons_at_Loader)
+THEN
+	process_message_reset(Clear_out_cartons_at_Loader);
+END_IF
+	
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{7978feb4-cc2b-4848-8016-537e277e3687}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{2eaa037f-eabd-4be3-9856-542680ff2427}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{4acdb51c-6e10-493a-9811-a819364efcbf}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{afd7e71c-b2b2-485d-9c10-2337d6b3c277}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+    sub_process_init(
+        object_name                    := 'csp_case_loader.prc', 
+        process                        := csp_case.prc, 
+        CONVERSION_this                := prc);
+        
+    prc_path                         := process_get_path(prc);
+    
+
+    command_button_init(
+        object_name                 := CONCAT(prc_path, '_case_removed_at_feed_cbtn'),
+        process                     := prc,
+        CONVERSION_this             := case_removed_at_feed_cbtn);    
+    
+    command_button_init(
+        object_name                 := CONCAT(prc_path, '_case_removed_at_loader_cbtn'),
+        process                     := prc,
+        CONVERSION_this             := case_removed_at_loader_cbtn);    
+        
+    phase_init(
+        object_name                 := CONCAT(prc_path, '_cases_primed_ph'),
+        phase                         := 0,    //Set at runtime!
+        delay                         := 0,
+        max_compensation             := 0,
+        generator                     := csp_case_feed_virtualMaster.case_fed_phgen, // CHANGE TO LOADER VIRTUAL PHGEN
+        process                     := prc,
+        CONVERSION_this             := cases_primed_ph);
+    
+    process_message_init(
+        object_name                    := CONCAT(prc_path, '_Clear_out_cartons_at_Loader'), 
+        behaviour                    := MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout                := 0,
+        disableable                    := TRUE,
+        individual_reset            := FALSE,
+        machine_reaction            := MACHINE_REACTION_EMERGENCY_STOP,
+        typology                    := MESSAGE_TYPOLOGY_ABNORMAL,
+        process                        := prc,
+        CONVERSION_this                := Clear_out_cartons_at_Loader);
+    
+    
+END_IF
+
+IF objects_running()
+THEN
+    process_cycle(prc);
+    
+    phase_cycle(cases_primed_ph);
+    
+    command_button_cycle(case_removed_at_feed_cbtn);
+    command_button_cycle(case_removed_at_loader_cbtn);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{c633aa1f-81a7-4daf-bff6-c518cdf68f9d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{b1852cba-2e9f-452f-97de-8381bd66467f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{a700ce92-efca-4043-aa19-696c3fe0dcc3}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{79a889f3-e04c-414b-9fbe-84423840d2e5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_case_loader">
+      <LineId Id="349" Count="279" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_loader._handle_messages">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_loader._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_loader._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_loader._object_manager">
+      <LineId Id="2" Count="50" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_loader._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_loader._read_var_input">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_loader._set_runtime_properties">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_loader._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

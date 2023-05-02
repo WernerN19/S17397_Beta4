@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<TcSmItem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2012/07/TcSmProject" TcSmVersion="1.0" TcVersion="3.1.4024.7" ClassName="CNvPubSubDef" SubType="9052">
+	<DataTypes>
+		<DataType>
+			<Name GUID="{604191F1-C292-416F-BD1E-CFD75694CE63}" IecBaseType="true" AutoDeleteType="true">ARRAY [0..3] OF DINT</Name>
+			<BitSize>128</BitSize>
+			<BaseType GUID="{18071995-0000-0000-0000-000000000009}">DINT</BaseType>
+			<ArrayInfo>
+				<LBound>0</LBound>
+				<Elements>4</Elements>
+			</ArrayInfo>
+		</DataType>
+	</DataTypes>
+	<Box Id="100" Disabled="true" BoxType="9052">
+		<Name>__FILENAME__</Name>
+		<ImageId>100</ImageId>
+		<Vars VarGrpType="1">
+			<Name>Inputs</Name>
+		</Vars>
+		<Vars VarGrpType="2">
+			<Name>Outputs</Name>
+		</Vars>
+		<Eap Mac="010105040000">
+			<EapVar Id="3" NvId="2" NvLength="16">
+				<Name>Flexlink_To_RAJ_Var</Name>
+				<ImageId>98</ImageId>
+				<Vars VarGrpType="1">
+					<Name>Inputs</Name>
+					<Var>
+						<Name>Quality</Name>
+						<Comment><![CDATA[Duration the variable is not refreshed (in 100µs)]]></Comment>
+						<Type>UINT</Type>
+					</Var>
+					<Var>
+						<Name>CycleIndex</Name>
+						<Comment><![CDATA[Incremented each publisher cycle]]></Comment>
+						<Type>UINT</Type>
+						<BitOffs>16</BitOffs>
+					</Var>
+					<Var>
+						<Name>VarData</Name>
+						<Type GUID="{604191F1-C292-416F-BD1E-CFD75694CE63}">ARRAY [0..3] OF DINT</Type>
+						<BitOffs>32</BitOffs>
+					</Var>
+				</Vars>
+				<Vars VarGrpType="2">
+					<Name>Outputs</Name>
+				</Vars>
+			</EapVar>
+		</Eap>
+	</Box>
+</TcSmItem>

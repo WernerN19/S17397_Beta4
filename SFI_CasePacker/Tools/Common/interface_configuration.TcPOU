@@ -1,0 +1,195 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="interface_configuration" Id="{68e4b81a-f95f-4b29-839e-64a996f598cd}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION interface_configuration : VOID
+VAR_IN_OUT
+	motman:																motorization_manager;
+	machine:															machine;
+		
+	cabinet_safety_controller:											safety_integrated_controller;
+	drives_safety_controller:											safety_integrated_controller;
+
+	cabinet_ethercat_master:											net_ethercat_master;
+	carton_forming_ethercat_master:										net_ethercat_master;	
+
+	emergency_series:													safety_integrated_series;	
+	delayed_emergency_series:											safety_integrated_series;
+
+	(* Machine encoders *)
+	wu_cartonPickup_drums_motorization_encoder_axis:					axis;
+	wu_cartonPickup_drums_motorization_simulation_encoder_axis:			axis;
+	
+	wu_cartonForming_wheel_motorization_encoder_axis:					axis;
+	wu_cartonForming_wheel_motorization_simulation_encoder_axis:		axis;
+	
+	(* Drives *)
+	wu_cartonForming_wheel_motorization_drv:							soe_drive;
+	wu_cartonPickup_drums_motorization_drv:								soe_drive;
+	wu_cartonFeeding_leftSide_belt_drv:									soe_drive;
+	wu_cartonFeeding_leftSide_hopperBelt_drv:							soe_drive;
+	wu_cartonFeeding_rightSide_belt_drv:								soe_drive;
+	wu_cartonFeeding_rightSide_hopperBelt_drv:							soe_drive;
+	wu_cartonFeeding_presser_drv:										soe_drive;	
+	wu_cupsFeeding_conveyor_drv:										soe_drive;
+	wu_cupsFeeding_cochlea_drv:											soe_drive;
+	wu_cupsFeeding_innerSide_belt_drv:									soe_drive;
+	wu_cupsFeeding_outerSide_belt_drv:									soe_drive;	
+	wu_twistedCups_conveyor_drv:										soe_drive;
+	wu_cartonFilling_lowerBelts_innerPusher_drv:						soe_drive;
+	wu_cartonFilling_lowerBelts_innerCounterPusher_drv:					soe_drive;	
+	wu_cartonFilling_lowerBelts_outerPusher_drv:						soe_drive;	
+	wu_cartonFilling_lowerBelts_outerCounterPusher_drv:					soe_drive;
+	
+	wu_cartonFilling_justifiers_innerPusher_drv:						soe_drive;
+	wu_cartonFilling_justifiers_outerPusher_drv:						soe_drive;	
+	wu_cartonFilling_justifiers_outerCounterPusher_drv:					soe_drive;	
+	
+	wu_main_oilLubrication_basement1_pumpRecoveryWheel_axis_drv:		soe_drive;
+	wu_main_oilLubrication_recoveryPump_axis_drv:						soe_drive;
+	(* Drives series *)	
+	wu_cartonForming_wheel_motorization_drv_smes:						safety_integrated_series;
+	wu_cartonForming_wheel_motorization_drv_smm1:						safety_integrated_series;
+	
+	wu_cartonPickup_drums_motorization_drv_smes:						safety_integrated_series;
+	wu_cartonPickup_drums_motorization_drv_smm1:						safety_integrated_series;
+
+	wu_cartonFeeding_leftSide_belt_drv_smes:							safety_integrated_series;
+	wu_cartonFeeding_leftSide_belt_drv_smm1:							safety_integrated_series;
+	
+	wu_cartonFeeding_leftSide_hopperBelt_drv_smes:						safety_integrated_series;
+	wu_cartonFeeding_leftSide_hopperBelt_drv_smm1:						safety_integrated_series;	
+
+	wu_cartonFeeding_rightSide_belt_drv_smes:							safety_integrated_series;
+	wu_cartonFeeding_rightSide_belt_drv_smm1:							safety_integrated_series;
+	
+	wu_cartonFeeding_rightSide_hopperBelt_drv_smes:						safety_integrated_series;
+	wu_cartonFeeding_rightSide_hopperBelt_drv_smm1:						safety_integrated_series;	
+
+	wu_cartonFeeding_presser_drv_smes:									safety_integrated_series;
+	wu_cartonFeeding_presser_drv_smm1:									safety_integrated_series;
+
+	wu_cupsFeeding_conveyor_drv_smes:									safety_integrated_series;
+			
+	wu_cupsFeeding_cochlea_drv_smes:									safety_integrated_series;
+	wu_cupsFeeding_cochlea_drv_smm1:									safety_integrated_series;
+	
+	wu_cupsFeeding_innerSide_belt_drv_smes:								safety_integrated_series;
+	wu_cupsFeeding_outerSide_belt_drv_smes:								safety_integrated_series;
+
+	wu_twistedCups_conveyor_drv_smes:									safety_integrated_series;
+
+	wu_cartonFilling_lowerBelts_innerPusher_drv_smes:					safety_integrated_series;
+	wu_cartonFilling_lowerBelts_innerCounterPusher_drv_smes:			safety_integrated_series;	
+	wu_cartonFilling_lowerBelts_outerPusher_drv_smes:					safety_integrated_series;	
+	wu_cartonFilling_lowerBelts_outerCounterPusher_drv_smes:			safety_integrated_series;
+
+	wu_cartonFilling_justifiers_innerPusher_drv_smes:					safety_integrated_series;
+	wu_cartonFilling_justifiers_outerPusher_drv_smes:					safety_integrated_series;	
+	wu_cartonFilling_justifiers_outerCounterPusher_drv_smes:			safety_integrated_series;
+	
+	wu_main_oilLubrication_basement1_pumpRecoveryWheel_axis_drv_sems:   safety_integrated_series;
+	wu_main_oilLubrication_basement1_pumpRecoveryWheel_axis_drv_smm1:	safety_integrated_series;
+	
+	wu_main_oilLubrication_recoveryPump_axis_drv_smes:					safety_integrated_series;
+	wu_main_oilLubrication_recoveryPump_axis_drv_smm1:					safety_integrated_series;
+	
+	CONVERSION_this:													wu_main_configurator_struct;			
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[CONVERSION_this.motman_ref																:= ADR(motman);
+CONVERSION_this.machine_ref																:= ADR(machine);
+
+CONVERSION_this.cabinet_safety_controller_ref											:= ADR(cabinet_safety_controller);
+CONVERSION_this.drives_safety_controller_ref											:= ADR(drives_safety_controller);
+
+CONVERSION_this.cabinet_ethercat_master_ref												:= ADR(cabinet_ethercat_master);
+CONVERSION_this.carton_forming_ethercat_master_ref										:= ADR(carton_forming_ethercat_master);
+
+CONVERSION_this.emergency_series_ref													:= ADR(emergency_series);
+CONVERSION_this.delayed_emergency_series_ref											:= ADR(delayed_emergency_series);
+
+(* Axis *)
+IF framework_is_local_simulated()
+THEN
+	CONVERSION_this.drums_encoder_ref 														:= ADR(wu_cartonPickup_drums_motorization_simulation_encoder_axis);
+	CONVERSION_this.wheel_encoder_ref														:= ADR(wu_cartonForming_wheel_motorization_simulation_encoder_axis);
+ELSE
+	CONVERSION_this.drums_encoder_ref 														:= ADR(wu_cartonPickup_drums_motorization_encoder_axis);
+	CONVERSION_this.wheel_encoder_ref														:= ADR(wu_cartonForming_wheel_motorization_encoder_axis);
+END_IF
+
+CONVERSION_this.wu_main_oilLubrication_basement1_pumpRecoveryWheel_axis_drv_ref			:= ADR(wu_main_oilLubrication_basement1_pumpRecoveryWheel_axis_drv);
+CONVERSION_this.wu_main_oilLubrication_basement1_pumpRecoveryWheel_axis_drv_sems_ref	:= ADR(wu_main_oilLubrication_basement1_pumpRecoveryWheel_axis_drv_sems);
+CONVERSION_this.wu_main_oilLubrication_basement1_pumpRecoveryWheel_axis_drv_smm1_ref	:= ADR(wu_main_oilLubrication_basement1_pumpRecoveryWheel_axis_drv_smm1);
+
+CONVERSION_this.wu_main_oilLubrication_recoveryPump_axis_drv_ref						:= ADR(wu_main_oilLubrication_recoveryPump_axis_drv);
+CONVERSION_this.wu_main_oilLubrication_recoveryPump_axis_drv_smes_ref					:= ADR(wu_main_oilLubrication_basement1_pumpRecoveryWheel_axis_drv_sems);
+CONVERSION_this.wu_main_oilLubrication_recoveryPump_axis_drv_smm1_ref					:= ADR(wu_main_oilLubrication_basement1_pumpRecoveryWheel_axis_drv_smm1);
+
+CONVERSION_this.wu_cartonForming_wheel_motorization_drv_ref								:= ADR(wu_cartonForming_wheel_motorization_drv);
+CONVERSION_this.wu_cartonForming_wheel_motorization_drv_smes_ref						:= ADR(wu_cartonForming_wheel_motorization_drv_smes);
+CONVERSION_this.wu_cartonForming_wheel_motorization_drv_smm1_ref						:= ADR(wu_cartonForming_wheel_motorization_drv_smm1);
+
+CONVERSION_this.wu_cartonPickup_drums_motorization_drv_ref								:= ADR(wu_cartonPickup_drums_motorization_drv);
+CONVERSION_this.wu_cartonPickup_drums_motorization_drv_smes_ref							:= ADR(wu_cartonPickup_drums_motorization_drv_smes);
+CONVERSION_this.wu_cartonPickup_drums_motorization_drv_smm1_ref							:= ADR(wu_cartonPickup_drums_motorization_drv_smm1);
+
+CONVERSION_this.wu_cartonFeeding_leftSide_belt_drv_ref									:= ADR(wu_cartonFeeding_leftSide_belt_drv);
+CONVERSION_this.wu_cartonFeeding_leftSide_belt_drv_smes_ref								:= ADR(wu_cartonFeeding_leftSide_belt_drv_smes);
+CONVERSION_this.wu_cartonFeeding_leftSide_belt_drv_smm1_ref								:= ADR(wu_cartonFeeding_leftSide_belt_drv_smm1);
+
+CONVERSION_this.wu_cartonFeeding_leftSide_hopperBelt_drv_ref							:= ADR(wu_cartonFeeding_leftSide_hopperBelt_drv);
+CONVERSION_this.wu_cartonFeeding_leftSide_hopperBelt_drv_smes_ref						:= ADR(wu_cartonFeeding_leftSide_hopperBelt_drv_smes);
+CONVERSION_this.wu_cartonFeeding_leftSide_hopperBelt_drv_smm1_ref						:= ADR(wu_cartonFeeding_leftSide_hopperBelt_drv_smm1);
+
+CONVERSION_this.wu_cartonFeeding_rightSide_belt_drv_ref									:= ADR(wu_cartonFeeding_rightSide_belt_drv);
+CONVERSION_this.wu_cartonFeeding_rightSide_belt_drv_smes_ref							:= ADR(wu_cartonFeeding_rightSide_belt_drv_smes);
+CONVERSION_this.wu_cartonFeeding_rightSide_belt_drv_smm1_ref							:= ADR(wu_cartonFeeding_rightSide_belt_drv_smm1);
+
+CONVERSION_this.wu_cartonFeeding_rightSide_hopperBelt_drv_ref							:= ADR(wu_cartonFeeding_rightSide_hopperBelt_drv);
+CONVERSION_this.wu_cartonFeeding_rightSide_hopperBelt_drv_smes_ref						:= ADR(wu_cartonFeeding_rightSide_hopperBelt_drv_smes);
+CONVERSION_this.wu_cartonFeeding_rightSide_hopperBelt_drv_smm1_ref						:= ADR(wu_cartonFeeding_rightSide_hopperBelt_drv_smm1);
+	
+CONVERSION_this.wu_cartonFeeding_presser_drv_ref										:= ADR(wu_cartonFeeding_presser_drv);
+CONVERSION_this.wu_cartonFeeding_presser_drv_smes_ref									:= ADR(wu_cartonFeeding_presser_drv_smes);
+CONVERSION_this.wu_cartonFeeding_presser_drv_smm1_ref									:= ADR(wu_cartonFeeding_presser_drv_smm1);
+
+CONVERSION_this.wu_cupsFeeding_conveyor_drv_ref											:= ADR(wu_cupsFeeding_conveyor_drv);
+CONVERSION_this.wu_cupsFeeding_conveyor_drv_smes_ref									:= ADR(wu_cupsFeeding_conveyor_drv_smes);
+
+CONVERSION_this.wu_cupsFeeding_cochlea_drv_ref											:= ADR(wu_cupsFeeding_cochlea_drv);
+CONVERSION_this.wu_cupsFeeding_cochlea_drv_smes_ref										:= ADR(wu_cupsFeeding_cochlea_drv_smes);
+CONVERSION_this.wu_cupsFeeding_cochlea_drv_smm1_ref										:= ADR(wu_cupsFeeding_cochlea_drv_smm1);
+
+CONVERSION_this.wu_cupsFeeding_innerSide_belt_drv_ref									:= ADR(wu_cupsFeeding_innerSide_belt_drv);
+CONVERSION_this.wu_cupsFeeding_innerSide_belt_drv_smes_ref								:= ADR(wu_cupsFeeding_innerSide_belt_drv_smes);
+
+CONVERSION_this.wu_cupsFeeding_outerSide_belt_drv_ref									:= ADR(wu_cupsFeeding_outerSide_belt_drv);
+CONVERSION_this.wu_cupsFeeding_outerSide_belt_drv_smes_ref								:= ADR(wu_cupsFeeding_outerSide_belt_drv_smes);
+
+CONVERSION_this.wu_twistedCups_conveyor_drv_ref											:= ADR(wu_twistedCups_conveyor_drv);
+CONVERSION_this.wu_twistedCups_conveyor_drv_smes_ref									:= ADR(wu_twistedCups_conveyor_drv_smes);
+
+CONVERSION_this.wu_cartonFilling_lowerBelts_innerPusher_drv_ref							:= ADR(wu_cartonFilling_lowerBelts_innerPusher_drv);
+CONVERSION_this.wu_cartonFilling_lowerBelts_innerPusher_drv_smes_ref					:= ADR(wu_cartonFilling_lowerBelts_innerPusher_drv_smes);
+
+CONVERSION_this.wu_cartonFilling_lowerBelts_innerCounterPusher_drv_ref					:= ADR(wu_cartonFilling_lowerBelts_innerCounterPusher_drv);
+CONVERSION_this.wu_cartonFilling_lowerBelts_innerCounterPusher_drv_smes_ref				:= ADR(wu_cartonFilling_lowerBelts_innerCounterPusher_drv_smes);
+
+CONVERSION_this.wu_cartonFilling_lowerBelts_outerPusher_drv_ref							:= ADR(wu_cartonFilling_lowerBelts_outerPusher_drv);
+CONVERSION_this.wu_cartonFilling_lowerBelts_outerPusher_drv_smes_ref					:= ADR(wu_cartonFilling_lowerBelts_outerPusher_drv_smes);
+
+CONVERSION_this.wu_cartonFilling_lowerBelts_outerCounterPusher_drv_ref					:= ADR(wu_cartonFilling_lowerBelts_outerCounterPusher_drv);
+CONVERSION_this.wu_cartonFilling_lowerBelts_outerCounterPusher_drv_smes_ref				:= ADR(wu_cartonFilling_lowerBelts_outerCounterPusher_drv_smes);
+
+CONVERSION_this.wu_cartonFilling_justifiers_innerPusher_drv_ref							:= ADR(wu_cartonFilling_justifiers_innerPusher_drv);
+CONVERSION_this.wu_cartonFilling_justifiers_innerPusher_drv_smes_ref					:= ADR(wu_cartonFilling_justifiers_innerPusher_drv_smes);
+
+CONVERSION_this.wu_cartonFilling_justifiers_outerPusher_drv_ref							:= ADR(wu_cartonFilling_justifiers_outerPusher_drv);
+CONVERSION_this.wu_cartonFilling_justifiers_outerPusher_drv_smes_ref					:= ADR(wu_cartonFilling_justifiers_outerPusher_drv_smes);
+
+CONVERSION_this.wu_cartonFilling_justifiers_outerCounterPusher_drv_ref					:= ADR(wu_cartonFilling_justifiers_outerCounterPusher_drv);
+CONVERSION_this.wu_cartonFilling_justifiers_outerCounterPusher_drv_smes_ref				:= ADR(wu_cartonFilling_justifiers_outerCounterPusher_drv_smes);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

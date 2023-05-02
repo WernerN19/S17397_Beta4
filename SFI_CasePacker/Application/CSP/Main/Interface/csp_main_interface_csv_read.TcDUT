@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_main_interface_csv_read" Id="{00f1afaf-ddde-0fa2-18f4-2e3a736407c2}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE csp_main_interface_csv_read :
+(
+	
+	csv_read_idle					:= 0,
+	csv_read_wait_for_alarm			:= 10,
+	csv_read_clear_variables		:= 20,
+	csv_read_trim_object_name		:= 30,
+	csv_read_open_csv_file			:= 40,
+	csv_read_verify_open			:= 50,
+	csv_read_read_csv_file			:= 60,
+	csv_read_verify_read			:= 70,
+	csv_read_parse_csv_stop_data	:= 80,
+	csv_read_compare_stop			:= 90,
+	csv_read_alarm_found			:= 100,
+	csv_read_close_csv_file			:= 200,
+	csv_read_close_csv_file_verify	:= 210
+	
+) := csv_read_idle;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

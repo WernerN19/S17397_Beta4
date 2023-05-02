@@ -1,0 +1,93 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="dbg_csp_case_feed_arm_sensors" Id="{8bb121fd-3d01-441a-aeb6-6abc8566310b}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_case_feed_arm_sensors
+VAR
+  case_check_chksect_shd : check_section_shadow;
+  case_check_di_shd : digital_input_shadow;
+  case_check_inchoerence_chksect_shd : check_section_shadow;
+  major_vacuum_do_shd : digital_output_shadow;
+  major_vacuum_sact_shd : digital_actuator_shadow;
+  minor_vacuum_do_shd : digital_output_shadow;
+  minor_vacuum_sact_shd : digital_actuator_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{90b4d36f-6769-4234-a4e5-c22d1f07c107}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_arm_sensors.case_check_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= case_check_di_shd);
+
+	check_section_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_arm_sensors.case_check_inchoerence_chksect, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= case_check_inchoerence_chksect_shd);
+
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_arm_sensors.major_vacuum_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= major_vacuum_do_shd);
+
+	digital_actuator_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_arm_sensors.major_vacuum_sact, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= major_vacuum_sact_shd);
+
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_arm_sensors.minor_vacuum_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= minor_vacuum_do_shd);
+
+	digital_actuator_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_arm_sensors.minor_vacuum_sact, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= minor_vacuum_sact_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	digital_input_shadow_cycle(case_check_di_shd);
+	digital_output_shadow_cycle(major_vacuum_do_shd);
+	digital_actuator_shadow_cycle(major_vacuum_sact_shd);
+	digital_output_shadow_cycle(minor_vacuum_do_shd);
+	digital_actuator_shadow_cycle(minor_vacuum_sact_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,346 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_reject_belt_lower" Id="{7b9f3ffb-db0b-44da-9323-f7efee94143a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_reject_belt_lower
+VAR	
+	prc:												process;
+	prc_path:											STRING;
+	
+	axis:												axis;
+	actual_velocity_mms:								LREAL:=0.0;
+	velocity_req_mms:									LREAL:=0.0;
+	ready:												BOOL:=FALSE;
+
+	disabled:											BOOL:=FALSE;
+	
+	debug_state_machine:								BOOL:=FALSE;
+	debug_state_machine_one_step:						BOOL:=FALSE;
+	
+	velocity_req_limited_mms:							LREAL:= 0.0;
+	override_percent:									REAL:= 0.0; (*$P $*)
+
+	fsm_enable_condition:								BOOL;
+	fsm_status:											csp_caser_feed_reject_belt_upper_status_enum;
+	fsm_next_status:									csp_caser_feed_reject_belt_upper_status_enum;
+
+	fsm_log:											fsm;
+	
+	
+END_VAR
+
+VAR_INPUT
+
+	i_downstream_ready:									BOOL;					(*$M desc := Downstream Process Ready; $*)
+	i_upstream_running:									BOOL;
+	i_upstream_velocity:								LREAL;
+	disable_req:										BOOL:=FALSE;
+	fault_bool:											BOOL:=FALSE;
+	reject_req:											BOOL;
+	reject_complete:									BOOL;
+END_VAR
+
+VAR CONSTANT
+	MOTOR_MAX_VELOCITY_DEGPS:							LREAL := 1700;
+	MOTOR_MIN_VELOCITY_DEGPS: 							LREAL := 100;
+	MOTOR_MAX_ACCELLERATION_DEGPS2:						LREAL := 2500;
+	MOTOR_MAX_DECELLERATION_DEGPS2:						LREAL := 2500;
+	MOTOR_MAX_JERK_DEGPS3:								LREAL := 100000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:						LREAL := 2;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT:
+		IF axis_get_mode(axis) = MODE_TEST
+		THEN
+			safety_integrated_series_close(csp_case_main_safety_drives_SD8600.chB_smes_sis);
+		END_IF
+		RETURN;
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+fsm_enable_condition :=	NOT disable_req
+						AND
+						NOT fault_bool
+						AND
+						axis_is_ok(FALSE, axis)
+						AND
+						process_is_ready(prc);
+						//AND
+						//process_subtree_is_ready(prc);
+
+
+IF	NOT fsm_enable_condition
+	AND
+	fsm_status <> CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_DISABLED
+	AND
+	fsm_status < CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_STOP_REQUEST;
+END_IF
+
+velocity_req_mms := i_upstream_velocity * (100 + override_percent) / 100;
+
+CASE fsm_status OF
+	
+	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_next_status := CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_DISABLED;
+        END_IF
+
+		
+	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_DISABLED:
+	
+		IF	fsm_enable_condition
+		THEN
+			fsm_next_status := CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_ENABLE_REQUEST;
+		END_IF;
+		
+
+	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_ENABLE_REQUEST:
+	
+ 	   	axis_enable(axis);
+		IF axis_enable(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_ENABLING;
+		END_IF;
+
+		
+	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_ENABLING:
+	
+		IF	axis_is_standstill(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_ENABLED;
+		END_IF;
+
+		
+	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_ENABLED:
+
+		IF axis_is_moving(csp_case_feed_reject_belt_upper.axis ) (*Case did not open correctly, case feed to place on upper reject belt*)
+		THEN
+			IF axis_move_velocity(
+				velocity		:=	100,
+				acceleration	:=	MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration	:=	MOTOR_MAX_DECELLERATION_DEGPS2,
+				jerk			:=	MOTOR_MAX_JERK_DEGPS3,
+				buffer_mode		:=	AXIS_BUFFER_MODE_ABORTING,
+				CONVERSION_this			:=	axis
+				)
+			THEN
+				fsm_next_status	:=	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_RUNNING;
+			END_IF
+		END_IF
+			
+		
+	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_RUNNING:
+	
+		override_percent := 100;//velocity_req_limited_mms / MOTOR_MAX_VELOCITY_DEGPS * 100;
+		axis_set_override(
+				speed_override_percent 	:= override_percent,
+				CONVERSION_this 		:= axis);
+			
+		IF NOT csp_case_feed_reject_belt_upper.reject_req (*Lower belt and case feed confirm reject is complete*)(*Lower belt and case feed confirm reject is complete*)
+		THEN
+			axis_set_override(
+				speed_override_percent 	:= 20,
+				CONVERSION_this 		:= axis);
+	
+			IF 	axis_is_standstill(axis)
+			THEN
+				fsm_next_status := CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_ENABLED;
+			END_IF			
+		END_IF
+		
+		
+	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_STOP_REQUEST:
+
+		axis_stop(
+		    deceleration 		:= MOTOR_MAX_DECELLERATION_DEGPS2,
+		    jerk 				:= MOTOR_MAX_JERK_DEGPS3,
+		    CONVERSION_this 	:= axis);
+
+		IF 	axis_is_standstill(axis)
+			OR
+			NOT axis_is_ok(FALSE, axis)
+			OR
+			axis_is_disabled(axis)
+		THEN
+			fsm_next_status := CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_DISABLE_REQUEST;
+		END_IF
+
+		
+	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_DISABLE_REQUEST:
+	
+   		axis_disable(axis);
+   		fsm_next_status := CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_DISABLING;
+
+		
+	CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_DISABLING:
+	
+        IF	axis_is_disabled(axis)
+        THEN
+            fsm_next_status := CSP_CASE_FEED_REJECT_BELT_LOWER_STATUS_DISABLED;
+        END_IF;
+
+END_CASE;
+
+IF NOT debug_state_machine
+	OR
+	debug_state_machine_one_step
+THEN
+	fsm_status := fsm_next_status;
+	debug_state_machine_one_step := FALSE;
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{2906ae15-c0f4-440a-aed2-efcf32f2db5f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{2f1a55a2-3012-4eef-a2b9-48da1e6c5350}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{0f621586-cd93-4afb-a4cb-fd23b772e65a}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{b6c0a729-4e13-40b0-bc97-b4661395b9da}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name									:= '_csp_case_feed_reject_belt_lower.prc', 
+		process										:= csp_case_feed_reject_belt.prc, 
+		CONVERSION_this								:= prc);
+		
+	prc_path 										:= process_get_path(prc);
+	
+(* axis smes *)
+	IF csp_main_configurator.Physical_hw
+	THEN	
+		axis_init(
+			object_name								:= CONCAT(prc_path, '_axis'), 
+			axis_type								:= AXIS_TYPE_SERVO, 
+			encoder_scaling_factor					:= G_SERVO_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo									:= G_MODULO_360_DEG, 
+			process									:= prc, 
+			CONVERSION_this							:= axis);
+			
+		axis_add_safety_integrated_series(
+			safety_integrated_series 				:= csp_case_main_safety_drives_SD8600.chB_smes_sis,
+			CONVERSION_this							:= axis);
+						
+	ELSE
+		axis_init(
+			object_name								:= CONCAT(prc_path, '_axis'), 
+			axis_type								:= AXIS_TYPE_VIRTUAL, 
+			encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo									:= G_MODULO_360_DEG, 
+			process									:= prc, 
+			CONVERSION_this							:= axis);		
+				
+	END_IF
+	
+	axis_set_max_dynamic(
+		reference_velocity							:=	MOTOR_MAX_VELOCITY_DEGPS,
+		velocity									:=	MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration								:=	MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration								:=	MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk										:=	MOTOR_MAX_JERK_DEGPS3,
+		following_error								:=	MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this								:=	axis);
+		
+	axis_add_soe_drive(	
+		channel										:=	SOE_DRIVE_CHANNEL_B,
+		soe_drive									:=	csp_case_main_drives.SD8600_drv,
+		CONVERSION_this								:=	axis);
+
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{58646c5a-5baf-48fc-ba52-d97601de59cd}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{daa410d1-003f-412f-bce5-0151ff341bb5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{8bf60822-6585-4e29-91fe-a37190541c20}">
+      <Implementation>
+        <ST><![CDATA[disable_req := csp_case.disable_req;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{703ce54d-85b0-4fa8-9157-d12f700a1001}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

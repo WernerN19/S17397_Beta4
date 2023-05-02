@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_is_pendant_active" Id="{622836eb-a82b-4b16-aae9-9884985e676d}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Returns <i>pendant_active</i> of the instance <b><i>this</i></b>.
+	Returns always false if pendant is not present.
+$*)
+FUNCTION jog_manager_is_pendant_active: BOOL
+VAR_IN_OUT
+    CONVERSION_this:	jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[jog_manager_is_pendant_active := 
+	CONVERSION_this.has_pendant
+	AND
+	CONVERSION_this.pendant_active;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

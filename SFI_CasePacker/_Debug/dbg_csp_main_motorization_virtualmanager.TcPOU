@@ -1,0 +1,68 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_main_motorization_virtualmanager" Id="{d545463a-6b02-43f9-afd5-830c59f77b97}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_main_motorization_virtualmanager
+VAR
+  axis_shd : axis_shadow;
+  machine_periodicity_axis_shd : axis_shadow;
+  virtual_master_test_shd : axis_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{421f363c-f784-4c21-93e5-973edd2e6ce3}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	axis_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_main_motorization_virtualmanager.axis, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= axis_shd);
+
+	axis_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_main_motorization_virtualmanager.machine_periodicity_axis, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= machine_periodicity_axis_shd);
+
+	axis_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_main_motorization_virtualmanager.virtual_master_test, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= virtual_master_test_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	axis_shadow_cycle(axis_shd);
+	axis_shadow_cycle(machine_periodicity_axis_shd);
+	axis_shadow_cycle(virtual_master_test_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

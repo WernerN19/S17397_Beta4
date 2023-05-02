@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_test_command_handler" Id="{1501c896-21fe-4e49-b371-841dfd130b38}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION jog_manager_test_command_handler : jog_manager_command_enum
+VAR_IN_OUT
+    CONVERSION_this:	jog_manager;	(* Instance to which the method applies *)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[jog_manager_test_command_handler := JOG_MANAGER_CMD_NONE;
+IF descriptor_is_ready(CONVERSION_this.descriptor)
+THEN
+	;
+END_IF]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

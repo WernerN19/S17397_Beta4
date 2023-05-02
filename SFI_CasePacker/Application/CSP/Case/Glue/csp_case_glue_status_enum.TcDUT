@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="csp_case_glue_status_enum" Id="{a01ba332-a806-4552-aed4-ba6ca79f77c6}">
+    <Declaration><![CDATA[TYPE csp_case_glue_status_enum :
+(
+	CSP_CASE_GLUE_STATUS_INIT 							:=  0,
+	CSP_CASE_GLUE_STATUS_PURGE_ACTIVATE					:=  100,
+	CSP_CASE_GLUE_STATUS_PURGE_RUNNING 					:=  200,
+	CSP_CASE_GLUE_STATUS_PURGE_WAITING_DEACTIVATE		:=  300,
+	CSP_CASE_GLUE_STATUS_RUNNING						:=  400
+) := CSP_CASE_GLUE_STATUS_INIT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

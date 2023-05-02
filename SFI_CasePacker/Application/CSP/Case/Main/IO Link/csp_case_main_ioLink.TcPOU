@@ -1,0 +1,345 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_main_ioLink" Id="{aab5b108-fd86-4b03-ba34-f973b61b0f96}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM csp_case_main_ioLink
+VAR
+		prc:									process;
+		prc_path:								STRING;
+		
+		iol_master_ep6224_IOB3030:				iol_master;
+		iol_master_ep6224_IOB3020:				iol_master;
+		
+		
+		CH1_iol_slave:							iol_slave;				(*$O ecode:= RFID2815 ;desc := Closing Guide Check OS; $*)
+		CH1_iol_slave_config:					iol_slave_bis00lh_data;
+		
+		CH1_1_iol_slave:						iol_slave;				(*$O ecode:= RFID2800 ;desc := Loader Head Check; $*)
+		CH1_1_iol_slave_config:					iol_slave_bis00lh_data;
+	
+		CH2_1_iol_slave:						iol_slave;				(*$O ecode:= RFID2814 ;desc := Waterfall High Load Light Curtain - Receiver; $*)
+		CH2_1_iol_slave_config:					iol_slave_bis00lh_data;
+		
+		CH4_1_iol_slave:						iol_slave;				(*$O ecode:= PEC2803 ;desc := Waterfall High Load Light Curtain - Receiver; $*)
+		CH4_1_iol_slave_config:					iol_slave_ray26p_data;
+		
+			(* Configuration *)
+		CH1_presence_dvr:						BOOL;
+		CH2_presence_dvr:						BOOL;
+		CH1_1_presence_dvr:						BOOL;
+		CH2_1_presence_dvr:						BOOL;
+		CH4_1_presence_dvr:						BOOL;
+	
+		adjust_range_nvr:      					LREAL;
+
+	(* CH1 Teach Command *)
+		CH1_command_sended_dvr:					BOOL;
+		CH1_setpoint_sensing_range_prow:		parameter_overwrite;
+
+		CH1_command_teach_ok_led:				led;
+		CH1_command_teach_fail_led:				led;
+
+		CH1_teach_start_cmd_btn:				command_button;
+		CH1_teach_reset_cmd_btn:  				command_button;
+		
+		
+	(* CH1_1 Teach Command *)
+		CH1_1_command_sended_dvr:				BOOL;
+		CH1_1_setpoint_sensing_range_prow:		parameter_overwrite;
+
+		CH1_1_command_teach_ok_led:				led;
+		CH1_1_command_teach_fail_led:			led;
+
+		CH1_1_teach_start_cmd_btn:				command_button;
+		CH1_1_teach_reset_cmd_btn:  			command_button;
+
+	(* CH2_1 Teach Command *)
+		CH2_1_command_sended_dvr:				BOOL;
+		CH2_1_setpoint_bdc1_prow:				parameter_overwrite;
+
+		CH2_1_command_teach_ok_led:				led;
+		CH2_1_command_teaching_ok_led:			led;
+		CH2_1_command_teach_fail_led:			led;
+
+		CH2_1_teach_start_cmd_btn:				command_button;
+		CH2_1_teach_end_cmd_btn:  				command_button;
+		CH2_1_teach_reset_cmd_btn:  			command_button;
+		
+	(* CH4_1 Teach Command *)
+		CH4_1_command_sended_dvr:				BOOL;
+		CH4_1_setpoint_bdc1_prow:				parameter_overwrite;
+
+		CH4_1_command_teach_ok_led:				led;
+		CH4_1_command_teaching_ok_led:			led;
+		CH4_1_command_teach_fail_led:			led;
+
+		CH4_1_teach_start_cmd_btn:				command_button;
+		CH4_1_teach_end_cmd_btn:  				command_button;
+		CH4_1_teach_reset_cmd_btn:  			command_button;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{6b5d301d-c755-4072-81b2-9b1de078108d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{a22e2c5b-3514-4f2f-b59d-f96053f576a2}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{9c557748-6db0-487d-9b49-d43683c12657}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{cab58f31-ce7b-4c42-a45b-035b4e18d693}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name						:= 'csp_case_main_ioLink.prc', 
+		process							:= csp_case_main.prc, 
+		CONVERSION_this					:= prc);
+		
+	prc_path 							:= process_get_path(prc);
+	
+		iol_master_init(
+		object_name := 			'iol_master_ep6224_IOB3030',
+		device_name := 			'SPLC5000Slot19',
+		_type := 				IOL_MASTER_BECKHOFF_EL6224, (*AFL : EP6224 missing*)
+		ethercat_master :=		csp_main.cabinet_ethercat_master,
+		process := 				prc,
+		CONVERSION_this := 		iol_master_ep6224_IOB3030);
+		
+	iol_master_init(
+		object_name := 			'iol_master_ep6224_IOB3020',
+		device_name := 			'SPLC5000Slot19',
+		_type := 				IOL_MASTER_BECKHOFF_EL6224, (*AFL : EP6224 missing*)
+		ethercat_master :=		csp_main.cabinet_ethercat_master,
+		process := 				prc,
+		CONVERSION_this := 		iol_master_ep6224_IOB3020);
+		
+		(* Channel 1 *)
+	IF	CH1_presence_dvr
+	THEN
+		iol_slave_init(
+			object_name		:= 'CH1_iol_slave',
+			channel			:= IOL_MASTER_CHANNEL1,
+			iol_master		:= iol_master_ep6224_IOB3030,
+			process			:= prc,
+			CONVERSION_this			:= CH1_iol_slave);
+
+		iol_slave_bis00lh_configure(
+			data			:= CH1_iol_slave_config,
+			CONVERSION_this			:= CH1_iol_slave);
+
+		led_init(
+			object_name	:= 'CH1_command_teach_fail_led',
+			process		:= prc,
+			CONVERSION_this		:= CH1_command_teach_fail_led);
+
+		led_init(
+			object_name	:= 'CH1_command_teach_ok_led',
+			process		:= prc,
+			CONVERSION_this		:= CH1_command_teach_ok_led);
+
+		command_button_init(
+			object_name := 'CH1_teach_start_cmd_btn',
+			process     := prc,
+			CONVERSION_this		:= CH1_teach_start_cmd_btn);
+
+		command_button_init(
+			object_name := 'CH1_teach_reset_cmd_btn',
+			process     := prc,
+			CONVERSION_this		:= CH1_teach_reset_cmd_btn);
+
+	END_IF
+	
+			(* Channel 1 - IOB3020*)
+	IF	CH1_1_presence_dvr
+	THEN
+		iol_slave_init(
+			object_name		:= 'CH1_1_iol_slave',
+			channel			:= IOL_MASTER_CHANNEL1,
+			iol_master		:= iol_master_ep6224_IOB3020,
+			process			:= prc,
+			CONVERSION_this			:= CH1_1_iol_slave);
+
+		iol_slave_bis00lh_configure(
+			data			:= CH1_1_iol_slave_config,
+			CONVERSION_this			:= CH1_1_iol_slave);
+
+		led_init(
+			object_name	:= 'CH1_1_command_teach_fail_led',
+			process		:= prc,
+			CONVERSION_this		:= CH1_1_command_teach_fail_led);
+
+		led_init(
+			object_name	:= 'CH1_1_command_teach_ok_led',
+			process		:= prc,
+			CONVERSION_this		:= CH1_1_command_teach_ok_led);
+
+		command_button_init(
+			object_name := 'CH1_1_teach_start_cmd_btn',
+			process     := prc,
+			CONVERSION_this		:= CH1_1_teach_start_cmd_btn);
+
+		command_button_init(
+			object_name := 'CH1_1_teach_reset_cmd_btn',
+			process     := prc,
+			CONVERSION_this		:= CH1_1_teach_reset_cmd_btn);
+
+	END_IF
+
+		(* Channel 2  - IOB3020*)
+	IF	CH2_1_presence_dvr
+	THEN
+		iol_slave_init(
+			object_name		:= 'CH2_1_iol_slave',
+			channel			:= IOL_MASTER_CHANNEL2,
+			iol_master		:= iol_master_ep6224_IOB3020,
+			process			:= csp_transfer.prc,
+			CONVERSION_this:= CH2_1_iol_slave);
+
+		iol_slave_bis00lh_configure(
+			data			:= CH2_1_iol_slave_config,
+			CONVERSION_this			:= CH2_1_iol_slave);
+			
+		led_init(
+			object_name	:= 'CH2_1_command_teach_fail_led',
+			process		:= prc,
+			CONVERSION_this		:= CH2_1_command_teach_fail_led);
+
+		led_init(
+			object_name	:= 'CH2_1_command_teach_ok_led',
+			process		:= prc,
+			CONVERSION_this		:= CH2_1_command_teach_ok_led);
+
+		command_button_init(
+			object_name := 'CH2_1_teach_start_cmd_btn',
+			process     := prc,
+			CONVERSION_this		:= CH2_1_teach_start_cmd_btn);
+
+		command_button_init(
+			object_name := 'CH2_1_teach_reset_cmd_btn',
+			process     := prc,
+			CONVERSION_this		:= CH2_1_teach_reset_cmd_btn);
+
+	END_IF
+	
+			(* Channel 4  - IOB3020*)
+	IF	CH4_1_presence_dvr
+	THEN
+		iol_slave_init(
+			object_name		:= 'CH4_1_iol_slave',
+			channel			:= IOL_MASTER_CHANNEL4,
+			iol_master		:= iol_master_ep6224_IOB3020,
+			process			:= csp_transfer.prc,
+			CONVERSION_this:= CH4_1_iol_slave);
+
+		iol_slave_ray26p_configure(
+			data			:= CH4_1_iol_slave_config,
+			CONVERSION_this			:= CH4_1_iol_slave);
+			
+		led_init(
+			object_name	:= 'CH4_1_command_teach_fail_led',
+			process		:= prc,
+			CONVERSION_this		:= CH4_1_command_teach_fail_led);
+
+		led_init(
+			object_name	:= 'CH4_1_command_teach_ok_led',
+			process		:= prc,
+			CONVERSION_this		:= CH4_1_command_teach_ok_led);
+
+		command_button_init(
+			object_name := 'CH4_1_teach_start_cmd_btn',
+			process     := prc,
+			CONVERSION_this		:= CH4_1_teach_start_cmd_btn);
+
+		command_button_init(
+			object_name := 'CH4_1_teach_reset_cmd_btn',
+			process     := prc,
+			CONVERSION_this		:= CH4_1_teach_reset_cmd_btn);
+
+	END_IF
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	iol_master_cycle(iol_master_ep6224_IOB3030);
+	iol_master_cycle(iol_master_ep6224_IOB3020);
+	iol_slave_cycle(CH1_iol_slave);
+	iol_slave_cycle(CH1_1_iol_slave);
+	iol_slave_cycle(CH2_1_iol_slave);
+	iol_slave_cycle(CH4_1_iol_slave);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{b504cea4-aa34-48b4-b4b3-aa02bd912a81}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{839cc3a9-23e9-4ee4-961d-1bae8992ccea}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{4cfed932-4ab2-4ac6-a5ec-df6b8da53c8f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{c2aa029d-6cb6-403f-aa3a-a89e46d5bf0e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

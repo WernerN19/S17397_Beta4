@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="iol_slave_ray26p_data" Id="{0407cac0-4b8c-055f-2e1b-da59ee58a691}">
+    <Declaration><![CDATA[
+TYPE
+	iol_slave_ray26p_data:					STRUCT
+
+	teach_in_state:                   		BYTE;		
+	set_inverted_logic:						BYTE;		
+	actual_inverted_logic:					BYTE;		
+	quality_of_teach:						BYTE;
+	teach_in_channel:						BYTE;
+	system_state:							BYTE;
+	sender_configuration:					BYTE;
+	Pin2_configuration:						BYTE;
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

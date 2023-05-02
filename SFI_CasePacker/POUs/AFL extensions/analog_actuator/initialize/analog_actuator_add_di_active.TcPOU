@@ -1,0 +1,117 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_add_di_active" Id="{9efbd056-6533-4e97-be8d-e414a0d02301}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Adds the <a href="#digital_input_object"><i>digital_input</i></a> that performs 
+	the active feedback to the instance specified by the parameter <i><b>this</i></b>.
+	This method must to be called only if type of analog_actuator object is <a href="#analog_actuator_type_enum"><i>ANALOG_ACTUATOR_TYPE_IN_AI</i></a> or 
+	<a href="#analog_actuator_type_enum"><i>ANALOG_ACTUATOR_TYPE_IN_Ax</i></a>.<br/><br/>
+	<p>
+	This function should be called at startup only.<br/>	
+	Against errors on the input parameters the cpu is stopped, in this case the cause <br/>
+	can be inspected in the global struct <i>framework.abort_error</i>: <br/>
+	<br/>
+    <li> <b>ERRORID_1 = 2</b>: <b><i>this</i></b> instance has already an active digital_input </li>
+    <li> <b>ERRORID_1 = 3</b>: <b><i>this</i></b> instance type doesn't allow active feedback. See 
+		<a href="#analog_actuator_type_enum"><i>analog_actuator_type_enum</i></a>
+	</li>
+	</p>
+$*)
+FUNCTION analog_actuator_add_di_active: VOID
+VAR_INPUT
+	dchk_alarm_delay:			DINT;
+	(*$ timeout (in ms) for alarm input level: when input is in alarm level for a time that exceeds this parameter then alarm on;
+	if a zero value is assigned then alarm goes on immediately when the input is in alarm level $*)
+END_VAR
+VAR_IN_OUT
+	di_active:	digital_input;
+	(*$ Active <a href="#digital_input_object"><i>digital_input</i></a> that has to be added $*)
+	process:	process;			(*$ <a href="#process_object"><i>process</i></a> membership $*)
+	CONVERSION_this:		analog_actuator;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF CONVERSION_this.has_di_active
+   AND
+   CONVERSION_this.di_active = ADR(di_active)
+THEN
+	RETURN;
+END_IF
+
+IF analog_actuator_is_not_initialized(CONVERSION_this)
+   OR
+   digital_input_is_not_initialized(di_active)
+THEN
+	IF framework_initialization()
+	THEN
+		RETURN;
+	END_IF
+END_IF
+
+IF analog_actuator_is_not_initialized(CONVERSION_this)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(CONVERSION_this), 
+		object_size := SIZEOF(CONVERSION_this),
+		abort := TRUE,
+		error_str_1 := 'object not initialized', 
+		error_str_2 := 'analog_actuator_add_di_active'
+	);
+    RETURN;
+END_IF
+
+IF digital_input_is_not_initialized(di_active)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(di_active), 
+		object_size := SIZEOF(di_active),
+		abort := TRUE, 
+		error_str_1 := 'object not initialized', 
+		error_str_2 := CONCAT('Please check analog_actuator_add_di_active of ',CONVERSION_this.object_name)				
+	);
+    RETURN;
+END_IF
+
+IF CONVERSION_this.has_di_active
+   AND
+   CONVERSION_this.di_active <> ADR(di_active)
+THEN
+    abort(
+		object_name := CONVERSION_this.object_name,
+        errorID_1 := 2,
+        errorID_2 := 0,
+        errorID_3 := 0,
+        error_str_1 := CONCAT(CONVERSION_this.object_name, ' analog_actuator has already an active digital_input'),
+		error_str_2 := 'analog_actuator_add_di_active'
+        );
+    RETURN;
+END_IF
+
+CONVERSION_this.di_active := ADR(di_active);
+CONVERSION_this.has_di_active := TRUE;
+
+digital_check_init(
+	object_name			:= CONCAT(CONVERSION_this.object_name, '_active_dchk'),
+	alarm_if_input_off	:= TRUE,
+	alarm_delay			:= dchk_alarm_delay,
+	enabled_at_powerup	:= FALSE,
+	process				:= process,
+	CONVERSION_this				:= CONVERSION_this.active_dchk);
+
+digital_check_init(
+	object_name			:= CONCAT(CONVERSION_this.object_name, '_inactive_dchk'),
+	alarm_if_input_off	:= FALSE,
+	alarm_delay			:= dchk_alarm_delay,
+	enabled_at_powerup	:= FALSE,
+	process				:= process,
+	CONVERSION_this				:= CONVERSION_this.inactive_dchk);
+
+digital_check_add_di(
+	di					:= di_active,
+	CONVERSION_this				:= CONVERSION_this.active_dchk);
+
+digital_check_add_di(
+	di					:= di_active,
+	CONVERSION_this				:= CONVERSION_this.inactive_dchk);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

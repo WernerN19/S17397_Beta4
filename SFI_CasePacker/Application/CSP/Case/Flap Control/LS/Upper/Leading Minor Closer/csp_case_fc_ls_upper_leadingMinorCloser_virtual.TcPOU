@@ -1,0 +1,639 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_fc_ls_upper_leadingMinorCloser_virtual" Id="{46e90427-2195-0be4-0d40-521033a18d74}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_fc_ls_upper_leadingMinorCloser_virtual
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	axis: 											axis;
+	axis_actual_position:							LREAL;
+	phgen:											phase_generator;
+	
+	disable_req:									BOOL;
+	debug_state_machine:							BOOL := FALSE;
+	debug_phase_machine_one_step:					BOOL := FALSE;
+	debug_connection_machine_one_step:				BOOL := FALSE;
+	
+	phase_status: 									csp_case_flap_control_phase_status_enum;
+	phase_status_next: 								csp_case_flap_control_phase_status_enum;
+	phase_done: 									BOOL;
+	phase_running: 									BOOL;
+	phase_error:									BOOL;
+	phase_time_out_tmr:								timer;
+	phase_faulted_aem:	 							message;
+	phase_conditions:								BOOL;
+	phase_slave_position:							LREAL;
+	
+	connection_status: 								csp_case_flap_control_connection_status_enum;
+	connection_status_next: 						csp_case_flap_control_connection_status_enum;
+	connection_done: 								BOOL;
+	connection_running: 							BOOL;
+	connection_error:								BOOL;
+	connection_time_out_tmr:						timer;
+	connection_faulted_aem:	 						message;
+	connection_conditions:							BOOL;
+	connection_done_motcond:						motorization_conditioner;
+	connection_motorization_moving:					BOOL;
+	
+	
+	slave_scaling:									LREAL := 1.0 (*360.0*);
+	master_scaling:									LREAL := 1.0 (*360.0*);
+
+	home_position_master_offset_deg:				LREAL := 0.0;
+	axis_calculate_cam_slave_master_position_deg:	LREAL := 0.0;
+	axis_calculated_cam_slave_position_deg:			LREAL := 0.0;	
+	slave_position_has_been_calculated:				BOOL  := FALSE;
+	
+	phase_velocity_degps:							LREAL := 100.0;
+	engage_enable:									BOOL := TRUE;
+	
+END_VAR
+
+VAR CONSTANT
+			
+	MOTOR_PHASE_POSITION_DEG:						LREAL := 60;
+	MOTOR_PHASE_VELOCITY_DEGPS:						LREAL := 10;
+	
+	MOTOR_MAX_VELOCITY_DEGPS:						LREAL := 9600;
+	MOTOR_MAX_ACCELERATION_DEGPS2:					LREAL := 48000;
+	MOTOR_MAX_DECELERATION_DEGPS2:					LREAL := 48000;
+	MOTOR_MAX_JERK_DEGPS3:							LREAL := 1000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:					LREAL := 2;
+		
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF 	NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+IF 	connection_done
+THEN 
+	motorization_conditioner_start_done(connection_done_motcond);
+END_IF
+
+
+(* SETS MASTER SCALING BASED ON SIZE *)
+//master_scaling := 1 / csp_main_brand.case_pattern.case_pattern_W;
+slave_scaling := 2;
+
+
+(* DISABLES VIRTUAL IS ANY OF THE SLAVES FAULT *)
+IF 	NOT axis_is_disabled(axis)
+	AND NOT axis_is_ok(FALSE, csp_case_fc_ls_upper_leadingMinorCloser.axis)
+THEN
+		axis_disable(axis);
+END_IF
+
+	
+(* RESETS AXES IF PHASE DONE AND CONNECTION DONE AND DISABLED *)
+IF 	phase_done
+	AND connection_done
+	AND axis_is_disabled(axis)
+THEN
+	phase_done := FALSE;
+	connection_done := FALSE;
+END_IF
+
+
+(* CLEARS PHASE AND CONNECTION ERRORS ON STOP *)
+IF 	machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	phase_error := FALSE;
+	connection_error := FALSE;
+END_IF
+
+
+phase();
+connection();
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{23289148-edfa-061e-2e7e-a197eb5842fb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{ac3c7b42-e424-04b8-3063-4aed7f70046a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{5d03f3e1-ffc9-061a-00f6-c067b161d6d9}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{d297ea2b-c2c7-0f42-260c-89d0f49374f9}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN	
+	sub_process_init(
+		object_name					:= 'csp_case_fc_ls_upper_leadingMinorCloser_virtual.prc', 
+		process						:= csp_case_fc_ls_upper.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	axis_init(
+		object_name					:= CONCAT(prc_path, '_axis'), 
+		axis_type					:= AXIS_TYPE_VIRTUAL, 
+		encoder_scaling_factor		:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo						:= G_MODULO_360_DEG, 
+		process						:= prc, 
+		CONVERSION_this				:= axis);
+	
+	axis_set_max_dynamic(
+		reference_velocity			:=	MOTOR_MAX_VELOCITY_DEGPS,
+		velocity					:=	MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration				:=	MOTOR_MAX_ACCELERATION_DEGPS2,
+		deceleration				:=	MOTOR_MAX_DECELERATION_DEGPS2,
+		jerk						:=	MOTOR_MAX_JERK_DEGPS3,
+		following_error				:=	MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this				:=	axis);
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_phase_faulted_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NORMAL_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	phase_faulted_aem);
+	
+	timer_init(
+		object_name					:= CONCAT(prc_path, 'phase_time_out_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= phase_time_out_tmr);
+	
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_connection_faulted_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NORMAL_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	connection_faulted_aem);
+	
+	timer_init(
+		object_name					:= CONCAT(prc_path, 'connection_time_out_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= connection_time_out_tmr);
+				 
+	phase_generator_init(
+		object_name					:= CONCAT(prc_path, '_phgen'), 
+		modulo						:= 360, 
+		resolution					:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis						:= axis, 
+		process						:= prc, 
+		CONVERSION_this				:= phgen);
+		
+	motorization_conditioner_init(
+		object_name					:=	CONCAT(prc_path, 'connection_done_motcond'),
+		velocity_limit				:=	0.0,
+		velocity_limit_active		:=	FALSE,
+		idle_handshake_active		:=	FALSE,
+		execute_handshake_active	:=	TRUE,
+		hold_handshake_active		:=	FALSE,
+		suspend_handshake_active	:=	FALSE,
+		complete_handshake_active	:=	FALSE,
+		abort_handshake_active		:=	FALSE,
+		stop_handshake_active		:=	FALSE,
+		origin						:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:=	csp_main_motorization_manager.motm,
+		process						:=	prc,
+		CONVERSION_this				:=	connection_done_motcond);
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	motorization_conditioner_cycle(connection_done_motcond);
+	
+	axis_cycle(axis);
+	phase_generator_cycle(phgen);		
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{83214c7e-8244-0ad7-2c4f-8226cb0a7bdc}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{d5f643a3-7620-066c-26fe-2be738e8ee60}">
+      <Implementation>
+        <ST><![CDATA[disable_req := csp_transfer.virtual_disable_req;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{dd356ed6-229d-09d7-0760-70da9c0e97b1}">
+      <Implementation>
+        <ST><![CDATA[axis_actual_position := axis_get_actual_modulo_position(axis);
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{6bb73677-4e3c-04b3-2aa7-f6ff8d2998b2}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="connection" Id="{b4785485-4864-0ead-3e41-ead83607b21e}">
+      <Implementation>
+        <ST><![CDATA[connection_conditions :=	
+	axis_is_ok(FALSE, axis)
+	AND 
+	NOT process_message_is_on(connection_faulted_aem)
+	AND
+	phase_done;
+
+(* connection_done reset *)
+IF	connection_done
+	AND	
+	NOT connection_conditions
+	//AND
+	//NOT csp.o_machine_is_running
+THEN
+	connection_done := FALSE;
+END_IF
+
+(* Exit conditions *)
+IF	NOT connection_conditions
+	AND
+	NOT motorization_manager_is_stopping(csp_main_motorization_manager.motm)	
+THEN	
+	connection_status_next := CSP_CASE_FLAP_CONTROL_STATUS_CONNECTION_ERROR;
+	connection_status := connection_status_next;	
+END_IF
+
+(*************** MACHINE STATUS ***************)
+CASE connection_status OF
+
+	CSP_CASE_FLAP_CONTROL_STATUS_CONNECTION_START:	(* Start connection *)
+	
+		IF	(
+				motorization_manager_is_starting(csp_main_motorization_manager.motm) //TODOPZ: da decidere a che livello usare le variabili di i e o: wn_feeding.i_motorization_is_starting?
+				OR
+				jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+			)
+		THEN
+			connection_running := TRUE;
+			connection_status_next := CSP_CASE_FLAP_CONTROL_STATUS_CONNECTION_ENGAGE;
+		END_IF
+		
+	CSP_CASE_FLAP_CONTROL_STATUS_CONNECTION_ENGAGE:		
+	
+		axis_engage_cam(
+			cam_id							:=	FORWARD_CAM,	
+			master_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+			slave_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+			activation_mode					:=	AXIS_CAM_ACTIVATION_IMMEDIATELY,
+			activation_position				:=	0.0,
+			master_scaling_mode				:=	AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode				:=	AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+			master_offset					:=	0.0, 
+			slave_offset					:=	0.0,
+			master_scaling					:=	master_scaling,
+			slave_scaling					:=	slave_scaling,
+			interpolation_type				:=	AXIS_CAM_INTERPOLATION_SPLINE,	 
+			master							:=	csp_main_motorization_virtualManager.axis,
+			CONVERSION_this					:=	axis);
+		
+		connection_status_next:= CSP_CASE_FLAP_CONTROL_STATUS_CONNECTION_ENGAGED;
+	
+	CSP_CASE_FLAP_CONTROL_STATUS_CONNECTION_ENGAGED:
+	
+		IF 	axis_is_cam_engaged(axis) 
+		THEN				
+			connection_status_next:= CSP_CASE_FLAP_CONTROL_STATUS_CONNECTION_DONE;			
+		END_IF
+				
+	CSP_CASE_FLAP_CONTROL_STATUS_CONNECTION_DONE:	(* Connection done *)
+		
+		connection_running := FALSE;
+		connection_done := TRUE;
+		IF	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+		THEN
+			motorization_conditioner_start_done(connection_done_motcond);
+		END_IF
+				
+	CSP_CASE_FLAP_CONTROL_STATUS_CONNECTION_ERROR:	(* Connection error *)	
+	
+		IF 	connection_running
+			OR NOT axis_is_ok(FALSE, axis)
+		THEN
+			axis_disable(axis);
+			connection_error := TRUE;							
+		END_IF
+		connection_running	:= FALSE;
+		connection_done 	:= FALSE;	
+		
+		IF	connection_conditions
+		THEN		
+			connection_status_next := CSP_CASE_FLAP_CONTROL_STATUS_CONNECTION_START;
+		END_IF
+		
+END_CASE
+
+IF 	NOT debug_state_machine
+	OR
+	debug_connection_machine_one_step	
+THEN
+	connection_status := connection_status_next;
+	debug_connection_machine_one_step := FALSE;
+END_IF
+
+connection_motorization_moving	:= 
+	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_execute(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_suspended(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_suspending(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_unsuspending(csp_main_motorization_manager.motm)
+	OR 
+	motorization_manager_is_holding(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_held(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_unholding(csp_main_motorization_manager.motm);	
+	
+(* Connection timeout *)
+IF	(connection_running
+	AND NOT debug_state_machine)	
+	OR connection_error
+THEN
+	IF	timer_is_expired(connection_time_out_tmr)
+	THEN
+		process_message_set(1, connection_status, 0, connection_faulted_aem);
+	END_IF
+ELSE
+	timer_restart(10000, connection_time_out_tmr);
+END_IF
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="phase" Id="{75a40340-2da3-0949-31fd-c03daf98781d}">
+      <Implementation>
+        <ST><![CDATA[phase_conditions :=
+	axis_is_ok(FALSE, axis)
+	AND
+	process_is_ready(prc)
+	AND
+	process_subtree_is_ready(prc)
+	AND
+	NOT jog_manager_is_jog_axis_active(JOG_LIST_TRANSFER_ACCUMULATOR_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+	AND				
+	NOT csp_transfer_main_brand.cam_data_changed
+	AND
+	csp_main_motorization.motorization_axis_redefined_at_powerup
+	AND
+	NOT disable_req;		
+	
+(* phase_done reset *)
+IF	phase_done
+	AND
+	NOT phase_conditions
+	//AND 
+	//NOT csp.o_machine_is_running
+THEN
+	//axis_disable(axis);
+	phase_done:= FALSE;
+END_IF
+
+(* Exit condition *)
+IF 	NOT phase_conditions
+THEN
+	phase_status_next := CSP_CASE_FLAP_CONTROL_STATUS_PHASE_ERROR;
+	phase_status := phase_status_next;	
+END_IF
+
+(*************** MACHINE STATUS ***************)
+CASE phase_status OF
+
+	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_START:	(* Start phasing *)
+	
+		IF	(
+				motorization_manager_is_starting(csp_main_motorization_manager.motm) //TODOPZ: da decidere a che livello usare le variabili di i e o: wn_feeding.i_motorization_is_starting?					
+				//OR
+				//jog_manager_is_jog_axis_active(JOG_LIST_TRANSFER_ACCUMULATOR_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+				//OR
+				//jog_manager_is_jog_axis_active(JOG_LIST_TRANSFER_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+				OR
+				jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+
+			)
+		THEN
+			phase_running := TRUE;			
+			phase_status_next := CSP_CASE_FLAP_CONTROL_STATUS_PHASE_DISABLE;
+		END_IF
+						
+	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_DISABLE:
+		axis_disable(axis);		
+		
+		IF 	axis_is_disabled(axis)
+		THEN
+			phase_status_next := CSP_CASE_FLAP_CONTROL_STATUS_PHASE_ENABLE;
+		END_IF
+		
+	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_ENABLE:
+		axis_enable(axis);
+		
+		IF 	axis_is_enabled(axis)
+		THEN
+			phase_status_next := CSP_CASE_FLAP_CONTROL_STATUS_PHASE_ENABLED;
+		END_IF
+		
+	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_ENABLED:
+	
+		IF 	axis_is_standstill(axis) 
+		THEN
+			phase_status_next := CSP_CASE_FLAP_CONTROL_STATUS_PHASE_CALCULATE_SLAVE_POSITION_REQUEST;								
+		END_IF
+		
+		
+	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_CALCULATE_SLAVE_POSITION_REQUEST:
+	
+		slave_position_has_been_calculated := FALSE;
+	
+		(* Gets the position of the master axis *)
+		axis_calculate_cam_slave_master_position_deg := 
+			LMOD(axis_get_actual_modulo_position(csp_main_motorization_virtualManager.axis)
+			+ home_position_master_offset_deg, G_MODULO_360_DEG);
+			
+		(* Gets cam data for slave axis to master *)
+		IF axis_calculate_cam_slave_dynamics_data(
+			cam_id := FORWARD_CAM,
+			master_scaling := master_scaling,
+			master_position := axis_calculate_cam_slave_master_position_deg,
+			slave_scaling := slave_scaling,
+			CONVERSION_this := axis)
+		THEN
+				phase_status_next := CSP_CASE_FLAP_CONTROL_STATUS_PHASE_CALCULATING_SLAVE_POSITION;
+		END_IF
+	
+	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_CALCULATING_SLAVE_POSITION:
+	
+		IF axis_cam_slave_dynamics_data_calculated(axis)
+		THEN
+			axis_calculated_cam_slave_position_deg := LMOD(axis_get_cam_slave_dynamics_position(axis), axis_get_modulo(axis));
+			slave_position_has_been_calculated := TRUE;
+			phase_status_next := CSP_CASE_FLAP_CONTROL_STATUS_PHASE_REQUESTED;
+		END_IF
+	
+	
+	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_REQUESTED:
+	
+		IF	axis_is_standstill(axis)
+		(* RMH - MAYBE have to wait for slave axes to cam *)
+		
+		THEN
+			axis_move_absolute(
+				position 		:= axis_calculated_cam_slave_position_deg,
+				velocity 		:= phase_velocity_degps,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= MOTOR_MAX_ACCELERATION_DEGPS2,
+				deceleration 	:= MOTOR_MAX_DECELERATION_DEGPS2, 
+				jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := axis
+				); 
+			
+		END_IF
+
+		IF 	axis_is_absolute_moving(axis)
+		THEN
+			phase_status_next	:=	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_PHASING;
+		END_IF
+	
+	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_PHASING:
+	
+		IF 	axis_is_standstill(axis)
+		THEN
+			phase_status_next	:=	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_PHASED;
+		END_IF
+		
+	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_PHASED:
+	
+		IF engage_enable
+		THEN
+			phase_status_next := CSP_CASE_FLAP_CONTROL_STATUS_PHASE_DONE;
+		END_IF
+		
+		
+	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_DONE:	(* Phase done *)	
+		
+		phase_running := FALSE;
+		phase_done := TRUE;		
+
+		IF 	NOT axis_is_enabled(axis)
+		THEN
+			phase_status_next := CSP_CASE_FLAP_CONTROL_STATUS_PHASE_ERROR;
+		END_IF		
+	
+	CSP_CASE_FLAP_CONTROL_STATUS_PHASE_ERROR:	(* Phase error *)
+	
+		IF	phase_running
+			OR NOT axis_is_ok(FALSE, axis)
+		THEN
+			phase_error := TRUE;
+			axis_disable(axis);									
+		END_IF
+		phase_running := FALSE;
+		
+		IF	phase_conditions 	
+		THEN
+			phase_status_next := CSP_CASE_FLAP_CONTROL_STATUS_PHASE_START;
+		END_IF
+		
+END_CASE
+
+IF 	NOT debug_state_machine
+	OR
+	debug_phase_machine_one_step	
+THEN
+	phase_status := phase_status_next;
+	debug_phase_machine_one_step := FALSE;
+END_IF
+
+(* Phasing timeout *)
+IF (phase_running
+	AND NOT debug_state_machine)
+	OR phase_error
+THEN
+	IF	timer_is_expired(phase_time_out_tmr)
+	THEN
+		process_message_set(1, phase_status, 0, phase_faulted_aem);
+	END_IF
+ELSE
+	timer_restart(30000, phase_time_out_tmr);
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

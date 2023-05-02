@@ -1,0 +1,336 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_glue_sensors" Id="{9eeb7cb8-00b7-4154-8ead-ff8da6e59c26}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_glue_sensors
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	case_present_os_di:								digital_input;
+	case_present_os_di_dchk: 						check_section;
+	
+	
+	case_present_ls_di:								digital_input;
+	case_present_ls_di_dchk: 						check_section;
+	
+	Case_at_glue_begin_phase:						LREAL:=150;
+	Case_at_glue_end_phase:							LREAL:=180;
+	
+	bad_count_os: 									INT;
+	consecutive_blocked_os_aem:						message;
+	consecutive_blocked_ls_aem:						message;
+	bad_count_ls: 									INT;
+	temp1: 											BOOL;
+	temp2: 											BOOL;
+	consecutive_blocked_count:						INT := 3;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+check_section_set_check_window_phases_value(
+    begin_phase         :=  Case_at_glue_begin_phase,
+    end_phase           :=  Case_at_glue_end_phase,
+    conversion_THIS     :=  case_present_os_di_dchk);	
+	
+check_section_set_check_window_phases_value(
+    begin_phase         :=  Case_at_glue_begin_phase,
+    end_phase           :=  Case_at_glue_end_phase,
+    conversion_THIS     :=  case_present_ls_di_dchk);	
+
+(* TRACKS IF PE WAS BAD DURING REJECT *)
+IF 	csp_case_transport_ls_trailing.axis.actual_position >330
+	AND csp_case_transport_ls_trailing.axis.actual_position <355
+THEN
+	IF 	digital_input_is_active(case_present_os_di) 
+		AND NOT temp1
+	THEN
+		bad_count_os :=  bad_count_os + 1;
+		temp1 := TRUE;
+	ELSE
+		bad_count_os := 0;	
+	END_IF
+	
+	IF 	digital_input_is_active(case_present_ls_di) 
+		AND NOT temp2
+	THEN
+		bad_count_ls :=  bad_count_ls + 1;
+		temp2 := TRUE;
+	ELSE
+		bad_count_ls := 0;	
+	END_IF
+END_IF
+
+IF 	temp1 
+	AND NOT digital_input_is_active(case_present_os_di)
+THEN
+	temp1 := FALSE;
+END_IF
+
+IF 	temp2 
+	AND NOT digital_input_is_active(case_present_ls_di)
+THEN
+	temp2 := FALSE;
+END_IF
+
+IF (bad_count_os >= consecutive_blocked_count )
+	AND
+  (machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch))
+THEN
+	bad_count_os := 0;
+	process_message_reset(consecutive_blocked_os_aem);
+END_IF
+
+IF  process_message_is_on(consecutive_blocked_os_aem)
+	AND
+   (machine_is_stopped(csp.mch)
+	OR
+	machine_is_stop_emergency_active(csp.mch))
+THEN
+	bad_count_os := 0;	
+	process_message_reset(consecutive_blocked_os_aem);
+END_IF
+
+IF bad_count_os >= consecutive_blocked_count
+THEN
+	process_message_set(1, 1, 1, consecutive_blocked_os_aem);
+END_IF
+
+IF (bad_count_ls >= consecutive_blocked_count )
+	AND
+	  (machine_is_stopped(csp.mch)
+	OR 
+	   machine_is_stop_emergency_active(csp.mch))
+THEN
+	bad_count_ls := 0;
+	process_message_reset(consecutive_blocked_ls_aem);
+END_IF
+
+IF 	process_message_is_on(consecutive_blocked_ls_aem)
+	AND
+ 	 (machine_is_stopped(csp.mch)
+	OR 
+	   machine_is_stop_emergency_active(csp.mch))
+THEN
+	bad_count_ls := 0;
+	process_message_reset(consecutive_blocked_ls_aem);
+END_IF
+
+IF bad_count_ls >= consecutive_blocked_count
+THEN
+	process_message_set(1, 1, 1, consecutive_blocked_ls_aem);
+END_IF
+
+	
+IF csp_case_main_services.dry_cycle_mode
+	OR csp_main_motorization.empty_command
+THEN
+	check_section_disable(case_present_os_di_dchk);
+	check_section_disable(case_present_ls_di_dchk);
+ELSE
+	check_section_enable(case_present_os_di_dchk);
+	check_section_enable(case_present_ls_di_dchk);
+END_IF			
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{8a9cd9e4-8f51-43d6-b490-54c838206048}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{4dea0113-2d80-4dca-afaa-62750cf47aee}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{f5d64d85-776f-4b01-bce9-f4fe791ea435}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{effead58-0ef5-4dc9-84fc-be83828b0a8e}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_glue_sensors.prc', 
+		process						:= csp_case_glue.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* INPUTS *)
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_case_present_os_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= case_present_os_di);
+		
+digital_input_init(
+		object_name					:= CONCAT(prc_path, '_case_present_ls_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= case_present_ls_di);
+	
+		
+(* CHECK SECTION FOR THE OPERATOR SIDE GLUE PE SETS SHIFT REGISTER AND PE FAILURE LOGIC *)	
+	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_case_present_os_di_dchk'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ON, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= ITEM_CASE_FEED, 
+		status_bits_to_be_false:= common_global_variables.NONE, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= ITEM_HAS_OS_UPPER_FLAP_AT_GLUE, 
+		status_bits_to_reset:=common_global_variables.NONE, 
+		reject_bit_to_set:= 0, 
+		_step:= 27, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= Case_at_glue_begin_phase,
+		end_phase:= Case_at_glue_end_phase,
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 100, 
+		products_for_failed_checks_percentage:= 100, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= case_present_os_di_dchk );
+
+	check_section_add_di_input(
+		di_input := case_present_os_di,
+		CONVERSION_this:= case_present_os_di_dchk);
+	 	
+(* CHECK SECTION FOR THE LOADER SIDE GLUE PE SETS SHIFT REGISTER AND PE FAILURE LOGIC *)	
+	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_case_present_ls_di_dchk'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ON, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= ITEM_CASE_FEED, 
+		status_bits_to_be_false:= common_global_variables.NONE, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= ITEM_HAS_LS_UPPER_FLAP_AT_GLUE, 
+		status_bits_to_reset:= common_global_variables.NONE, 
+		reject_bit_to_set:= 0, 
+		_step:= 27, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= Case_at_glue_begin_phase,
+		end_phase:= Case_at_glue_end_phase,
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 100, 
+		products_for_failed_checks_percentage:= 100, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= case_present_ls_di_dchk );
+
+	check_section_add_di_input(
+		di_input := case_present_ls_di,
+		CONVERSION_this:= case_present_ls_di_dchk);
+	
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_consecutive_blocked_os_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= consecutive_blocked_os_aem);
+	
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_consecutive_blocked_ls_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= consecutive_blocked_ls_aem);
+	
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{7c530a35-7555-4db3-a78e-69700e7eb95e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{868af727-081c-4db2-8890-831deabc68b2}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{6ac4bd9b-1664-45bf-83a7-0166b176cd06}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{1d6d1d5c-edbe-49f1-8de0-62cf4b978d7d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

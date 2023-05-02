@@ -1,0 +1,277 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Crc="3210982189" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" ToolsVersion="4.0">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{76f47d01-b342-43f5-9091-c8c830064822}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>TwinCAT3SafePlcProject</RootNamespace>
+    <AssemblyName>TwinCAT3SafePlcProject</AssemblyName>
+    <FileUpgradeFlags />
+    <UpgradeBackupLocation />
+    <OldToolsVersion>2.0</OldToolsVersion>
+    <TargetSystem>EL6900</TargetSystem>
+    <ProgrammingLanguage>Graphical Editor</ProgrammingLanguage>
+    <Worker>mpgrasso</Worker>
+    <IntProjName>Untitled1</IntProjName>
+    <IsNewCreated>false</IsNewCreated>
+    <SPlcProjVersion>1.3.0.0</SPlcProjVersion>
+    <Name>SPLC40210</Name>
+    <NextSdsId>175</NextSdsId>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <DebugSymbols>false</DebugSymbols>
+    <OutputPath>bin\Release\</OutputPath>
+    <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
+    <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="AccUChange_STO\AccUChange_STO.sal" />
+    <None Include="AccUChange_STO\AccUChange_STO.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>AccUChange_STO\AccUChange_STO.sal</DependentUpon>
+    </None>
+    <None Include="AccUChange_STO\Alias Devices\csp_transfer_main_safety_accUChangesisdiscrepancy_inputstatus.sds" />
+    <None Include="AccUChange_STO\Alias Devices\Info data 1_Slot82.sds" />
+    <None Include="AccUChange_STO\Alias Devices\Info data 1_Slot84.sds" />
+    <None Include="AccUChange_STO\Alias Devices\Info data 1_Slot87.sds" />
+    <None Include="AccUChange_STO\Alias Devices\Info data 1_Slot89.sds" />
+    <None Include="AccUChange_STO\Alias Devices\Info data 1_Slot92.sds" />
+    <None Include="AccUChange_STO\Alias Devices\csp_transfer_main_safety_accUChangesisopen_outputstatus.sds" />
+    <None Include="AccUChange_STO\Alias Devices\csp_transfer_main_safety_accUChangesissafely_closed_inputstatus.sds" />
+    <None Include="AccUChange_STO\Alias Devices\ErrorAcknowledgement.sds" />
+    <None Include="AccUChange_STO\Alias Devices\Run.sds" />
+    <None Include="DrivesCommonConfiguration\Alias Devices\csp_transfer_main_safety_drives_commonConfigurationrack_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="DrivesCommonConfiguration\Alias Devices\csp_transfer_main_safety_drives_commonConfigurationrack_smes_sisopen_outputstatus.sds" />
+    <None Include="DrivesRackPowerSupply\Alias Devices\csp_transfer_main_safety_drives_PS41020sigsafety_group_fb_err_inputstatus.sds" />
+    <None Include="DrivesRackPowerSupply\Alias Devices\csp_transfer_main_safety_drives_PS41020sisdiscrepancy_inputstatus.sds" />
+    <None Include="DrivesRackPowerSupply\Alias Devices\csp_transfer_main_safety_drives_PS41020sisopen_outputstatus.sds" />
+    <None Include="DrivesRackPowerSupply\Alias Devices\csp_transfer_main_safety_drives_PS41020sissafely_closed_inputstatus.sds" />
+    <None Include="EmergencyCircuit\Alias Devices\csp_transfer_main_safety_emergencydelayed_sissafely_closed_inputstatus.sds" />
+    <None Include="EmergencyCircuit\Alias Devices\csp_transfer_main_safety_emergencydelayed_sisopen_outputstatus.sds" />
+    <None Include="EmergencyCircuit\Alias Devices\csp_transfer_main_safety_emergencyHMI_button_sioprotection_discrepancy_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_7unlock_outputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_8unlock_outputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_7protection_discrepancy_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_7safely_closed_and_locked_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_8safely_closed_and_locked_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_8protection_discrepancy_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_7safely_locked_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_8safely_locked_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_4unlock_outputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_6unlock_outputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_4safely_locked_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_6safely_locked_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_6protection_discrepancy_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_6safely_closed_and_locked_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_5unlock_outputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_5protection_discrepancy_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_5safely_closed_and_locked_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_5safely_locked_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_3unlock_outputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_4safely_closed_and_locked_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_4protection_discrepancy_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssissafely_closed_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardsdelayed_sisopen_outputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssisopen_outputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardsdelayed_sissafely_closed_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_3protection_discrepancy_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_3safely_locked_inputstatus.sds" />
+    <None Include="Guards\Alias Devices\csp_transfer_main_safety_guardssio_door_3safely_closed_and_locked_inputstatus.sds" />
+    <None Include="Interface\Alias Devices\csp_transfer_main_safety_tokensioprotection_safely_closed_inputstatus.sds" />
+    <None Include="Interface\Alias Devices\csp_transfer_main_safety_emergencyHMI_button_stop_sioprotection_safely_closed_inputstatus.sds" />
+    <None Include="Interface\Alias Devices\SPLC5000.sds" />
+    <None Include="Interface\Alias Devices\SPLC40210Slot59.sds" />
+    <None Include="Interface\Alias Devices\SPLC40210Slot72.sds" />
+    <None Include="Interface\Alias Devices\SPLC40210Slot70.sds" />
+    <None Include="Interface\Alias Devices\SPLC40210Slot68.sds" />
+    <None Include="Interface\Alias Devices\SPLC40210Slot61.sds" />
+    <None Include="Interface\Alias Devices\SPLC40210Slot60.sds" />
+    <None Include="Interface\Alias Devices\SPLC40210Slot66.sds" />
+    <None Include="EmergencyCircuit\Alias Devices\csp_transfer_main_safety_emergencysissafely_closed_inputstatus.sds" />
+    <None Include="EmergencyCircuit\Alias Devices\csp_transfer_main_safety_emergencysisopen_outputstatus.sds" />
+    <None Include="EmergencyCircuit\EmergencyCircuit.sal" />
+    <None Include="EmergencyCircuit\EmergencyCircuit.sal.diagram">
+      <DependentUpon>EmergencyCircuit\EmergencyCircuit.sal</DependentUpon>
+      <Visible>false</Visible>
+    </None>
+    <None Include="SafetyToken\Alias Devices\csp_transfer_main_safety_tokensioprotection_discrepancy_inputstatus.sds" />
+    <None Include="SafetyToken\Alias Devices\csp_transfer_main_safety_tokensisopen_outputstatus.sds" />
+    <None Include="SafetyToken\Alias Devices\csp_transfer_main_safety_tokensissafely_closed_inputstatus.sds" />
+    <None Include="SafetyToken\Alias Devices\ErrorAcknowledgement.sds" />
+    <None Include="SafetyToken\Alias Devices\Run.sds" />
+    <None Include="SafetyToken\SafetyToken.sal" />
+    <None Include="SafetyToken\SafetyToken.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>SafetyToken\SafetyToken.sal</DependentUpon>
+    </None>
+    <None Include="SD41100\Alias Devices\csp_transfer_main_safety_drives_SD41100sigsafety_group_com_err_inputstatus.sds" />
+    <None Include="SD41100\Alias Devices\csp_transfer_main_safety_drives_SD41100sigsafety_group_fb_err_inputstatus.sds" />
+    <None Include="SD41100\Alias Devices\SD41100_ChA.sds" />
+    <None Include="SD41100\Alias Devices\SD41100_ChB.sds" />
+    <None Include="SD41100\Alias Devices\csp_transfer_main_safety_drives_SD41100chA_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41100\Alias Devices\csp_transfer_main_safety_drives_SD41100chB_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41100\Alias Devices\csp_transfer_main_safety_drives_SD41100chA_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41100\Alias Devices\csp_transfer_main_safety_drives_SD41100chB_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41200\Alias Devices\SD41200_ChA.sds" />
+    <None Include="SD41200\Alias Devices\SD41200_ChB.sds" />
+    <None Include="SD41200\Alias Devices\csp_transfer_main_safety_drives_SD41200chA_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41200\Alias Devices\csp_transfer_main_safety_drives_SD41200chB_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41200\Alias Devices\csp_transfer_main_safety_drives_SD41200chA_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41200\Alias Devices\csp_transfer_main_safety_drives_SD41200chB_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41200\Alias Devices\csp_transfer_main_safety_drives_SD41200sigsafety_group_com_err_inputstatus.sds" />
+    <None Include="SD41200\Alias Devices\csp_transfer_main_safety_drives_SD41200sigsafety_group_fb_err_inputstatus.sds" />
+    <None Include="SD41200\Alias Devices\ErrorAcknowledgement.sds" />
+    <None Include="SD41200\Alias Devices\Run.sds" />
+    <None Include="SD41200\SD41200.sal" />
+    <None Include="SD41200\SD41200.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>SD41200\SD41200.sal</DependentUpon>
+    </None>
+    <None Include="SD41300\Alias Devices\SD41300_ChA.sds" />
+    <None Include="SD41300\Alias Devices\SD41300_ChB.sds" />
+    <None Include="SD41300\Alias Devices\csp_transfer_main_safety_drives_SD41300chA_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41300\Alias Devices\csp_transfer_main_safety_drives_SD41300chB_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41300\Alias Devices\csp_transfer_main_safety_drives_SD41300chA_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41300\Alias Devices\csp_transfer_main_safety_drives_SD41300chB_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41300\Alias Devices\csp_transfer_main_safety_drives_SD41300sigsafety_group_com_err_inputstatus.sds" />
+    <None Include="SD41300\Alias Devices\csp_transfer_main_safety_drives_SD41300sigsafety_group_fb_err_inputstatus.sds" />
+    <None Include="SD41300\Alias Devices\ErrorAcknowledgement.sds" />
+    <None Include="SD41300\Alias Devices\Run.sds" />
+    <None Include="SD41300\SD41300.sal" />
+    <None Include="SD41300\SD41300.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>SD41300\SD41300.sal</DependentUpon>
+    </None>
+    <None Include="SD41400\Alias Devices\SD41400_ChA.sds" />
+    <None Include="SD41400\Alias Devices\SD41400_ChB.sds" />
+    <None Include="SD41400\Alias Devices\csp_transfer_main_safety_drives_SD41400chA_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41400\Alias Devices\csp_transfer_main_safety_drives_SD41400chB_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41400\Alias Devices\csp_transfer_main_safety_drives_SD41400chA_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41400\Alias Devices\csp_transfer_main_safety_drives_SD41400chB_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41400\Alias Devices\csp_transfer_main_safety_drives_SD41400sigsafety_group_com_err_inputstatus.sds" />
+    <None Include="SD41400\Alias Devices\csp_transfer_main_safety_drives_SD41400sigsafety_group_fb_err_inputstatus.sds" />
+    <None Include="SD41400\Alias Devices\ErrorAcknowledgement.sds" />
+    <None Include="SD41400\Alias Devices\Run.sds" />
+    <None Include="SD41400\SD41400.sal" />
+    <None Include="SD41400\SD41400.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>SD41400\SD41400.sal</DependentUpon>
+    </None>
+    <None Include="SD41500\Alias Devices\SD41500_ChA.sds" />
+    <None Include="SD41500\Alias Devices\SD41500_ChB.sds" />
+    <None Include="SD41500\Alias Devices\csp_transfer_main_safety_drives_SD41500chA_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41500\Alias Devices\csp_transfer_main_safety_drives_SD41500chB_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41500\Alias Devices\csp_transfer_main_safety_drives_SD41500chA_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41500\Alias Devices\csp_transfer_main_safety_drives_SD41500chB_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41500\Alias Devices\csp_transfer_main_safety_drives_SD41500sigsafety_group_com_err_inputstatus.sds" />
+    <None Include="SD41500\Alias Devices\csp_transfer_main_safety_drives_SD41500sigsafety_group_fb_err_inputstatus.sds" />
+    <None Include="SD41500\Alias Devices\ErrorAcknowledgement.sds" />
+    <None Include="SD41500\Alias Devices\Run.sds" />
+    <None Include="SD41500\SD41500.sal" />
+    <None Include="SD41500\SD41500.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>SD41500\SD41500.sal</DependentUpon>
+    </None>
+    <None Include="SD41600\Alias Devices\SD41600_ChA.sds" />
+    <None Include="SD41600\Alias Devices\SD41600_ChB.sds" />
+    <None Include="SD41600\Alias Devices\csp_transfer_main_safety_drives_SD41600chA_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41600\Alias Devices\csp_transfer_main_safety_drives_SD41600chB_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41600\Alias Devices\csp_transfer_main_safety_drives_SD41600chA_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41600\Alias Devices\csp_transfer_main_safety_drives_SD41600chB_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41600\Alias Devices\csp_transfer_main_safety_drives_SD41600sigsafety_group_fb_err_inputstatus.sds" />
+    <None Include="SD41600\Alias Devices\csp_transfer_main_safety_drives_SD41600sigsafety_group_com_err_inputstatus.sds" />
+    <None Include="SD41600\Alias Devices\ErrorAcknowledgement.sds" />
+    <None Include="SD41600\Alias Devices\Run.sds" />
+    <None Include="SD41600\SD41600.sal" />
+    <None Include="SD41600\SD41600.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>SD41600\SD41600.sal</DependentUpon>
+    </None>
+    <None Include="SD41700\Alias Devices\SD41700_ChA.sds" />
+    <None Include="SD41700\Alias Devices\SD41700_ChB.sds" />
+    <None Include="SD41700\Alias Devices\csp_transfer_main_safety_drives_SD41700chA_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41700\Alias Devices\csp_transfer_main_safety_drives_SD41700chB_smes_sisopen_outputstatus.sds" />
+    <None Include="SD41700\Alias Devices\csp_transfer_main_safety_drives_SD41700chA_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41700\Alias Devices\csp_transfer_main_safety_drives_SD41700chB_smes_sissafely_closed_inputstatus.sds" />
+    <None Include="SD41700\Alias Devices\csp_transfer_main_safety_drives_SD41700sigsafety_group_com_err_inputstatus.sds" />
+    <None Include="SD41700\Alias Devices\csp_transfer_main_safety_drives_SD41700sigsafety_group_fb_err_inputstatus.sds" />
+    <None Include="SD41700\Alias Devices\ErrorAcknowledgement.sds" />
+    <None Include="SD41700\Alias Devices\Run.sds" />
+    <None Include="SD41700\SD41700.sal" />
+    <None Include="SD41700\SD41700.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>SD41700\SD41700.sal</DependentUpon>
+    </None>
+    <None Include="TargetSystemConfig.xml">
+      <Visible>false</Visible>
+    </None>
+    <None Include="Interface\Alias Devices\csp_transfer_main_safety_interfaceSPLC40210_sigsafety_group_err_ack_outputstatus.sds" />
+    <None Include="Interface\Alias Devices\csp_transfer_main_safety_interfaceSPLC40210_sigsafety_group_run_outputstatus.sds" />
+    <None Include="Interface\Interface.sal" />
+    <None Include="Interface\Interface.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>Interface\Interface.sal</DependentUpon>
+    </None>
+    <None Include="DrivesRackPowerSupply\Alias Devices\csp_transfer_main_safety_drives_PS41020sigsafety_group_err_ack_outputstatus.sds" />
+    <None Include="DrivesRackPowerSupply\Alias Devices\csp_transfer_main_safety_drives_PS41020sigsafety_group_run_outputstatus.sds" />
+    <None Include="DrivesRackPowerSupply\DrivesRackPowerSupply.sal" />
+    <None Include="DrivesRackPowerSupply\DrivesRackPowerSupply.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>DrivesRackPowerSupply\DrivesRackPowerSupply.sal</DependentUpon>
+    </None>
+    <None Include="SD41100\Alias Devices\ErrorAcknowledgement.sds" />
+    <None Include="SD41100\Alias Devices\Run.sds" />
+    <None Include="SD41100\SD41100.sal" />
+    <None Include="SD41100\SD41100.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>SD41100\SD41100.sal</DependentUpon>
+    </None>
+    <None Include="DrivesCommonConfiguration\Alias Devices\ErrorAcknowledgement.sds" />
+    <None Include="DrivesCommonConfiguration\Alias Devices\Run.sds" />
+    <None Include="DrivesCommonConfiguration\DrivesCommonConfiguration.sal" />
+    <None Include="DrivesCommonConfiguration\DrivesCommonConfiguration.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>DrivesCommonConfiguration\DrivesCommonConfiguration.sal</DependentUpon>
+    </None>
+    <None Include="Guards\Alias Devices\ErrorAcknowledgement.sds" />
+    <None Include="Guards\Alias Devices\Run.sds" />
+    <None Include="Guards\Guards.sal" />
+    <None Include="Guards\Guards.sal.diagram">
+      <Visible>false</Visible>
+      <DependentUpon>Guards\Guards.sal</DependentUpon>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="AccUChange_STO" />
+    <Folder Include="AccUChange_STO\Alias Devices" />
+    <Folder Include="EmergencyCircuit" />
+    <Folder Include="EmergencyCircuit\Alias Devices" />
+    <Folder Include="Interface" />
+    <Folder Include="Interface\Alias Devices" />
+    <Folder Include="DrivesRackPowerSupply" />
+    <Folder Include="DrivesRackPowerSupply\Alias Devices" />
+    <Folder Include="SafetyToken" />
+    <Folder Include="SafetyToken\Alias Devices" />
+    <Folder Include="SD41100" />
+    <Folder Include="SD41100\Alias Devices" />
+    <Folder Include="DrivesCommonConfiguration" />
+    <Folder Include="DrivesCommonConfiguration\Alias Devices" />
+    <Folder Include="SD41200" />
+    <Folder Include="SD41200\Alias Devices" />
+    <Folder Include="SD41300" />
+    <Folder Include="SD41300\Alias Devices" />
+    <Folder Include="SD41400" />
+    <Folder Include="SD41400\Alias Devices" />
+    <Folder Include="SD41500" />
+    <Folder Include="SD41500\Alias Devices" />
+    <Folder Include="SD41600" />
+    <Folder Include="SD41600\Alias Devices" />
+    <Folder Include="SD41700" />
+    <Folder Include="SD41700\Alias Devices" />
+    <Folder Include="Guards" />
+    <Folder Include="Guards\Alias Devices" />
+    <None Include="EmergencyCircuit\Alias Devices\csp_transfer_main_safety_emergencysigsafety_group_err_ack_outputstatus.sds" />
+    <None Include="EmergencyCircuit\Alias Devices\csp_transfer_main_safety_emergencysigsafety_group_run_outputstatus.sds" />
+  </ItemGroup>
+</Project>

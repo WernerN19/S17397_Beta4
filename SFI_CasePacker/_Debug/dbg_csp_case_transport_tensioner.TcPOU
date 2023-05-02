@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_case_transport_tensioner" Id="{871cdd12-e0df-4d89-bd48-bcb2084a74aa}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_case_transport_tensioner
+VAR
+  chain_tensioner_do_shd : digital_output_shadow;
+  chain_tensioner_sact_shd : digital_actuator_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{c6b090c6-79d9-4953-a570-e4e597ab6b39}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_transport_tensioner.chain_tensioner_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= chain_tensioner_do_shd);
+
+	digital_actuator_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_transport_tensioner.chain_tensioner_sact, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= chain_tensioner_sact_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	digital_output_shadow_cycle(chain_tensioner_do_shd);
+	digital_actuator_shadow_cycle(chain_tensioner_sact_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

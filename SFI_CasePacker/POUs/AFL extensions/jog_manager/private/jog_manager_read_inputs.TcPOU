@@ -1,0 +1,51 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_read_inputs" Id="{598c7a66-cb09-48ee-a2a4-04877d3a89ac}" SpecialFunc="None">
+    <Declaration><![CDATA[(* Function that updates ...'this'. *)
+FUNCTION jog_manager_read_inputs : VOID
+VAR_IN_OUT
+    CONVERSION_this:		jog_manager;	(*$ object reference $*)
+END_VAR
+VAR
+	i:						UINT;
+	axis_is_absolute_moving:BOOL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	CONVERSION_this.has_pendant
+THEN
+	digital_input_read(CONVERSION_this.CONVERSION_private.jog_pendant_positive, CONVERSION_this.di_pendant_positive^);
+	digital_input_read(CONVERSION_this.CONVERSION_private.jog_pendant_negative, CONVERSION_this.di_pendant_negative^);
+	
+	CONVERSION_this.CONVERSION_private.shared_pendant_jog_positive_status := FALSE;
+	CONVERSION_this.CONVERSION_private.shared_pendant_jog_negative_status := FALSE;
+	FOR i := 1 TO CONVERSION_this.parents_next_free-1 DO
+		IF	CONVERSION_this.CONVERSION_private.my_address = CONVERSION_this.parents[i]^.has_shared_pendant
+		THEN
+			CONVERSION_this.CONVERSION_private.shared_pendant_jog_positive_status := 
+				CONVERSION_this.CONVERSION_private.shared_pendant_jog_positive_status OR
+				CONVERSION_this.parents[i]^.CONVERSION_private.shared_pendant_jog_positive_status;
+			CONVERSION_this.CONVERSION_private.shared_pendant_jog_negative_status := 
+				CONVERSION_this.CONVERSION_private.shared_pendant_jog_negative_status OR
+				CONVERSION_this.parents[i]^.CONVERSION_private.shared_pendant_jog_negative_status;
+		END_IF				
+	END_FOR
+
+ELSIF CONVERSION_this.has_shared_pendant <> G_framework.NULL
+THEN
+	CONVERSION_this.shared_pendant_active := CONVERSION_this.has_shared_pendant^.pendant_active;
+	CONVERSION_this.CONVERSION_private.jog_pendant_positive := CONVERSION_this.has_shared_pendant^.CONVERSION_private.jog_pendant_positive;
+	CONVERSION_this.CONVERSION_private.jog_pendant_negative := CONVERSION_this.has_shared_pendant^.CONVERSION_private.jog_pendant_negative;
+ELSE
+	CONVERSION_this.CONVERSION_private.jog_pendant_positive := FALSE;
+	CONVERSION_this.CONVERSION_private.jog_pendant_negative := FALSE;
+END_IF
+
+axis_is_absolute_moving := (CONVERSION_this.status = JOG_MANAGER_STATUS_ABSOLUTE_MOVING);
+FOR i := 1 TO CONVERSION_this.parents_next_free-1 DO
+	axis_is_absolute_moving := axis_is_absolute_moving OR (CONVERSION_this.parents[i]^.status = JOG_MANAGER_STATUS_ABSOLUTE_MOVING);
+END_FOR
+CONVERSION_this.CONVERSION_private.axis_is_absolute_moving := axis_is_absolute_moving;
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

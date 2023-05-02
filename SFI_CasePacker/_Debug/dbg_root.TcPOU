@@ -1,0 +1,125 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_root" Id="{6041a7fd-517f-4c5d-a337-6f753cd751d5}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_root
+VAR
+	prc:		process;
+	debug_mch:	machine;
+  csp_mch_shd : machine_shadow;
+  dbg_root_debug_mch_shd : machine_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+_read_process_image();
+_mode_manager();
+
+CASE process_get_mode(CONVERSION_this := prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+		RETURN;
+END_CASE
+
+_set_runtime_properties();
+
+_write_output();
+
+]]></ST>
+    </Implementation>
+    <Action Name="_handle_process_test" Id="{c5de68fc-c7ef-40b8-ab9c-63e43a43dd40}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{8b616d68-d9a2-4d4e-8288-22c1e3f889c3}">
+      <Implementation>
+        <ST><![CDATA[IF	process_mode_req_is_pending(CONVERSION_this := prc)
+THEN
+    process_apply_mode_req_first_step(CONVERSION_this := prc);
+    CASE process_get_mode(CONVERSION_this := prc) OF
+        MODE_TO_ABSENT:
+            ;
+        MODE_TO_INACTIVE:
+            ;
+        MODE_TO_TEST:
+            ;
+        MODE_TO_OPERATIONAL:
+            ;
+    END_CASE
+    process_apply_mode_req_second_step(CONVERSION_this := prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{bbbf9cd6-22c1-4ff8-8b46-9ab6e0bd32bf}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	machine_init(
+		object_name 	:=	'dbg_root.mch',
+		name_to_hmi 	:=	'Debug',
+		CONVERSION_this :=	debug_mch);
+
+	process_init(
+		object_name 	:=	'dbg_root.prc',
+		machine 		:=	dbg_root.debug_mch,
+		CONVERSION_this :=	prc);
+	machine_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp.mch, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= csp_mch_shd);
+
+	machine_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= dbg_root.debug_mch, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= dbg_root_debug_mch_shd);
+
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+    process_cycle(CONVERSION_this := prc);
+	machine_shadow_cycle(csp_mch_shd);
+	machine_shadow_cycle(dbg_root_debug_mch_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{a0351e02-f70b-4843-b821-0e4a91917189}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{cda71fd9-2d96-4b86-8fec-627e41cbec15}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{b2578a6a-63b1-48c9-9685-dd2a61b1c380}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{30861989-bba0-4734-931a-25d133351d2c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

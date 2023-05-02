@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_low" Id="{44c83cda-d58b-4c2d-a3d4-3abd21cccfd6}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+CSP: low task
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	G.Cera 			Creation of the PRG
+
+**********************************************************************************************************)
+
+PROGRAM _csp_low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_csp_case_low();
+
+_csp_transfer_low();
+
+_csp_main_low();
+
+_csp_customerInterfaces_low();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

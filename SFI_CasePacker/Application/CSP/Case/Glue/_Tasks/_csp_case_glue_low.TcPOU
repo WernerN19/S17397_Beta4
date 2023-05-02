@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_case_glue_low" Id="{fb74fac1-184b-478a-9611-9694ad49eb3a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_case_glue_low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* CASE *)
+	(* GLUE *)
+		(* LS *)
+			(* ACC-U-CHANGE*)
+			csp_case_glue_ls_accU();
+			csp_case_glue_ls_accU_lowerPosition();
+			csp_case_glue_ls_accU_upperPosition();
+		(* OS *)
+			(* ACC-U-CHANGE*)
+			csp_case_glue_os_accU();
+			csp_case_glue_os_accU_lowerPosition();
+			csp_case_glue_os_accU_upperPosition();
+			csp_case_glue_os_accU_Width();
+		(* SENSORS *)
+		;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

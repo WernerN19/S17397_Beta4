@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_highest" Id="{7e44d3b7-45e2-45e2-8288-4955eb868298}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Highest task
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	G.Cera 			Creation of the PRG
+
+**********************************************************************************************************)
+{attribute 'TcCallAfterOutputUpdate'}
+PROGRAM _highest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* APPLICATION *)
+framework_highesttask_begin();
+
+//application_status_manager();
+application_status_manager_highest();
+
+_csp_highest();
+
+//dbg_highest();
+
+framework_highesttask_end();
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

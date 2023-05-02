@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="analog_actuator_test_command_enum" Id="{f6329fe3-6204-4762-879d-fc142334e0a6}">
+    <Declaration><![CDATA[TYPE
+	analog_actuator_test_command_enum: (
+	ANALOG_ACTUATOR_TEST_CMD_IDLE			:= 0,	(*$ No command assigned $*)
+	ANALOG_ACTUATOR_TEST_CMD_ACTIVATE		:= 1,	(*$ Activation command $*)
+	ANALOG_ACTUATOR_TEST_CMD_DEACTIVATE		:= 2	(*$ Deactivation command $*)
+	) := ANALOG_ACTUATOR_TEST_CMD_IDLE;
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,65 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_case_feed_low" Id="{e83cf426-2fef-47e0-a553-1086a5a8742f}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_case_feed_low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* CASE *)
+	(* FEED *)
+		(* ARM *)
+
+		(* MAGAZINE *)
+			(* ACC-U-CHANGE *)
+			csp_case_feed_magazine_accU();
+			csp_case_feed_magazine_accU_osDepth();
+			csp_case_feed_magazine_accU_lsDepth();
+			(* SENSORS *)
+			csp_case_feed_magazine_level();
+			csp_case_feed_magazine_level_zone1();
+			csp_case_feed_magazine_level_zone2();
+			csp_case_feed_magazine_level_zone3();
+			csp_case_feed_magazine_level_zone4();
+			csp_case_feed_magazine_level_zonelow();
+			csp_case_feed_magazine_level_zonemin();
+			(* OS *)
+			csp_case_feed_magazine_os();
+			csp_case_feed_magazine_os_belt();
+			csp_case_feed_magazine_os_pusher();
+			csp_case_feed_magazine_os_pusherTilt();
+			csp_case_feed_magazine_os_sensors();
+			(* LS *)
+			csp_case_feed_magazine_ls();
+			csp_case_feed_magazine_ls_belt();
+			csp_case_feed_magazine_ls_pusher();
+			csp_case_feed_magazine_ls_pusherTilt();
+			csp_case_feed_magazine_ls_sensors();
+
+		(* REJECT *)
+			csp_case_feed_reject_belt();
+			csp_case_feed_reject_belt_lower();
+			csp_case_feed_reject_belt_upper();
+			csp_case_feed_reject_sensors();
+		(* SHUTTLE *)
+			(* ACC-U-CHANGE *)
+			csp_case_feed_shuttle_accU();
+			csp_case_feed_shuttle_accU_depth();
+			csp_case_feed_reject_accU_depth();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

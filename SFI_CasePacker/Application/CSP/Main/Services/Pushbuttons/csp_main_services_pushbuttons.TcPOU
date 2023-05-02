@@ -1,0 +1,398 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_services_pushbuttons" Id="{1dd7071c-b781-4821-a920-794c75442663}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main keyboard
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_services_pushbuttons
+VAR
+	prc:									process;
+	prc_path:				STRING;
+	
+	reset_request_rtrig:							R_TRIG;
+	reset_request:									BOOL;
+	reset_tmr:										timer;
+	reset_delay:									UDINT;
+	
+	start_request_rtrig:							R_TRIG;
+	start_request:									BOOL;
+	start_tmr:										timer;
+	start_delay:									UDINT := 5000;
+	start_ton:										TON;
+	
+	immediate_stop_bool:							boolean;
+	stop_button_rtrig:								R_TRIG;
+
+	wait_immediate_stop_dvr:						BOOL;
+	immediate_stop_dchk: 							digital_check;
+	
+	stop_dchk_transfer_dvr: 						BOOL;
+	stop_dchk_case_dvr: 							BOOL;	
+	stopped_bool:									BOOL;
+	
+	reset_delay_bool: 								BOOL;
+	reset_delay_ton1:								TON;
+	reset_delay_ton_complete1:						BOOL;
+	
+	stop_message_reclassification_instance:			message_reclassification;
+	unlock_guard_enable_from_reclassification:		BOOL;
+	powerup:										BOOL := TRUE;
+	service_stop_force_unlock_flt:					filter;
+
+END_VAR
+
+VAR_INPUT
+	i_reset_button:			BOOL;
+	i_start_button:			BOOL;
+	i_stop_button:			BOOL;
+	(*PART TO BE MOVED TO MAIN*)
+	reset_lamp_on:				BOOL;
+	reset_lamp_blink:			BOOL;
+	start_lamp_on:				BOOL;
+	start_lamp_blink:			BOOL;
+	stop_lamp_on:				BOOL;
+	stop_lamp_blink:			BOOL;
+	(*END PART TO BE MOVED TO MAIN*)
+END_VAR
+
+VAR_OUTPUT
+	o_machine_is_running:	BOOL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(*Light Logic*)
+
+(*STOP LOGIC *)
+
+boolean_reset(immediate_stop_bool);
+
+IF  (
+        NOT stop_dchk_case_dvr
+		OR
+		NOT stop_dchk_transfer_dvr
+    )
+    AND
+    (
+        motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+        OR
+        motorization_manager_is_emptying(csp_main_motorization_manager.motm)
+    )
+THEN
+    digital_check_enable(immediate_stop_dchk);
+    IF  (
+            stop_button_rtrig.Q
+            AND
+            wait_immediate_stop_dvr
+        )
+    THEN
+        boolean_set(immediate_stop_bool);
+    END_IF;
+    wait_immediate_stop_dvr := TRUE;
+END_IF
+
+
+IF  motorization_manager_is_stopped(CONVERSION_this:= csp_main_motorization_manager.motm)
+THEN
+    digital_check_disable(immediate_stop_dchk);
+    wait_immediate_stop_dvr := FALSE;
+END_IF
+
+
+(* RESET LOGIC *)
+IF machine_is_stopped(csp.mch)
+AND reset_delay_ton_complete1//timer_is_expired(reset_tmr) // ADDED TO DELAY RESET
+THEN
+	IF
+		motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+		OR
+		motorization_manager_is_emptying(csp_main_motorization_manager.motm)
+	THEN
+		reset_lamp_blink := TRUE;
+		reset_lamp_on := FALSE;
+	ELSE
+		reset_lamp_blink := FALSE;
+		reset_lamp_on := TRUE;	
+	END_IF
+ELSE
+	reset_lamp_blink := FALSE;
+	reset_lamp_on := FALSE;			
+END_IF
+
+
+(* START LOGIC *)
+start_ton(
+	IN := machine_is_ready(csp.mch),
+	PT := UDINT_TO_TIME(start_delay));
+
+(*IF	machine_is_ready(csp.mch)
+AND timer_is_expired(start_tmr)*) // ADDED TO DELAY START
+IF start_ton.Q
+THEN
+	start_lamp_blink := FALSE;
+	start_lamp_on := TRUE;
+ELSIF motorization_manager_is_suspended(csp_main_motorization_manager.motm) OR motorization_manager_is_held(csp_main_motorization_manager.motm) 
+THEN
+	start_lamp_blink := TRUE;
+		start_lamp_on := FALSE;
+ELSE
+	start_lamp_blink := FALSE;
+	start_lamp_on := FALSE;				
+END_IF
+
+
+(* STOP LOGIC *)
+IF	machine_is_execute(csp.mch)	
+THEN
+	stop_lamp_blink := FALSE;
+	stop_lamp_on := TRUE;
+ELSIF 	motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+		OR
+		motorization_manager_is_emptying(csp_main_motorization_manager.motm)
+THEN
+	stop_lamp_blink := TRUE;
+	stop_lamp_on := FALSE;
+ELSE
+	stop_lamp_blink := FALSE;
+	stop_lamp_on := FALSE;
+END_IF
+
+
+(* DELAY BEFORE RESET *)
+
+//reset_delay_ton1(IN:=reset_delay_bool , PT:=T#6S , Q=> , ET=> );
+
+
+IF  csp_case_main_safety_emergency.HMI_Emergency_closed
+	AND
+	csp_transfer_main_safety_emergency.HMI_Emergency_closed
+	OR
+	NOT csp_main_accuchange.first_scan_bool
+	AND NOT reset_delay_ton_complete1
+	THEN
+		reset_delay_bool := TRUE; //starts 6 second wait timer
+		//reset_delay_ton_complete1 := FALSE;
+	ELSE
+		reset_delay_bool := FALSE;
+END_IF
+
+IF 	reset_delay_ton1.q
+THEN
+	reset_delay_ton_complete1 := TRUE;
+	ELSE
+		reset_delay_ton_complete1 := FALSE;
+END_IF
+
+reset_delay_ton1(IN:=reset_delay_bool , PT:=T#6S , Q=> , ET=> );
+
+IF reset_delay_bool
+	THEN
+	timer_restart(6000, reset_tmr);
+END_IF
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();
+
+powerup := FALSE;]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{e34b72fa-63b7-49a6-beb0-2ae37064ec7e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{f90f46b1-68c4-4a53-957b-3e3d81dfa948}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{6f29ce78-f9c9-42db-ad43-e684be8226af}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			powerup := TRUE;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{7a40b798-d004-4345-a74d-54e487091779}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_main_services_pushbuttons.prc', 
+		process						:= csp_main_services.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+
+	
+	timer_init(
+        object_name                 := CONCAT(prc_path, '_reset_tmr'),
+        process                     := prc,
+        CONVERSION_this             := reset_tmr);
+		
+	timer_init(
+        object_name                 := CONCAT(prc_path, '_start_tmr'),
+        process                     := prc,
+        CONVERSION_this             := start_tmr);
+		
+	digital_check_and_message_init(
+		object_name					:= CONCAT(prc_path, '_immediate_stop_dchk'), 
+		alarm_if_input_off			:= FALSE, 
+		alarm_delay					:= 0, 
+		enabled_at_powerup			:= TRUE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_EMERGENCY_STOP, 
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= immediate_stop_dchk);
+		
+	boolean_init(
+		object_name					:= CONCAT(prc_path, '_immediate_stop_bool'), 
+		process						:= prc, 
+		CONVERSION_this				:= immediate_stop_bool);
+
+	digital_check_add_boolean(
+		boolean						:= immediate_stop_bool, 
+		CONVERSION_this				:= immediate_stop_dchk);
+	
+		IF	csp_main_configurator.service_stop_reclassification_present
+	THEN
+		message_reclassification_init(
+			object_name						:= CONCAT(prc_path, '_stop_message_reclassification_instance'),
+			process							:= prc,
+			CONVERSION_this					:= stop_message_reclassification_instance);
+
+		stop_message_reclassification_instance.get_reclassification_hs := 0;
+
+		filter_init(
+			object_name						:= CONCAT(prc_path, '_service_stop_force_unlock_flt'),
+			delay_off_on					:= 5000,
+			delay_on_off					:= 0,
+			process							:= prc,
+			CONVERSION_this					:= service_stop_force_unlock_flt);
+	END_IF;	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	digital_check_cycle(immediate_stop_dchk);
+	
+	IF	csp_main_configurator.service_stop_reclassification_present
+	THEN
+		message_reclassification_cycle(stop_message_reclassification_instance);
+
+		filter_cycle(
+			input			:=	csp_case_main_services_pushbuttons.stop_pressed
+								OR
+								csp_transfer_main_services_pushbuttons.stop_pressed,
+								
+			CONVERSION_this := service_stop_force_unlock_flt);
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{c2d20235-efaa-406c-b23c-b9d772be8e70}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{5fa3734e-1ef9-4648-9c89-4edfef330bfe}">
+      <Implementation>
+        <ST><![CDATA[i_reset_button	:= csp_case_main_services_pushbuttons.reset_pressed OR csp_transfer_main_services_pushbuttons.reset_pressed;
+i_start_button	:= csp_case_main_services_pushbuttons.start_pressed OR csp_transfer_main_services_pushbuttons.start_pressed;
+i_stop_button	:= csp_case_main_services_pushbuttons.stop_pressed OR csp_transfer_main_services_pushbuttons.stop_pressed;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{2b8ed1d7-030d-4eba-908f-0416b6152fc6}">
+      <Implementation>
+        <ST><![CDATA[stop_button_rtrig(CLK:= 
+						digital_input_is_active(csp_case_main_services_pushbuttons.stop_di)
+						OR
+						digital_input_is_active(csp_transfer_main_services_pushbuttons.stop_di)
+                  );
+				  
+stop_dchk_transfer_dvr := digital_check_is_ok(csp_transfer_main_services_pushbuttons.stop_dchk);	
+
+stop_dchk_case_dvr := digital_check_is_ok(csp_case_main_services_pushbuttons.stop_dchk);
+					
+IF	csp_main_configurator.service_stop_reclassification_present
+THEN
+	IF	message_reclassification_unlock_guard_enable(stop_message_reclassification_instance)
+		OR
+		NOT	hmi_is_connected(csp.mch)
+		OR
+		powerup
+		OR
+		filter_is_on(service_stop_force_unlock_flt)
+	THEN
+		unlock_guard_enable_from_reclassification := TRUE;
+	END_IF
+
+	IF	machine_is_running(csp.mch)
+	THEN
+		unlock_guard_enable_from_reclassification := FALSE;
+	END_IF
+ELSE
+	unlock_guard_enable_from_reclassification := TRUE;
+END_IF;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{d558aa13-cca7-4518-8e32-6625d3f76a56}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

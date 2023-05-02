@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_transfer_infeed_highest" Id="{333610e2-7bad-4558-980e-6511f059ea24}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_transfer_infeed_highest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[csp_transfer_infeed();
+(* TRANSFER *)
+	(* INFEED *)
+		(* ACC-U-CHANGE *)
+		csp_transfer_infeed_accU();
+		(* METERING *)
+		csp_transfer_infeed_metering();
+		(* WATERFALL *)
+		csp_transfer_infeed_waterfall();
+		(* ACCUMULATION *)
+		csp_transfer_infeed_accumulation();
+		(* CLAMP *)
+		csp_transfer_infeed_clamp();
+		(* REJECT *)
+		csp_transfer_infeed_reject();
+			csp_transfer_infeed_reject_virtualMaster();
+			csp_transfer_infeed_reject_highLoad();
+			csp_transfer_infeed_reject_pusher();
+			csp_transfer_infeed_barcode_reader();
+		
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

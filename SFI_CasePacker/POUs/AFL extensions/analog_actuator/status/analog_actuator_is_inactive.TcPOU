@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_is_inactive" Id="{2b4c3910-8365-4793-a69d-21a9a2f791a2}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Returns <i>TRUE</i> if the status of the instance <b><i>this</i></b> is
+	<a href="#analog_actuator_status_enum"><i>ANALOG_ACTUATOR_STATUS_INACTIVE</i></a>, 
+	<i>FALSE</i> otherwise.
+$*)
+FUNCTION analog_actuator_is_inactive: BOOL
+VAR_IN_OUT
+    CONVERSION_this:	analog_actuator;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF descriptor_get_mode(CONVERSION_this.descriptor) = MODE_ABSENT
+THEN
+	analog_actuator_is_inactive := TRUE;
+	RETURN;
+END_IF
+
+analog_actuator_is_inactive := (CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_INACTIVE);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_transfer_crosspusher_highest" Id="{a45e93ec-f17a-48ed-84f0-bf55aa281aca}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_transfer_crosspusher_highest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[csp_transfer_crosspusher();
+(* TRANSFER *)
+	(* CROSSPUSHER *)
+	
+		(* VERTICAL *)
+		csp_transfer_crosspusher_vertical();
+		(* FOLLOWER *)
+		csp_transfer_crosspusher_follower();
+		(* HORIZONTAL *)
+		csp_transfer_crosspusher_horizontal();
+		(* REJECT *)
+		csp_transfer_crosspusher_reject();
+		(* SENSORS *)
+		csp_transfer_crosspusher_sensors();
+		
+		(* VIRTUAL MASTER *)
+		csp_transfer_crosspusher_virtualMaster();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

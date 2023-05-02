@@ -1,0 +1,2190 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_upstacker_virtualMaster" Id="{decdcb39-2e89-4992-9839-6a773aba977d}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_upstacker_virtualMaster
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	axis: 											axis;
+	axis_actual_position:							LREAL;
+	
+	disable_req:									BOOL;
+	debug_connection_state_machine:					BOOL := FALSE;
+	debug_phase_state_machine:						BOOL := FALSE;
+	debug_phase_machine_one_step:					BOOL := FALSE;
+	debug_connection_machine_one_step:				BOOL := FALSE;
+	debug_immediate_stop_aem:						message;
+	debug_immediate_stop:							BOOL;
+	
+	case_present:									BOOL;
+	case_removed:									BOOL;
+	
+	run:											BOOL;
+	stop:											BOOL;
+
+	phase_not_possible_aem:							message;
+	phase_not_possible_wem:							message;
+	
+	phase_status: 									csp_transfer_upstacker_phase_status_enum;
+	phase_status_next: 								csp_transfer_upstacker_phase_status_enum;
+	phase_done: 									BOOL;
+	phase_running: 									BOOL;
+	phase_error:									BOOL;
+	phase_time_out_tmr:								timer;
+	phase_faulted_aem:	 							message;
+	phase_conditions:								BOOL;
+	phase_master_position_step1:					LREAL;
+	phase_master_position_step2:					LREAL := 0.0;	//TODOPZ: parametro?
+	phase_slave_position:							LREAL;
+	
+	idle_position:									LREAL;
+	current_position:								LREAL;
+	simple_rephase_attempting:						BOOL;
+	
+	master_offset:									LREAL;
+	downstream_slave_position:						LREAL;
+	upstream_slave_position:						LREAL;
+	finger_ls_slave_position:						LREAL;
+	finger_os_slave_position:						LREAL;
+	virtual_slave_position:							LREAL;
+	virtual_master_position:						LREAL;
+	all_slave_in_phase_tollerance:					BOOL;
+	
+	connection_status: 								csp_transfer_upstacker_connection_status_enum;
+	connection_status_next: 						csp_transfer_upstacker_connection_status_enum;
+	connection_done: 								BOOL;
+	connection_running: 							BOOL;
+	connection_error:								BOOL;
+	connection_time_out_tmr:						timer;
+	connection_faulted_aem:	 						message;
+	connection_conditions:							BOOL;
+	connection_done_motcond:						motorization_conditioner;
+	connection_motorization_moving:					BOOL;
+	
+	active_cam:										DINT := DWELL_CAM;
+	next_cam:										DINT := DWELL_CAM;
+	next_activation_position:						LREAL;	
+	activation_position:							LREAL := 0.0;
+	master_offset_rephase:							LREAL;
+	master_scaling:									LREAL := 1.0;
+	slave_scaling:									LREAL := 1.0;
+	
+	axis_actPosition_upstream:						ARRAY[0..STEP_ARRAY_MAX] OF LREAL;
+	axis_actPosition_downstream:					ARRAY[0..STEP_ARRAY_MAX] OF LREAL;
+	i: 												UINT:=0;
+	
+	upstream_pos_below_belts:						LREAL := 114;
+	
+	phase_pos_end_of_ph1:							LREAL := 350;
+	skip_phase_1_pos:								LREAL;
+	
+	_1st_column_chksect:							check_section;
+	_2nd_column_chksect:							check_section;
+	_3rd_column_chksect:							check_section;
+		
+	vm_phgen:										phase_generator;
+	test1: 											LREAL;
+	finger_actual_position: 						LREAL;
+	finger_ls_actual_position: 						LREAL;
+	finger_os_actual_position: 						LREAL;
+	finger_os_actual_position_1: 					LREAL;
+	finger_ls_actual_position_1: 					LREAL;
+	low_limit_ls_finger: 							LREAL;
+	high_limit_os_finger: 							LREAL;
+	low_limit_os_finger: 							LREAL;
+	high_limit_ls_finger: 							LREAL;
+	phase_after_test_mode: 							BOOL;
+	AccumulatorVM_UpstackerVM_dif: 					REAL;
+	AccumulatorVM_UpstackerVM_pos_dif: 				LREAL;
+	rephase_upstacker: 								BOOL;
+END_VAR
+
+VAR CONSTANT
+	
+	STEP_ARRAY_MAX :								UINT := 255;
+		
+	DOWNSTREAM_POSITION_TOLLERANCE:					LREAL := 2.0;
+	UPSTREAM_POSITION_TOLLERANCE:					LREAL := 2.0;
+	FINGER_POSITION_TOLLERANCE:						LREAL := 5.0;
+	VIRTUAL_POSITION_TOLLERANCE:					LREAL := 3.0;
+	
+	MOTOR_PHASE_POSITION_DEG:						LREAL := 359.99;
+	MOTOR_PHASE_VELOCITY_DEGPS:						LREAL := 30;		(*$P $*)
+	
+	MOTOR_MAX_VELOCITY_DEGPS:						LREAL := 9600;
+	MOTOR_MAX_ACCELERATION_DEGPS2:					LREAL := 48000;
+	MOTOR_MAX_DECELERATION_DEGPS2:					LREAL := 48000;
+	MOTOR_MAX_JERK_DEGPS3:							LREAL := 1000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:					LREAL := 2;
+	
+END_VAR
+
+VAR_INPUT
+	move_test_enable:								BOOL := FALSE; 
+
+	move_test_redefine_downstream:					BOOL := FALSE;
+
+	move_test_redefine_upstream:					BOOL := FALSE;
+	
+	guard_open:										BOOL := FALSE;
+
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF 	NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT:
+		phase_after_test_mode := TRUE;
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+(********************************* BODY *********************************)
+(* MAIN RUN FOR PHASE AND CONNECTION *)
+phase();
+connection();
+_set_runtime_properties();
+
+(* UPDATES CONNECTION DONE MOTCOND BASED ON CONNECTION DONE FROM CONNECTION() *)
+IF 	connection_done
+THEN 
+	motorization_conditioner_start_done(connection_done_motcond);
+END_IF
+
+(* COVERS ACTIVE CAM SETTING TO ZERO TO PREVENT FAULT *)
+IF 	active_cam = 0
+THEN 
+	active_cam := DWELL_CAM;
+END_IF
+
+(* RESETS AXES IF PHASE DONE AND CONNECTION DONE AND DISABLED *)
+IF	phase_done
+	AND connection_done
+	AND axis_is_disabled(axis)
+THEN
+	phase_done := FALSE;
+	connection_done := FALSE;
+END_IF
+
+(* CLEARS PHASE AND CONNECTION ERRORS ON STOP *)
+IF 	machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	phase_error := FALSE;
+	connection_error := FALSE;
+END_IF
+
+(* DISABLES VIRTUAL IS ANY OF THE SLAVES FAULT *)
+IF 	NOT axis_is_disabled(axis)
+	AND NOT axis_is_ok(FALSE, csp_transfer_accumulator_finger_ls.axis)
+	AND NOT axis_is_ok(FALSE, csp_transfer_accumulator_finger_os.axis)
+	AND NOT axis_is_ok(FALSE, csp_transfer_upstacker_upstream.axis)
+	AND NOT axis_is_ok(FALSE, csp_transfer_upstacker_downstream.axis)
+THEN
+	//axis_disable(axis);
+	 ;
+END_IF
+
+(* DISABLES COLUMNS OF SHIFT REGISTER DEPENDING UPON SIZE CONFIGURATION *)
+IF 	csp_main_brand.case_pattern.case_pattern_L = 3
+THEN
+	check_section_enable(_1st_column_chksect);
+ELSE
+	check_section_disable(_1st_column_chksect);
+END_IF
+
+jog_manager_set_all_slave_axis_engaged(
+	index					:= JOG_LIST_TRANSFER_UPSTACKER_VITUAL, 
+	all_slave_axis_engaged	:= 	axis_is_cam_engaged(csp_transfer_upstacker_downstream.axis)
+							   	AND
+							   	axis_is_cam_engaged(csp_transfer_upstacker_upstream.axis)
+							 	AND
+							 	axis_is_cam_engaged(csp_transfer_accumulator_finger_ls.axis)
+							 	AND
+							 	axis_is_cam_engaged(csp_transfer_accumulator_finger_os.axis),
+	CONVERSION_this			:= csp_main_jogManager.jog_manager_virtual);
+	
+(* UPDATES AXIS ACTUAL POSTION FOR PHASING AND CONNECTION *)
+axis_actPosition_upstream[i] := csp_transfer_upstacker_upstream.axis_actual_position;
+axis_actPosition_downstream[i] := csp_transfer_upstacker_downstream.axis_actual_position;
+i := i +1;
+IF i = 255
+THEN
+	i := 0;
+END_IF
+
+(* Indicates that upstacker guards have been opened and product cleared *)
+IF  NOT csp_transfer_main_safety_guards.sio_door_4_closed 
+	OR 
+	NOT csp_transfer_main_safety_guards.sio_door_5_closed
+THEN
+	guard_open := TRUE;
+ELSE
+	guard_open := FALSE;
+END_IF
+
+IF 	csp_transfer_crosspusher.estop_occured_in_crosspush_reject //Sets to rephase the upstacker when an estop has occurred during crosspush reject
+THEN
+	phase_after_test_mode := TRUE;
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{64a3abd1-edee-45ad-9810-0b82be3ad200}">
+      <Implementation>
+        <ST><![CDATA[IF 	debug_immediate_stop
+THEN
+	process_message_set(0, 0, 0, debug_immediate_stop_aem);		
+ELSE
+	process_message_reset(debug_immediate_stop_aem);
+END_IF
+
+IF	case_present
+THEN
+	process_message_set(0, 0, 0, phase_not_possible_aem);
+	process_message_set(0, 0, 0, phase_not_possible_wem);	
+END_IF
+
+IF	NOT case_present
+THEN
+	process_message_reset(phase_not_possible_wem);
+END_IF
+
+IF	NOT case_present AND
+	NOT guard_open AND
+	csp_main.o_reset_button
+THEN//To reset the message, the operator must open the upstacker door, remove the case and close the door!
+	process_message_reset(phase_not_possible_aem);		
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{e89b8987-9df1-445d-8e82-2f49c596680f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{4f7df971-4691-4480-b43b-56f5e054588c}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{c8571b1b-933b-424e-8a86-533501ce1c15}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_transfer_upstacker_virtualMaster.prc', 
+		process									:= csp_transfer_upstacker.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+	
+	axis_init(
+		object_name								:= CONCAT(prc_path, '_axis'), 
+		axis_type								:= AXIS_TYPE_VIRTUAL, 
+		encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo									:= G_MODULO_360_DEG, 
+		process									:= prc, 
+		CONVERSION_this							:= axis);
+	
+	axis_set_max_dynamic(
+		reference_velocity						:=	MOTOR_MAX_VELOCITY_DEGPS,
+		velocity								:=	MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration							:=	MOTOR_MAX_ACCELERATION_DEGPS2,
+		deceleration							:=	MOTOR_MAX_DECELERATION_DEGPS2,
+		jerk									:=	MOTOR_MAX_JERK_DEGPS3,
+		following_error							:=	MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this							:=	axis);
+	
+	process_message_init(
+		object_name								:=	CONCAT(prc_path, 'debug_immediate_stop_aem'), 
+		behaviour								:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout							:=	0,
+		disableable								:=	TRUE,
+		individual_reset						:=	FALSE,
+		machine_reaction						:=	MACHINE_REACTION_NORMAL_STOP,
+		typology								:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process									:=	prc,
+		CONVERSION_this							:=	debug_immediate_stop_aem);
+		
+	process_message_init(
+		object_name								:=	CONCAT(prc_path, 'phase_not_possible_aem'), 
+		behaviour								:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout							:=	0,
+		disableable								:=	TRUE,
+		individual_reset						:=	FALSE,
+		machine_reaction						:=	MACHINE_REACTION_NORMAL_STOP,
+		typology								:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process									:=	prc,
+		CONVERSION_this							:=	phase_not_possible_aem);
+		
+	process_message_init(
+		object_name								:=	CONCAT(prc_path, 'phase_not_possible_wem'), 
+		behaviour								:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout							:=	0,
+		disableable								:=	TRUE,
+		individual_reset						:=	FALSE,
+		machine_reaction						:=	MACHINE_REACTION_NO_STOP,
+		typology								:=	MESSAGE_TYPOLOGY_OBLIGATION,
+		process									:=	prc,
+		CONVERSION_this							:=	phase_not_possible_wem);
+	
+	process_message_init(
+		object_name								:=	CONCAT(prc_path, '_phase_faulted_aem'), 
+		behaviour								:=	MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout							:=	0,
+		disableable								:=	TRUE,
+		individual_reset						:=	FALSE,
+		machine_reaction						:=	MACHINE_REACTION_NORMAL_STOP,
+		typology								:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process									:=	prc,
+		CONVERSION_this							:=	phase_faulted_aem);
+	
+	timer_init(
+		object_name								:= CONCAT(prc_path, 'phase_time_out_tmr'),
+		process									:= prc,
+		CONVERSION_this							:= phase_time_out_tmr);
+	
+	process_message_init(
+		object_name								:=	CONCAT(prc_path, '_connection_faulted_aem'), 
+		behaviour								:=	MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout							:=	0,
+		disableable								:=	TRUE,
+		individual_reset						:=	FALSE,
+		machine_reaction						:=	MACHINE_REACTION_NORMAL_STOP,
+		typology								:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process									:=	prc,
+		CONVERSION_this							:=	connection_faulted_aem);
+	
+	timer_init(
+		object_name								:= CONCAT(prc_path, 'connection_time_out_tmr'),
+		process									:= prc,
+		CONVERSION_this							:= connection_time_out_tmr);
+		
+	motorization_conditioner_init(
+		object_name								:=	CONCAT(prc_path, 'connection_done_motcond'),
+		velocity_limit							:=	0.0,
+		velocity_limit_active					:=	FALSE,
+		idle_handshake_active					:=	FALSE,
+		execute_handshake_active				:=	TRUE,
+		hold_handshake_active					:=	FALSE,
+		suspend_handshake_active				:=	FALSE,
+		complete_handshake_active				:=	FALSE,
+		abort_handshake_active					:=	FALSE,
+		stop_handshake_active					:=	FALSE,
+		origin									:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager									:=	csp_main_motorization_manager.motm,
+		process									:=	prc,
+		CONVERSION_this							:=	connection_done_motcond);
+		
+	jog_manager_add_axis(
+		list_index								:= JOG_LIST_TRANSFER_UPSTACKER_VITUAL,
+		axis									:= axis,
+		master_axis								:= TRUE,
+		jog_type								:= JOG_TYPE_ROTATIVE,
+		sw_limit_positive						:= 0,
+		sw_limit_negative						:= 0,
+		CONVERSION_this							:= csp_main_jogManager.jog_manager_virtual);
+		
+	check_section_phase_mode_init(
+		object_name								:= CONCAT(prc_path, '_1st_column_chksect'), 
+		check_enable							:= TRUE, 
+		event_to_check							:= CHECK_SECTION_EVENT_INPUT_ON, 
+		execution_mode							:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable						:= FALSE, 
+		status_bits_to_be_true					:= common_global_variables.NONE, 
+		status_bits_to_be_false					:= common_global_variables.NONE, 
+		_step_status_conditioning_execution		:= FALSE, 
+		status_bits_to_set						:= ITEM_HAS_CARTON,  
+		status_bits_to_reset					:= common_global_variables.NONE, 
+		reject_bit_to_set						:= NO_REJ_REASON, 
+		_step									:= 12, 
+		first_step_to_write_offset				:= 0, 
+		number_of_steps_to_write				:= 1, 
+		check_phase								:= 0, 
+		max_consecutive_failed_checks			:= 0, 
+		max_failed_checks_percentage			:= 0, 
+		products_for_failed_checks_percentage	:= 0, 
+		shift_register							:= csp_transfer_main_statistics.upstacker_1st_column_sr, 
+		process									:= prc, 
+		CONVERSION_this							:= _1st_column_chksect);
+		
+	check_section_add_boolean_input(                 
+		boolean_input									:= csp_transfer_upstacker_sensors.carton_backstop_boolean, 
+		CONVERSION_this							:= _1st_column_chksect);
+		
+	check_section_phase_mode_init(
+		object_name								:= CONCAT(prc_path, '_2nd_column_chksect'), 
+		check_enable							:= TRUE, 
+		event_to_check							:= CHECK_SECTION_EVENT_INPUT_ON,
+		execution_mode							:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable						:= FALSE, 
+		status_bits_to_be_true					:= common_global_variables.NONE, 
+		status_bits_to_be_false					:= common_global_variables.NONE, 
+		_step_status_conditioning_execution		:= FALSE, 
+		status_bits_to_set						:= ITEM_HAS_CARTON,   
+		status_bits_to_reset					:= common_global_variables.NONE, 
+		reject_bit_to_set						:= NO_REJ_REASON, 
+		_step									:= 16, 
+		first_step_to_write_offset				:= 0, 
+		number_of_steps_to_write				:= 1, 
+		check_phase								:= 0, 
+		max_consecutive_failed_checks			:= 0, 
+		max_failed_checks_percentage			:= 0, 
+		products_for_failed_checks_percentage	:= 0, 
+		shift_register							:= csp_transfer_main_statistics.upstacker_2nd_column_sr, 
+		process									:= prc, 
+		CONVERSION_this							:= _2nd_column_chksect);
+		
+	check_section_add_boolean_input(                 
+		boolean_input							:= csp_transfer_upstacker_sensors.carton_backstop_boolean, 
+		CONVERSION_this							:= _2nd_column_chksect);
+		
+	check_section_phase_mode_init(
+		object_name								:= CONCAT(prc_path, '_3rd_column_chksect'), 
+		check_enable							:= TRUE, 
+		event_to_check							:= CHECK_SECTION_EVENT_INPUT_ON, 
+		execution_mode							:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable						:= FALSE, 
+		status_bits_to_be_true					:= common_global_variables.NONE, 
+		status_bits_to_be_false					:= common_global_variables.NONE, 
+		_step_status_conditioning_execution		:= FALSE, 
+		status_bits_to_set						:= ITEM_HAS_CARTON,   
+		status_bits_to_reset					:= common_global_variables.NONE, 
+		reject_bit_to_set						:= NO_REJ_REASON, 
+		_step									:= 20, 
+		first_step_to_write_offset				:= 0, 
+		number_of_steps_to_write				:= 1, 
+		check_phase								:= 0, 
+		max_consecutive_failed_checks			:= 0, 
+		max_failed_checks_percentage			:= 0, 
+		products_for_failed_checks_percentage	:= 0, 
+		shift_register							:= csp_transfer_main_statistics.upstacker_3rd_column_sr, 
+		process									:= prc, 
+		CONVERSION_this							:= _3rd_column_chksect);
+		
+	check_section_add_boolean_input(                 
+		boolean_input							:= csp_transfer_upstacker_sensors.carton_backstop_boolean, 
+		CONVERSION_this							:= _3rd_column_chksect);
+		
+	phase_generator_init(
+		object_name								:= CONCAT(prc_path, '_vm_phgen'), 
+		modulo									:= axis_get_modulo(axis), 
+		resolution								:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis									:= axis, 
+		process									:= prc, 
+		CONVERSION_this							:= vm_phgen);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	axis_cycle(axis);
+	motorization_conditioner_cycle(connection_done_motcond);
+	phase_generator_cycle(vm_phgen);	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{3958ddb3-1442-4265-8429-51dafca047df}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{9d85de7c-5e57-4d03-a689-d8bfefc1997b}">
+      <Implementation>
+        <ST><![CDATA[disable_req := csp_transfer.disable_req;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{4997f9f5-063a-42ac-9bb7-c6cf55aaf2eb}">
+      <Implementation>
+        <ST><![CDATA[axis_actual_position := axis_get_actual_modulo_position(axis);
+
+(* Cam management *)
+IF 	connection_done
+THEN
+	active_cam := axis.engaged_cam.cam_id;
+END_IF
+
+(*  Case removed management: open and close the right guard! *)
+IF 	message_is_on(phase_not_possible_wem) 
+	AND	guard_open  
+THEN
+	case_removed := TRUE;
+	case_present := FALSE;
+END_IF
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{250f0601-c12c-48ea-a72e-6cbcf50afba5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="connection" Id="{b000d177-61ce-4d95-b27c-a945108f5d48}">
+      <Implementation>
+        <ST><![CDATA[connection_conditions :=	
+	NOT process_message_is_on(connection_faulted_aem)
+	AND
+	NOT jog_manager_is_jog_axis_active(JOG_LIST_TRANSFER_UPSTACKER_VITUAL, csp_main_jogManager.jog_manager_virtual)
+	AND
+	phase_done;
+
+(* connection_done reset *)
+IF	connection_done
+	AND	
+	NOT connection_conditions
+	AND
+	NOT csp.o_machine_is_running
+THEN
+	connection_done := FALSE;
+	IF	jog_manager_is_jog_axis_active(JOG_LIST_TRANSFER_UPSTACKER_VITUAL, csp_main_jogManager.jog_manager_virtual)
+	THEN
+		axis_disable(axis);
+	END_IF
+END_IF
+
+(* Exit conditions *)
+IF	NOT connection_conditions 
+	AND
+	NOT motorization_manager_is_stopping(csp_main_motorization_manager.motm)	
+THEN	
+	connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_ERROR;
+	connection_status := connection_status_next;	
+END_IF
+
+(*************** MACHINE STATUS ***************)
+CASE connection_status OF
+
+	CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_START:	(* Start connection *)
+	
+		IF	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+		THEN
+			connection_running := TRUE;
+			connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_ENGAGE;
+		END_IF
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_ENGAGE:	
+	
+		master_offset := 
+			LMOD(axis_get_actual_incremental_position(csp_transfer_accumulator_virtualMaster.axis)-
+			activation_position, axis_get_modulo(csp_transfer_accumulator_virtualMaster.axis));
+			
+		axis_engage_cam(
+			cam_id							:=	active_cam,	
+			master_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+			slave_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+			activation_mode					:=	AXIS_CAM_ACTIVATION_IMMEDIATELY,
+			activation_position				:=	0.0,
+			master_scaling_mode				:=	AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode				:=	AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+			master_offset					:=	master_offset,
+			slave_offset					:=	0.0,
+			master_scaling					:=	master_scaling,
+			slave_scaling					:=	slave_scaling,
+			interpolation_type				:=	AXIS_CAM_INTERPOLATION_SPLINE,	 
+			master							:=	csp_transfer_accumulator_virtualMaster.axis,
+			CONVERSION_this					:=	axis);
+		
+		connection_status_next:= CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_ENGAGED;
+	
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_ENGAGED:
+	
+		IF 	axis_is_cam_engaged(axis) 
+		THEN				
+			IF	active_cam <> next_cam
+			THEN							
+				connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_CHANGE_CAM;
+			ELSE
+				connection_status_next:= CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_DONE;
+			END_IF
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_CHECK_CHANGE_CAM:		
+			
+		(* STOPS UPSTACKER BECAUSE NO CARTON AT BACKSTOP AND PRIME *)
+		IF csp_transfer_upstacker_sensors.carton_backstop.status = csp_transfer_upstacker_carton_backstop_status.ABSENT 
+		THEN
+			CASE active_cam OF
+				
+				DWELL_CAM:
+					; //Nothing to do; stay in Idle!
+
+				TRANSFER_UPSTACKER_VIRTUAL_START_CAM:
+					; //Case not possible!!!
+
+				FORWARD_CAM:
+					next_cam := TRANSFER_UPSTACKER_VIRTUAL_STOP_CAM; //Stop if product absent
+					next_activation_position := axis_get_actual_modulo_turns(csp_transfer_accumulator_virtualMaster.axis) *
+						axis_get_modulo(csp_transfer_accumulator_virtualMaster.axis) + 
+						csp_transfer_upstacker_sensors.carton_backstop.change_cam_phase;				
+														
+				TRANSFER_UPSTACKER_VIRTUAL_STOP_CAM:
+					next_cam := DWELL_CAM; //Idle after stop
+					next_activation_position := axis_get_actual_modulo_turns(csp_transfer_accumulator_virtualMaster.axis) *
+						axis_get_modulo(csp_transfer_accumulator_virtualMaster.axis) + 
+						csp_transfer_upstacker_sensors.carton_backstop.change_cam_phase;									 					
+					
+			END_CASE
+			
+		(* STARTS UPSTACKER BECAUSE CARTON AT BACKSTOP AND PRIME *)
+		ELSIF 	csp_transfer_upstacker_sensors.carton_backstop.status = csp_transfer_upstacker_carton_backstop_status.PRESENT
+				AND 
+				(
+					csp_transfer_upstacker.stack_count < 1
+					OR
+					csp_transfer_crosspusher_horizontal.at_upstack
+				)
+				AND NOT csp_transfer_upstacker.stack_made (* VERIFY STACK IS NOT MADE *)
+		THEN		
+			//NOTE: we assume that csp_transfer_crosspusher_sensors.reject_stack goes true (if the crosspusher must reject) around 25° related to transfer 
+			//virtual master. The cam change is the same as the backstop missing. If just one cycle is enough, the signal must goes down before 
+			//the next cam check phase! If the system needs more than one cycle, the signal have to stay on accordingly!
+			CASE active_cam OF
+				
+				DWELL_CAM:
+					IF 	NOT csp_transfer_crosspusher_sensors.reject_stack
+					THEN						
+						next_cam := TRANSFER_UPSTACKER_VIRTUAL_START_CAM; //Start if product present and not crosspusher reject
+						next_activation_position := axis_get_actual_modulo_turns(csp_transfer_accumulator_virtualMaster.axis) *
+							axis_get_modulo(csp_transfer_accumulator_virtualMaster.axis) + 
+							csp_transfer_upstacker_sensors.carton_backstop.change_cam_phase;					
+					ELSE
+						; //Nothing to do; stay in Idle!
+					END_IF
+	
+				TRANSFER_UPSTACKER_VIRTUAL_START_CAM:
+					; //Case not possible!!!
+					
+				FORWARD_CAM:
+					IF 	NOT csp_transfer_crosspusher_sensors.reject_stack
+					THEN					
+						; //Nothing to do; stay in run!
+					ELSE
+						next_cam := TRANSFER_UPSTACKER_VIRTUAL_STOP_CAM; //Stop if crosspusher reject
+						next_activation_position := axis_get_actual_modulo_turns(csp_transfer_accumulator_virtualMaster.axis) *
+							axis_get_modulo(csp_transfer_accumulator_virtualMaster.axis) + 
+							csp_transfer_upstacker_sensors.carton_backstop.change_cam_phase;			
+					END_IF
+					
+				TRANSFER_UPSTACKER_VIRTUAL_STOP_CAM:
+					IF 	NOT csp_transfer_crosspusher_sensors.reject_stack
+					THEN				
+						next_cam := TRANSFER_UPSTACKER_VIRTUAL_START_CAM; //Start after stop
+					ELSE
+						next_cam := DWELL_CAM; //Idle after stop
+					END_IF	
+					next_activation_position := axis_get_actual_modulo_turns(csp_transfer_accumulator_virtualMaster.axis) *
+						axis_get_modulo(csp_transfer_accumulator_virtualMaster.axis) + 
+						csp_transfer_upstacker_sensors.carton_backstop.change_cam_phase;					
+			END_CASE			
+		ELSE
+			CASE active_cam OF
+				
+				DWELL_CAM:
+					; //Nothing to do; stay in idle!					
+			
+				TRANSFER_UPSTACKER_VIRTUAL_START_CAM:
+					next_cam := FORWARD_CAM;					
+
+				FORWARD_CAM:					
+					(* Stops upstacker from running if stack is already made *)
+					IF 	csp_transfer_upstacker_sensors.carton_backstop.status > 0
+						AND csp_transfer_upstacker.stack_made
+					THEN
+						next_cam := TRANSFER_UPSTACKER_VIRTUAL_STOP_CAM; // Stops if stack is already made
+						next_activation_position := axis_get_actual_modulo_turns(csp_transfer_accumulator_virtualMaster.axis) * axis_get_modulo(csp_transfer_accumulator_virtualMaster.axis) + 
+							csp_transfer_upstacker_sensors.carton_backstop.change_cam_phase;
+					END_IF
+					
+					IF 	csp_transfer_upstacker_sensors.carton_backstop.status > 0
+						AND csp_transfer_upstacker.stack_count = 1
+						AND (
+							NOT csp_transfer_crosspusher_horizontal.at_upstack // Stops if stack count is one and crosspusher still needs to return
+							OR
+							csp_transfer_upstacker.stack_at_loader // OR there is a stack already at the loader
+							)
+					THEN
+						next_cam := TRANSFER_UPSTACKER_VIRTUAL_STOP_CAM; 
+						next_activation_position := axis_get_actual_modulo_turns(csp_transfer_accumulator_virtualMaster.axis) * axis_get_modulo(csp_transfer_accumulator_virtualMaster.axis) + 
+							csp_transfer_upstacker_sensors.carton_backstop.change_cam_phase;
+					END_IF
+					
+										
+				TRANSFER_UPSTACKER_VIRTUAL_STOP_CAM:
+					; //Nothing to do; stay in stop!					
+			END_CASE
+		END_IF
+				
+		IF	(active_cam <> next_cam)
+			AND
+			connection_conditions
+		THEN
+			connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_CHANGE_CAM;
+		END_IF
+		
+		IF	NOT connection_motorization_moving
+		THEN
+			connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_DONE;
+		END_IF
+	
+	CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_CHANGE_CAM:	
+	
+		axis_engage_cam(
+				cam_id							:=	next_cam,	
+				master_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+				slave_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+				activation_mode					:=	SEL(next_cam = FORWARD_CAM, AXIS_CAM_ACTIVATION_AT_MASTER_POSITION, AXIS_CAM_ACTIVATION_NEXT_CYCLE),
+				activation_position				:=	next_activation_position,
+				master_scaling_mode				:=	AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				slave_scaling_mode				:=	AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+				master_offset					:=	0.0, 
+				slave_offset					:=	0.0,
+				master_scaling					:=	master_scaling,
+				slave_scaling					:=	slave_scaling,
+				interpolation_type				:=	AXIS_CAM_INTERPOLATION_SPLINE,	 
+				master							:=	csp_transfer_accumulator_virtualMaster.axis,
+				CONVERSION_this					:=	axis);		
+	
+		IF	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+		THEN
+			connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_DONE;
+		ELSE
+			connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_WAIT_NEW_CAM;
+		END_IF
+	
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_WAIT_NEW_CAM:
+	
+		IF	active_cam = next_cam
+		THEN
+			CASE next_cam OF
+				DWELL_CAM:
+					activation_position := next_activation_position;
+				
+				TRANSFER_UPSTACKER_VIRTUAL_START_CAM:
+					activation_position := next_activation_position;
+					
+				FORWARD_CAM:
+					activation_position := 0; //The forward cam is after a start cam that put the axis in position 9(master)-9(slave) and than starts alway like 0!
+					
+				TRANSFER_UPSTACKER_VIRTUAL_STOP_CAM:
+					activation_position := next_activation_position;					
+			END_CASE
+			connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_CHECK_CHANGE_CAM;
+		END_IF
+		
+		IF	NOT connection_motorization_moving
+		THEN
+			connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_DONE;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_DONE:	(* Connection done *)	
+	
+		connection_running := FALSE;
+		connection_done := TRUE;
+		
+		IF	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+		THEN
+			motorization_conditioner_start_done(connection_done_motcond);							
+			IF	active_cam <> next_cam
+			THEN
+				connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_WAIT_NEW_CAM;
+			ELSE
+				connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_CHECK_CHANGE_CAM;
+			END_IF
+		END_IF
+		connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_CHECK_CHANGE_CAM;
+	
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_ERROR:	(* Connection error *)	
+	
+		IF 	connection_running
+		THEN
+			axis_disable(axis);
+			axis_disable(csp_transfer_upstacker_downstream.axis);
+			axis_disable(csp_transfer_upstacker_upstream.axis);	
+			axis_disable(csp_transfer_accumulator_finger_ls.axis);
+			axis_disable(csp_transfer_accumulator_finger_os.axis);
+			connection_error := TRUE;							
+		END_IF
+		connection_running	:= FALSE;
+		connection_done 	:= FALSE;	
+		
+		IF	connection_conditions
+		THEN		
+			connection_status_next := CSP_TRANSFER_UPSTACKER_STATUS_CONNECTION_START;
+		END_IF
+		
+END_CASE
+
+IF 	NOT debug_connection_state_machine
+	OR
+	debug_connection_machine_one_step	
+THEN
+	connection_status := connection_status_next;
+	debug_connection_machine_one_step := FALSE;
+END_IF
+
+connection_motorization_moving	:= 
+	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_execute(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_aborting(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_suspended(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_suspending(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_unsuspending(csp_main_motorization_manager.motm)
+	OR 
+	motorization_manager_is_holding(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_held(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_unholding(csp_main_motorization_manager.motm);
+	
+(* Connection timeout *)
+IF	(connection_running
+	AND NOT debug_connection_state_machine)	
+	OR connection_error
+THEN
+	IF	timer_is_expired(connection_time_out_tmr)
+	THEN
+		process_message_set(1, connection_status, 0, connection_faulted_aem);
+	END_IF
+ELSE
+	timer_restart(10000, connection_time_out_tmr);
+END_IF
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="phase" Id="{eef2cbf4-364d-44e0-a1b8-49dd7ccc11e4}">
+      <Implementation>
+        <ST><![CDATA[phase_conditions :=
+	axis_is_ok(FALSE, axis)
+	AND
+	process_is_ready(prc)
+	AND
+	process_subtree_is_ready(prc)
+	AND				
+	csp_transfer_upstacker_downstream.servo_on_condition
+	AND
+	csp_transfer_upstacker_upstream.servo_on_condition
+	AND
+	csp_transfer_accumulator_finger_ls.servo_on_condition
+	AND
+	csp_transfer_accumulator_finger_os.servo_on_condition
+	AND	
+	axis_is_ok(FALSE, csp_transfer_upstacker_downstream.axis)
+	AND
+	axis_is_ok(FALSE, csp_transfer_upstacker_upstream.axis)
+	AND
+	axis_is_ok(FALSE, csp_transfer_accumulator_finger_ls.axis)
+	AND
+	axis_is_ok(FALSE, csp_transfer_accumulator_finger_os.axis)
+	AND
+	NOT csp_transfer_main_brand.cam_data_changed
+	AND
+	NOT disable_req 
+	AND
+	NOT move_test_enable;		
+	
+(* phase_done reset *)
+IF	phase_done
+	AND
+	NOT phase_conditions
+	AND 
+	NOT csp.o_machine_is_running
+THEN
+	axis_disable(csp_transfer_upstacker_downstream.axis);
+	axis_disable(csp_transfer_upstacker_upstream.axis);
+	axis_disable(csp_transfer_accumulator_finger_ls.axis);
+	axis_disable(csp_transfer_accumulator_finger_os.axis);
+	
+	phase_done:= FALSE;
+END_IF
+
+(* Exit condition *)
+IF 	NOT phase_conditions
+THEN
+	phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ERROR;
+	phase_status := phase_status_next;	
+END_IF
+
+(*************** MACHINE STATUS ***************)
+CASE phase_status OF
+
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_START:	(* Start phasing *)
+	
+		IF	motorization_manager_is_starting(csp_main_motorization_manager.motm) 					
+			AND csp_transfer_accumulator_virtualMaster.phase_done
+			AND csp_transfer_accumulator_virtualMaster.connection_done
+			AND axis_is_cam_engaged(csp_transfer_accumulator_virtualMaster.axis)
+		THEN
+			phase_running := TRUE;
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_VM_STATUS;
+		END_IF
+		
+	
+	(* CHECKS IF VM WAS CAM ENGAGED TO ALLOW FOR SIMPLE REPHASE *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_VM_STATUS:
+		
+		IF 	axis_is_cam_engaged(axis) 
+			OR phase_after_test_mode
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_GET_VM_POS;
+		ELSE
+			axis_disable(axis);
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_IDLE_POSITION;
+		END_IF
+		
+		
+	(* GETS CURRENT VM POSITION TO CALCULATE SLAVE VALUES *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_GET_VM_POS:
+	
+		current_position := axis_actual_position;
+		phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_SLAVE_DOWN_POS;
+		
+	
+	(* CALCULATES SLAVE POSITION FOR UPSTACKER DOWNSTREAM AXIS *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_SLAVE_DOWN_POS:
+	
+		IF axis_calculate_cam_slave_dynamics_data(
+			cam_id 				:= csp_transfer_upstacker_downstream.cam_id_run, //TRANSFER_UPSTACKER_DOWNSTREAM_RUN_CAM,
+			master_scaling 		:= 1.0,
+			master_position 	:= current_position,
+			slave_scaling 		:= 1.0,
+			CONVERSION_this 	:= csp_transfer_upstacker_downstream.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_CALCULATED_SLAVE_DOWN_POS;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_CALCULATED_SLAVE_DOWN_POS:
+	
+		IF 	axis_cam_slave_dynamics_data_calculated(csp_transfer_upstacker_downstream.axis)
+		THEN
+			downstream_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_transfer_upstacker_downstream.axis), axis_get_modulo(csp_transfer_upstacker_downstream.axis));
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_SLAVE_UP_POS;
+		END_IF
+
+			
+	(* CALCULATES SLAVE POSITION FOR UPSTACKER UPSTREAM AXIS *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_SLAVE_UP_POS:
+	
+		IF axis_calculate_cam_slave_dynamics_data(
+			cam_id 				:= csp_transfer_upstacker_upstream.cam_id_run, //TRANSFER_UPSTACKER_UPSTREAM_RUN_CAM,
+			master_scaling 		:= 1.0,
+			master_position 	:= current_position,
+			slave_scaling 		:= 1.0,
+			CONVERSION_this 	:= csp_transfer_upstacker_upstream.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_CALCULATED_SLAVE_UP_POS;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_CALCULATED_SLAVE_UP_POS:
+	
+		IF 	axis_cam_slave_dynamics_data_calculated(csp_transfer_upstacker_upstream.axis)
+		THEN
+			upstream_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_transfer_upstacker_upstream.axis), axis_get_modulo(csp_transfer_upstacker_upstream.axis));
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_SLAVE_LS_FINGER_POS;
+		END_IF
+			
+		
+	(* CALCULATES SLAVE POSITION FOR UPSTACKER UPSTREAM AXIS *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_SLAVE_LS_FINGER_POS:
+	
+		IF axis_calculate_cam_slave_dynamics_data(
+			cam_id 				:= csp_transfer_accumulator_finger.cam_id,
+			master_scaling 		:= 1.0,
+			master_position 	:= current_position,
+			slave_scaling 		:= 1.0,
+			CONVERSION_this 	:= csp_transfer_accumulator_finger_ls.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_CALCULATED_SLAVE_LSFINGR_POS;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_CALCULATED_SLAVE_LSFINGR_POS:
+	
+		IF 	axis_cam_slave_dynamics_data_calculated(csp_transfer_accumulator_finger_ls.axis)
+		THEN
+			finger_ls_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_transfer_accumulator_finger_ls.axis), axis_get_modulo(csp_transfer_accumulator_finger_ls.axis));
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_SLAVE_OS_FINGER_POS;
+		END_IF
+		
+		
+	(* CALCULATES SLAVE POSITION FOR UPSTACKER UPSTREAM AXIS *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_SLAVE_OS_FINGER_POS:
+	
+		IF axis_calculate_cam_slave_dynamics_data(
+			cam_id 				:= csp_transfer_accumulator_finger.cam_id,
+			master_scaling 		:= 1.0,
+			master_position 	:= current_position,
+			slave_scaling 		:= 1.0,
+			CONVERSION_this 	:= csp_transfer_accumulator_finger_os.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_CALCULATED_SLAVE_OSFINGR_POS;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_CALCULATED_SLAVE_OSFINGR_POS:
+	
+		IF 	axis_cam_slave_dynamics_data_calculated(csp_transfer_accumulator_finger_os.axis)
+		THEN
+			finger_os_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_transfer_accumulator_finger_os.axis), axis_get_modulo(csp_transfer_accumulator_finger_os.axis));
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_SLAVE_POS;
+		END_IF
+				
+
+	(* CHECK IF SLAVE POSITIONS ARE WITHIN TOLERANCE TO DO SIMPLE REPHASE *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_SLAVE_POS:
+		
+		IF 	finger_ls_slave_position = 0
+		THEN
+			finger_ls_actual_position := csp_transfer_accumulator_finger_ls.axis.actual_position + 0.2;
+			finger_ls_actual_position_1 := MODABS(finger_ls_actual_position, axis_get_modulo(csp_transfer_accumulator_finger_ls.axis));
+		ELSE
+			finger_ls_actual_position_1 := csp_transfer_accumulator_finger_ls.axis.actual_position;
+		END_IF
+		
+		IF 	finger_os_slave_position = 0
+		THEN
+			finger_os_actual_position := csp_transfer_accumulator_finger_os.axis.actual_position + 0.2;
+			finger_os_actual_position_1 := MODABS(finger_os_actual_position, axis_get_modulo(csp_transfer_accumulator_finger_os.axis));
+		ELSE
+			finger_os_actual_position_1 := csp_transfer_accumulator_finger_os.axis.actual_position;
+		END_IF
+		
+		IF 	(ABS(downstream_slave_position - MODABS(csp_transfer_upstacker_downstream.axis.actual_position, axis_get_modulo(csp_transfer_upstacker_downstream.axis))) < DOWNSTREAM_POSITION_TOLLERANCE)
+			AND
+			(ABS(upstream_slave_position - MODABS(csp_transfer_upstacker_upstream.axis.actual_position, axis_get_modulo(csp_transfer_upstacker_upstream.axis))) < UPSTREAM_POSITION_TOLLERANCE)
+			AND
+			(ABS(finger_ls_slave_position - MODABS(finger_ls_actual_position_1, axis_get_modulo(csp_transfer_accumulator_finger_ls.axis))) < FINGER_POSITION_TOLLERANCE)
+			AND
+			(ABS(finger_os_slave_position - MODABS(finger_os_actual_position_1, axis_get_modulo(csp_transfer_accumulator_finger_os.axis))) < FINGER_POSITION_TOLLERANCE)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_SIMPLE_MOVE_AVAILABLE;
+		ELSE
+			axis_disable(axis);
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_IDLE_POSITION;
+		END_IF
+	
+	
+	(* SIMPLE REPHASE IS POSSIBLE - MOVE TO ABSOLUTE MOVES *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_SIMPLE_MOVE_AVAILABLE:
+	
+		simple_rephase_attempting := TRUE;
+		phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DISABLE;
+	
+	
+	(* GETS VIRTUAL MASTER IDLE POSITION FOR FULL KINEMATIC RESET SEQUENCE BASED ON STOP CAM ENDING POSITION*)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_IDLE_POSITION: (*Read idle position*) 
+	
+		IF	axis_calculate_cam_slave_dynamics_data(
+				cam_id 				:= TRANSFER_UPSTACKER_VIRTUAL_STOP_CAM,
+				master_scaling 		:= 1.0,
+				master_position 	:= axis_get_modulo(axis)-1.0,
+				slave_scaling 		:= 1.0,
+				CONVERSION_this 	:= axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_READ_IDLE_POSITION;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_READ_IDLE_POSITION:
+	
+		IF 	axis_cam_slave_dynamics_data_calculated(axis)
+		THEN
+			idle_position := MODABS(axis_get_cam_slave_dynamics_position(axis), axis_get_modulo(axis));
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_REDEFINE_IDLE_POSITION;
+		END_IF
+		
+		
+	(* REDEFINES VIRTUAL MASTER TO IDLE POSITION FOR FULL KINEMATIC RESET *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_REDEFINE_IDLE_POSITION:
+	
+		IF	axis_redefine_position(
+				position			:= idle_position,
+				mode				:= AXIS_REDEFINE_POSITION_MODE_ABSOLUTE,
+				CONVERSION_this		:= axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_SLAVE_POSITION;
+		ELSE
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ERROR;
+		END_IF
+		
+		
+	(* CALCULATE SLAVE POSITIONS AFTER FULL KINEMATIC RESET *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_SLAVE_POSITION: (*Check slave position to decide between complete or simple rephasing sequence*)
+	
+		IF 	axis_calculate_cam_slave_dynamics_data(
+				cam_id 				:= csp_transfer_upstacker_downstream.cam_id_run, //TRANSFER_UPSTACKER_DOWNSTREAM_RUN_CAM,
+				master_scaling 		:= 1.0,
+				master_position 	:= axis_actual_position,
+				slave_scaling 		:= 1.0,
+				CONVERSION_this 	:= csp_transfer_upstacker_downstream.axis)
+			AND
+			axis_calculate_cam_slave_dynamics_data(
+				cam_id 				:= csp_transfer_upstacker_upstream.cam_id_run, //TRANSFER_UPSTACKER_UPSTREAM_RUN_CAM,
+				master_scaling 		:= 1.0,
+				master_position 	:= axis_actual_position,
+				slave_scaling 		:= 1.0,
+				CONVERSION_this 	:= csp_transfer_upstacker_upstream.axis)
+			AND
+			axis_calculate_cam_slave_dynamics_data(
+				cam_id 				:= csp_transfer_accumulator_finger.cam_id,
+				master_scaling 		:= 1.0,
+				master_position 	:= axis_actual_position,
+				slave_scaling 		:= 1.0,
+				CONVERSION_this 	:= csp_transfer_accumulator_finger_ls.axis)
+			AND
+			axis_calculate_cam_slave_dynamics_data(
+				cam_id 				:= csp_transfer_accumulator_finger.cam_id,
+				master_scaling 		:= 1.0,
+				master_position 	:= axis_actual_position,
+				slave_scaling 		:= 1.0,
+				CONVERSION_this 	:= csp_transfer_accumulator_finger_os.axis)											
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_READ_SLAVE_POSITION;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_READ_SLAVE_POSITION:
+	
+		IF 	axis_cam_slave_dynamics_data_calculated(csp_transfer_upstacker_downstream.axis)
+			AND
+			axis_cam_slave_dynamics_data_calculated(csp_transfer_upstacker_upstream.axis)
+			AND
+			axis_cam_slave_dynamics_data_calculated(csp_transfer_accumulator_finger_ls.axis)
+			AND
+			axis_cam_slave_dynamics_data_calculated(csp_transfer_accumulator_finger_os.axis)
+		THEN
+			downstream_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_transfer_upstacker_downstream.axis), axis_get_modulo(csp_transfer_upstacker_downstream.axis));
+			upstream_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_transfer_upstacker_upstream.axis), axis_get_modulo(csp_transfer_upstacker_upstream.axis));
+			finger_ls_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_transfer_accumulator_finger_ls.axis), axis_get_modulo(csp_transfer_accumulator_finger_ls.axis));
+			finger_os_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_transfer_accumulator_finger_os.axis), axis_get_modulo(csp_transfer_accumulator_finger_os.axis));
+							
+			IF 	(ABS(downstream_slave_position - MODABS(csp_transfer_upstacker_downstream.axis.actual_position, axis_get_modulo(csp_transfer_upstacker_downstream.axis))) < DOWNSTREAM_POSITION_TOLLERANCE)
+				AND
+				(ABS(upstream_slave_position - MODABS(csp_transfer_upstacker_upstream.axis.actual_position, axis_get_modulo(csp_transfer_upstacker_upstream.axis))) < UPSTREAM_POSITION_TOLLERANCE)
+				AND (axis.actual_position = 0 AND (csp_transfer_upstacker_upstream.axis.actual_position > upstream_pos_below_belts)) 
+			THEN								
+				virtual_master_position := LMOD(axis_get_actual_incremental_position(csp_transfer_accumulator_virtualMaster.axis)-
+					activation_position, axis_get_modulo(csp_transfer_accumulator_virtualMaster.axis));
+					
+				all_slave_in_phase_tollerance := TRUE;
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DISABLE;
+							
+			ELSE 
+				all_slave_in_phase_tollerance := FALSE;				
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_CASE;
+			END_IF				
+		END_IF	
+		
+	
+	(* NOT CURRENTLY BEING USED *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_VIRTUAL_POSITION:	
+					
+		IF	axis_calculate_cam_slave_dynamics_data(
+				cam_id 				:= active_cam,
+				master_scaling 		:= master_scaling,
+				master_position 	:= virtual_master_position,
+				slave_scaling 		:= slave_scaling,
+				CONVERSION_this 	:= axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_READ_VIRTUAL_POSITION;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_READ_VIRTUAL_POSITION:
+	
+		IF	axis_cam_slave_dynamics_data_calculated(axis)
+		THEN
+			virtual_slave_position := MODABS(axis_get_cam_slave_dynamics_position(axis), axis_get_modulo(axis));
+			IF	active_cam = DWELL_CAM				
+			THEN
+				virtual_slave_position := virtual_slave_position + idle_position;
+			END_IF
+			IF	(ABS(MODABS(virtual_slave_position - axis_actual_position + axis_get_modulo(axis)/2.0, axis_get_modulo(axis)) - axis_get_modulo(axis)/2.0) < VIRTUAL_POSITION_TOLLERANCE)			
+				AND
+				(//If cam change is running, master position must be lower than change cam position!
+					(active_cam = next_cam)
+					OR
+					(axis_get_actual_incremental_position(csp_transfer_virtualMaster.axis) < next_activation_position)
+				)
+				AND NOT (axis.actual_position = 0 
+				AND csp_transfer_upstacker_upstream.axis.actual_position > upstream_pos_below_belts) 
+			THEN
+				all_slave_in_phase_tollerance := TRUE;
+			ELSE
+				all_slave_in_phase_tollerance := FALSE;	
+			END_IF	
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_CASE:
+	
+		IF 	(
+				csp_transfer_upstacker_downstream.case_presence_phasing 
+				OR
+				csp_transfer_upstacker_upstream.case_presence_phasing 
+				OR
+				csp_transfer_accumulator_finger_ls.case_presence_phasing 
+				OR
+				csp_transfer_accumulator_finger_os.case_presence_phasing
+			) 
+			AND NOT case_removed
+		THEN
+			case_present := TRUE;			
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ERROR;
+		ELSE
+			case_present := FALSE;
+			next_cam := DWELL_CAM;
+			active_cam := DWELL_CAM;
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DISABLE;
+		END_IF
+					
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DISABLE:
+	
+		axis_disable(axis);
+		axis_disable(csp_transfer_upstacker_downstream.axis);
+		axis_disable(csp_transfer_upstacker_upstream.axis);
+		axis_disable(csp_transfer_accumulator_finger_ls.axis);
+		axis_disable(csp_transfer_accumulator_finger_os.axis);
+		
+		IF 	axis_is_disabled(axis) 
+			AND	axis_is_disabled(csp_transfer_upstacker_downstream.axis) 
+			AND axis_is_disabled(csp_transfer_upstacker_upstream.axis) 
+			AND	axis_is_disabled(csp_transfer_accumulator_finger_ls.axis) 
+			AND	axis_is_disabled(csp_transfer_accumulator_finger_os.axis)
+		THEN
+			phase_status_next:= CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENABLE;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENABLE:
+	
+		axis_enable(axis);
+		axis_enable(csp_transfer_upstacker_downstream.axis);
+		axis_enable(csp_transfer_upstacker_upstream.axis);
+		axis_enable(csp_transfer_accumulator_finger_ls.axis);
+		axis_enable(csp_transfer_accumulator_finger_os.axis);
+		
+		IF 	axis_is_enabled(axis) AND
+			axis_is_enabled(csp_transfer_upstacker_downstream.axis) AND
+			axis_is_enabled(csp_transfer_upstacker_upstream.axis) AND
+			axis_is_enabled(csp_transfer_accumulator_finger_ls.axis) AND
+			axis_is_enabled(csp_transfer_accumulator_finger_os.axis)
+		THEN
+			phase_status_next:= CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENABLED;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENABLED:
+	
+		IF 	csp_transfer_accumulator_virtualMaster.axis.actual_position > csp_transfer_upstacker_virtualMaster.axis.actual_position
+		THEN 
+			AccumulatorVM_UpstackerVM_pos_dif := csp_transfer_accumulator_virtualMaster.axis.actual_position - csp_transfer_upstacker_virtualMaster.axis.actual_position;
+		ELSIF csp_transfer_upstacker_virtualMaster.axis.actual_position > csp_transfer_accumulator_virtualMaster.axis.actual_position
+		THEN
+			AccumulatorVM_UpstackerVM_pos_dif := csp_transfer_upstacker_virtualMaster.axis.actual_position -csp_transfer_accumulator_virtualMaster.axis.actual_position;
+		END_IF
+	
+		IF 	AccumulatorVM_UpstackerVM_pos_dif >5
+		THEN
+			rephase_upstacker := TRUE;	// shortest path
+		ELSE
+			rephase_upstacker := FALSE; //forward
+		END_IF			
+	
+		IF 	axis_is_standstill(axis) AND
+			axis_is_standstill(csp_transfer_upstacker_downstream.axis) AND
+			axis_is_standstill(csp_transfer_upstacker_upstream.axis) AND
+			axis_is_standstill(csp_transfer_accumulator_finger_ls.axis) AND
+			axis_is_standstill(csp_transfer_accumulator_finger_os.axis)
+		THEN
+			IF	(all_slave_in_phase_tollerance
+				OR simple_rephase_attempting)
+			THEN
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_PHASING;
+				simple_rephase_attempting := FALSE;
+			ELSE
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_UPSTREAM_SKIP_PHASING;
+			END_IF			
+		END_IF
+		
+		
+	(* CHECKS TO SEE IF UPSTREAM AXIS IS BELOW BELTS - SENDS TO ABSOLUTE MOVE *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_UPSTREAM_SKIP_PHASING:
+	
+		IF 	csp_transfer_upstacker_upstream.axis.actual_position > upstream_pos_below_belts
+		THEN	
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_PHASING;
+		ELSE
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_DOWNSTREAM_SKIP_PHASE_1;
+		END_IF
+		
+		
+	(* CHECKS TO SEE THAT DOWNSTREAM POSITION IS ALREADY PAST END OF PHASE 1 - SKIPS PHASE 1 *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_DOWNSTREAM_SKIP_PHASE_1:
+
+		IF 	csp_transfer_upstacker_downstream.axis.actual_position < 57
+		THEN	
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DISENGAGED_STEP1;
+		ELSE
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_MASTER_POSITION;
+		END_IF
+				
+	
+	(* CALCULATES WHERE MASTER NEEDS TO BE FOR PHASE STEP 1 *)
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_MASTER_POSITION: (* Complete rephasing procedure *)
+	
+		IF	
+			axis_calculate_cam_master_dynamics_data(
+				cam_id					:= csp_transfer_upstacker_downstream.cam_id_rec1, //TRANSFER_UPSTACKER_DOWNSTREAM_PHASING_STEP1_CAM,
+				slave_position			:= csp_transfer_upstacker_downstream.axis.actual_position, //(csp_transfer_upstacker_downstream.axis_actual_position - axis_get_modulo(csp_transfer_upstacker_downstream.axis)),
+				master_offset			:= 0.0,
+				slave_offset			:= 0.0,
+				master_scaling			:= 1.0,
+				slave_scaling			:= 1.0,
+				master_start_position	:= 0.0,
+				master_accuracy			:= 0.1,
+				CONVERSION_this			:= axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_READ_MASTER_POSITION;
+		END_IF
+ 
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_READ_MASTER_POSITION:
+	
+		IF  axis_cam_master_dynamics_data_calculated(axis)
+		THEN
+			phase_master_position_step1 := axis_get_cam_master_dynamics_master_axis_position_upper(axis);
+	
+			IF phase_master_position_step1 < 0
+			THEN
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ERROR_ON_MASTER_CALC;
+			ELSE
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_REDEFINE_MASTER_POSITION_STEP1;
+			END_IF	
+        END_IF	
+		
+				
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ERROR_ON_MASTER_CALC:
+	
+		IF 	axis_is_enabled(csp_transfer_upstacker_upstream.axis)
+			AND axis_is_enabled(csp_transfer_upstacker_downstream.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_UPSTREAM_FROM_ERROR_POS;
+		ELSE
+			axis_enable(csp_transfer_upstacker_upstream.axis);
+			axis_enable(csp_transfer_upstacker_downstream.axis);
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_UPSTREAM_FROM_ERROR_POS:
+	
+		axis_move_relative(
+			distance 		:= 1,
+			velocity 		:= csp_transfer_upstacker_upstream.MOTOR_PHASE_VELOCITY_DEGPS,
+			acceleration 	:= csp_transfer_upstacker_upstream.MOTOR_MAX_ACCELLERATION_DEGPS2/10,
+			deceleration 	:= csp_transfer_upstacker_upstream.MOTOR_MAX_DECELLERATION_DEGPS2/10, 
+			jerk 			:= csp_transfer_upstacker_upstream.MOTOR_MAX_JERK_DEGPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_transfer_upstacker_upstream.axis);
+			
+		IF 	axis_is_relative_moving(csp_transfer_upstacker_upstream.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_WAIT_MOVE_DONE_UP_FROM_ERROR_POS;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_WAIT_MOVE_DONE_UP_FROM_ERROR_POS:
+	
+		IF 	axis_is_standstill(csp_transfer_upstacker_upstream.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_DOWNSTREAM_FROM_ERROR_POS;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_DOWNSTREAM_FROM_ERROR_POS:
+	
+		axis_move_relative(
+			distance 		:= -1,
+			velocity 		:= csp_transfer_upstacker_downstream.MOTOR_PHASE_VELOCITY_DEGPS,
+			acceleration 	:= csp_transfer_upstacker_downstream.MOTOR_MAX_ACCELLERATION_DEGPS2/10,
+			deceleration 	:= csp_transfer_upstacker_downstream.MOTOR_MAX_DECELLERATION_DEGPS2/10, 
+			jerk 			:= csp_transfer_upstacker_downstream.MOTOR_MAX_JERK_DEGPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_transfer_upstacker_downstream.axis);
+			
+		IF 	axis_is_relative_moving(csp_transfer_upstacker_downstream.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_WAIT_MOVE_DONE_DOWN_FROM_ERROR_POS;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_WAIT_MOVE_DONE_DOWN_FROM_ERROR_POS:
+	
+		IF 	axis_is_standstill(csp_transfer_upstacker_downstream.axis)
+		THEN		
+			(* CHECKS IF THE AXES HAVE MOVED TO A POS OUTSIDE OF INDEX POSSIBLE *)
+			IF 	csp_transfer_upstacker_downstream.axis.actual_position < 49.5
+				OR csp_transfer_upstacker_upstream.axis.actual_position > 117.5
+			THEN
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_PHASING;
+			ELSE
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CHECK_DOWNSTREAM_SKIP_PHASE_1;
+			END_IF			
+		END_IF
+			
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_REDEFINE_MASTER_POSITION_STEP1:
+	
+		IF	axis_redefine_position(
+				position			:= phase_master_position_step1,
+				mode				:= AXIS_REDEFINE_POSITION_MODE_ABSOLUTE,
+				CONVERSION_this		:= axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_DOWNSTREAM_STEP1;
+		ELSE
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ERROR;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_DOWNSTREAM_STEP1:
+	
+		IF 	axis_is_position_redefined(axis)
+		THEN
+			axis_engage_cam(
+				cam_id 				:= csp_transfer_upstacker_downstream.cam_id_rec1, //TRANSFER_UPSTACKER_DOWNSTREAM_PHASING_STEP1_CAM,
+				master_engage_mode 	:= AXIS_CAM_ENGAGE_RELATIVE,
+				slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+				activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+				activation_position	:= 0,
+				master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				master_offset 		:= phase_master_position_step1,
+				slave_offset 		:= 0.0,
+				master_scaling 		:= 1.0,
+				slave_scaling 		:= 1.0,
+				interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+				master 				:= axis,
+				CONVERSION_this 	:= csp_transfer_upstacker_downstream.axis);
+				
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_UPSTREAM_STEP1;
+		END_IF
+	
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_UPSTREAM_STEP1:
+	
+		IF	axis_is_cam_engaged(csp_transfer_upstacker_downstream.axis)
+		THEN
+			axis_engage_cam(
+				cam_id 				:= csp_transfer_upstacker_upstream.cam_id_rec1, //TRANSFER_UPSTACKER_UPSTREAM_PHASING_STEP1_CAM,
+				master_engage_mode 	:= AXIS_CAM_ENGAGE_RELATIVE,
+				slave_engage_mode 	:= AXIS_CAM_ENGAGE_RELATIVE,
+				activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+				activation_position	:= 0,
+				master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+				master_offset 		:= phase_master_position_step1,
+				slave_offset 		:= 0.0,
+				master_scaling 		:= 1.0,
+				slave_scaling 		:= 1.0,
+				interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+				master 				:= axis,
+				CONVERSION_this 	:= csp_transfer_upstacker_upstream.axis);
+				
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_MASTER_STEP1;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_MASTER_STEP1:
+	
+		IF	axis_is_cam_engaged(csp_transfer_upstacker_upstream.axis)
+		THEN
+			axis_move_absolute(
+				position 		:= MOTOR_PHASE_POSITION_DEG,
+				velocity 		:= MOTOR_PHASE_VELOCITY_DEGPS,
+				direction		:= AXIS_POSITIVE_DIRECTION,
+				acceleration 	:= MOTOR_MAX_ACCELERATION_DEGPS2/10,
+				deceleration 	:= MOTOR_MAX_DECELERATION_DEGPS2/10, 
+				jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := axis);
+				
+			IF 	axis_is_absolute_moving(axis)
+			THEN
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DISENGAGE_STEP1;
+			END_IF
+		END_IF
+	
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DISENGAGE_STEP1:
+	
+		IF 	axis_is_standstill(axis)
+		THEN			
+			IF 	axis_stop( //Used instead "axis_disengage" to leave the axis status in STAND_STILL and allow Move_Absolute command!
+					deceleration	:= csp_transfer_upstacker_downstream.MOTOR_MAX_DECELLERATION_DEGPS2, 
+					jerk			:= csp_transfer_upstacker_downstream.MOTOR_MAX_JERK_DEGPS3, 
+					CONVERSION_this	:= csp_transfer_upstacker_downstream.axis) 
+				AND
+				axis_stop(
+					deceleration	:= csp_transfer_upstacker_upstream.MOTOR_MAX_DECELLERATION_DEGPS2, 
+					jerk			:= csp_transfer_upstacker_upstream.MOTOR_MAX_JERK_DEGPS3, 
+					CONVERSION_this	:= csp_transfer_upstacker_upstream.axis)
+			THEN
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DISENGAGED_STEP1;						
+			END_IF
+ 		END_IF
+	
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DISENGAGED_STEP1:
+	
+		IF	NOT axis_is_cam_engaged(csp_transfer_upstacker_downstream.axis) 
+			AND
+			NOT axis_is_cam_engaged(csp_transfer_upstacker_upstream.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULE_UPSTREAM_START_POSITION;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULE_DOWNSTREAM_START_POSITION_1:
+	
+		IF 	axis_calculate_cam_slave_dynamics_data(
+				cam_id 				:= csp_transfer_upstacker_downstream.cam_id_rec2, //TRANSFER_UPSTACKER_DOWNSTREAM_PHASING_STEP2_CAM,
+				master_scaling 		:= 1.0,
+				master_position 	:= phase_master_position_step2,
+				slave_scaling 		:= 1.0,
+				CONVERSION_this 	:= csp_transfer_upstacker_downstream.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_DOWNSTREAM_START_POSITION_1;						
+		END_IF
+
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_DOWNSTREAM_START_POSITION_1:
+	
+		IF 	axis_cam_slave_dynamics_data_calculated(csp_transfer_upstacker_downstream.axis)
+		THEN
+			phase_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_transfer_upstacker_downstream.axis), axis_get_modulo(csp_transfer_upstacker_downstream.axis));			
+ 
+			axis_move_absolute(
+				position 		:= phase_slave_position,
+				velocity 		:= csp_transfer_upstacker_downstream.MOTOR_PHASE_VELOCITY_DEGPS,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= csp_transfer_upstacker_downstream.MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration 	:= csp_transfer_upstacker_downstream.MOTOR_MAX_DECELLERATION_DEGPS2, 
+				jerk 			:= csp_transfer_upstacker_downstream.MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_transfer_upstacker_downstream.axis);
+				
+			IF 	axis_is_absolute_moving(csp_transfer_upstacker_downstream.axis)
+			THEN					
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVED_DOWNSTREAM_START_POSITION_1;
+			END_IF
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVED_DOWNSTREAM_START_POSITION_1:
+	
+		IF 	axis_is_standstill(csp_transfer_upstacker_downstream.axis)
+		THEN		
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULE_UPSTREAM_START_POSITION;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULE_UPSTREAM_START_POSITION:
+	
+		IF 	axis_calculate_cam_slave_dynamics_data(
+				cam_id 				:= csp_transfer_upstacker_upstream.cam_id_rec2, //TRANSFER_UPSTACKER_UPSTREAM_PHASING_STEP2_CAM,
+				master_scaling 		:= 1.0,
+				master_position 	:= phase_master_position_step2,
+				slave_scaling 		:= 1.0,
+				CONVERSION_this 	:= csp_transfer_upstacker_upstream.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_UPSTREAM_START_POSITION;						
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_UPSTREAM_START_POSITION:
+	
+		IF 	axis_cam_slave_dynamics_data_calculated(csp_transfer_upstacker_upstream.axis)
+		THEN
+			phase_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_transfer_upstacker_upstream.axis), axis_get_modulo(csp_transfer_upstacker_upstream.axis));
+		
+			axis_move_absolute(
+				position 		:= phase_slave_position,
+				velocity 		:= csp_transfer_upstacker_upstream.MOTOR_PHASE_VELOCITY_DEGPS,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= csp_transfer_upstacker_upstream.MOTOR_MAX_ACCELLERATION_DEGPS2/10, 
+				deceleration 	:= csp_transfer_upstacker_upstream.MOTOR_MAX_DECELLERATION_DEGPS2/10,  
+				jerk 			:= csp_transfer_upstacker_upstream.MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_transfer_upstacker_upstream.axis);
+		
+			IF 	axis_is_absolute_moving(csp_transfer_upstacker_upstream.axis)				
+			THEN											
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVED_UPSTREAM_START_POSITION;
+			END_IF
+		END_IF
+	
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVED_UPSTREAM_START_POSITION:
+	
+		IF 	axis_is_standstill(csp_transfer_upstacker_upstream.axis) 
+		THEN		
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULE_DOWNSTREAM_START_POSITION_2;
+		END_IF
+	
+	
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULE_DOWNSTREAM_START_POSITION_2:
+	
+		IF 	axis_calculate_cam_slave_dynamics_data(
+				cam_id 				:= csp_transfer_upstacker_downstream.cam_id_rec2, //TRANSFER_UPSTACKER_DOWNSTREAM_PHASING_STEP2_CAM,
+				master_scaling 		:= 1.0,
+				master_position 	:= phase_master_position_step2,
+				slave_scaling 		:= 1.0,
+				CONVERSION_this 	:= csp_transfer_upstacker_downstream.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_DOWNSTREAM_START_POSITION_2;						
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_DOWNSTREAM_START_POSITION_2:
+	
+		IF 	axis_cam_slave_dynamics_data_calculated(csp_transfer_upstacker_downstream.axis)
+		THEN
+			phase_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_transfer_upstacker_downstream.axis), axis_get_modulo(csp_transfer_upstacker_downstream.axis));			
+ 
+			axis_move_absolute(
+				position 		:= phase_slave_position,
+				velocity 		:= csp_transfer_upstacker_downstream.MOTOR_PHASE_VELOCITY_DEGPS,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= csp_transfer_upstacker_downstream.MOTOR_MAX_ACCELLERATION_DEGPS2/10, 
+				deceleration 	:= csp_transfer_upstacker_downstream.MOTOR_MAX_DECELLERATION_DEGPS2/10,  
+				jerk 			:= csp_transfer_upstacker_downstream.MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_transfer_upstacker_downstream.axis);
+				
+			IF 	axis_is_absolute_moving(csp_transfer_upstacker_downstream.axis)
+			THEN					
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVED_DOWNSTREAM_START_POSITION_2;
+			END_IF
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVED_DOWNSTREAM_START_POSITION_2:
+	
+		IF 	axis_is_standstill(csp_transfer_upstacker_downstream.axis)
+		THEN		
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_REDEFINE_MASTER_POSITION_STEP2;
+		END_IF
+		
+	
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_REDEFINE_MASTER_POSITION_STEP2:	
+	
+		IF	axis_redefine_position(
+				position			:= phase_master_position_step2,
+				mode				:= AXIS_REDEFINE_POSITION_MODE_ABSOLUTE,
+				CONVERSION_this		:= axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_DOWNSTREAM_STEP2;
+		ELSE
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ERROR;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_DOWNSTREAM_STEP2:
+	
+		IF 	axis_is_position_redefined(axis)
+		THEN
+			axis_engage_cam(
+				cam_id 				:= csp_transfer_upstacker_downstream.cam_id_rec2, //TRANSFER_UPSTACKER_DOWNSTREAM_PHASING_STEP2_CAM,
+				master_engage_mode 	:= AXIS_CAM_ENGAGE_RELATIVE,
+				slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+				activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+				activation_position	:= 0,
+				master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				master_offset 		:= phase_master_position_step2,
+				slave_offset 		:= 0.0,
+				master_scaling 		:= 1.0,
+				slave_scaling 		:= 1.0,
+				interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+				master 				:= axis,
+				CONVERSION_this 	:= csp_transfer_upstacker_downstream.axis);
+				
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_UPSTREAM_STEP2;
+		END_IF
+	
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_UPSTREAM_STEP2:
+	
+		IF	axis_is_cam_engaged(csp_transfer_upstacker_downstream.axis)
+		THEN
+			axis_engage_cam(
+				cam_id 				:= csp_transfer_upstacker_upstream.cam_id_rec2, //TRANSFER_UPSTACKER_UPSTREAM_PHASING_STEP2_CAM,
+				master_engage_mode 	:= AXIS_CAM_ENGAGE_RELATIVE,
+				slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+				activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+				activation_position	:= 0,
+				master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				master_offset 		:= phase_master_position_step2,
+				slave_offset 		:= 0.0,
+				master_scaling 		:= 1.0,
+				slave_scaling 		:= 1.0,
+				interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+				master 				:= axis,
+				CONVERSION_this 	:= csp_transfer_upstacker_upstream.axis);
+				
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_MASTER_STEP2;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_MASTER_STEP2:
+	
+		IF	axis_is_cam_engaged(csp_transfer_upstacker_upstream.axis)
+		THEN
+			axis_move_absolute(
+				position 		:= MOTOR_PHASE_POSITION_DEG,
+				velocity 		:= MOTOR_PHASE_VELOCITY_DEGPS,
+				direction		:= AXIS_POSITIVE_DIRECTION,
+				acceleration 	:= MOTOR_MAX_ACCELERATION_DEGPS2/10, 
+				deceleration 	:= MOTOR_MAX_DECELERATION_DEGPS2/10, 
+				jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := axis);
+				
+			IF 	axis_is_absolute_moving(axis)
+			THEN
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DISENGAGE_STEP2;
+			END_IF
+		END_IF
+	
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DISENGAGE_STEP2:
+	
+		IF 	axis_is_standstill(axis)
+		THEN
+			IF 	axis_stop(
+					deceleration	:= csp_transfer_upstacker_downstream.MOTOR_MAX_DECELLERATION_DEGPS2, 
+					jerk			:= csp_transfer_upstacker_downstream.MOTOR_MAX_JERK_DEGPS3, 
+					CONVERSION_this	:= csp_transfer_upstacker_downstream.axis) 
+				AND
+				axis_stop(
+					deceleration	:= csp_transfer_upstacker_upstream.MOTOR_MAX_DECELLERATION_DEGPS2, 
+					jerk			:= csp_transfer_upstacker_upstream.MOTOR_MAX_JERK_DEGPS3, 
+					CONVERSION_this	:= csp_transfer_upstacker_upstream.axis)
+			THEN
+				phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_REDEFINE_MASTER_POSITION;		
+			END_IF
+ 		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_REDEFINE_MASTER_POSITION:
+	
+		IF	axis_redefine_position(
+				position			:= idle_position,
+				mode				:= AXIS_REDEFINE_POSITION_MODE_ABSOLUTE,
+				CONVERSION_this		:= axis)
+		THEN
+			master_offset_rephase := 0.0;
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_DOWNSTREAM;
+		ELSE
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ERROR;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MASTER_POSITION_REDEFINED:
+	
+		IF 	axis_is_position_redefined(axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_DOWNSTREAM;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_PHASING: (*Simple rephasing sequence*)
+	
+		IF simple_rephase_attempting
+		THEN
+			master_offset_rephase := 0;
+		ELSE
+			master_offset_rephase := 0.0;
+		END_IF
+		
+		axis_move_absolute(
+			position 		:= downstream_slave_position,
+			velocity 		:= csp_transfer_upstacker_downstream.MOTOR_PHASE_VELOCITY_DEGPS,
+			direction		:= AXIS_SHORTEST_WAY,
+			acceleration 	:= csp_transfer_upstacker_downstream.MOTOR_MAX_ACCELLERATION_DEGPS2/10, 
+			deceleration 	:= csp_transfer_upstacker_downstream.MOTOR_MAX_DECELLERATION_DEGPS2/10,  
+			jerk 			:= csp_transfer_upstacker_downstream.MOTOR_MAX_JERK_DEGPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_transfer_upstacker_downstream.axis);
+		
+		axis_move_absolute(
+			position 		:= upstream_slave_position,
+			velocity 		:= csp_transfer_upstacker_upstream.MOTOR_PHASE_VELOCITY_DEGPS,
+			direction		:= AXIS_SHORTEST_WAY,
+			acceleration 	:= csp_transfer_upstacker_upstream.MOTOR_MAX_ACCELLERATION_DEGPS2/10, 
+			deceleration 	:= csp_transfer_upstacker_upstream.MOTOR_MAX_DECELLERATION_DEGPS2/10,  
+			jerk 			:= csp_transfer_upstacker_upstream.MOTOR_MAX_JERK_DEGPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_transfer_upstacker_upstream.axis);
+		
+		axis_move_absolute(
+			position 		:= finger_ls_slave_position,
+			velocity 		:= csp_transfer_accumulator_finger_ls.MOTOR_PHASE_VELOCITY_DEGPS,
+			direction		:= AXIS_SHORTEST_WAY,
+			acceleration 	:= csp_transfer_accumulator_finger_ls.MOTOR_MAX_ACCELLERATION_DEGPS2/10, 
+			deceleration 	:= csp_transfer_accumulator_finger_ls.MOTOR_MAX_DECELLERATION_DEGPS2/10,  
+			jerk 			:= csp_transfer_accumulator_finger_ls.MOTOR_MAX_JERK_DEGPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_transfer_accumulator_finger_ls.axis);
+		
+		axis_move_absolute(
+			position 		:= finger_os_slave_position,
+			velocity 		:= csp_transfer_accumulator_finger_os.MOTOR_PHASE_VELOCITY_DEGPS,
+			direction		:= AXIS_SHORTEST_WAY,
+			acceleration 	:= csp_transfer_accumulator_finger_os.MOTOR_MAX_ACCELLERATION_DEGPS2/10, 
+			deceleration 	:= csp_transfer_accumulator_finger_os.MOTOR_MAX_DECELLERATION_DEGPS2/10,  
+			jerk 			:= csp_transfer_accumulator_finger_os.MOTOR_MAX_JERK_DEGPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_transfer_accumulator_finger_os.axis);
+			
+		IF 	axis_is_absolute_moving(csp_transfer_upstacker_downstream.axis)
+			AND 
+			axis_is_absolute_moving(csp_transfer_upstacker_upstream.axis)	
+			AND 
+			axis_is_absolute_moving(csp_transfer_accumulator_finger_ls.axis)	
+			AND 
+			axis_is_absolute_moving(csp_transfer_accumulator_finger_os.axis)				
+		THEN											
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVED_PHASING;
+		END_IF
+		
+				
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVED_PHASING:
+	
+		IF 	axis_is_standstill(csp_transfer_upstacker_downstream.axis) 
+			AND
+			axis_is_standstill(csp_transfer_upstacker_upstream.axis) 
+			AND
+			axis_is_standstill(csp_transfer_accumulator_finger_ls.axis) 
+			AND
+			axis_is_standstill(csp_transfer_accumulator_finger_os.axis) 
+		THEN		
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_REDFINE_MASTER_ABS_PHASE;
+		END_IF
+		
+	
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATE_UPSTACKER_MASTER_POS:
+	
+		IF axis_calculate_cam_master_dynamics_data(
+			cam_id					:= csp_transfer_upstacker_downstream.cam_id_run, //TRANSFER_UPSTACKER_DOWNSTREAM_RUN_CAM,
+			slave_position			:= csp_transfer_upstacker_downstream.axis.actual_position, 
+			master_offset			:= 0.0,
+			slave_offset			:= 0.0,
+			master_scaling			:= 1.0,
+			slave_scaling			:= 1.0,
+			master_start_position	:= 0.0,
+			master_accuracy			:= 0.1,
+			CONVERSION_this			:= axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATED_UPSTACKER_MASTER_POS_DONE;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_CALCULATED_UPSTACKER_MASTER_POS_DONE:
+	
+		IF  axis_cam_master_dynamics_data_calculated(axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_REDFINE_MASTER_ABS_PHASE;
+		END_IF	
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_REDFINE_MASTER_ABS_PHASE:
+	
+		test1 := axis_get_cam_master_dynamics_master_axis_position_upper(axis);
+		IF	axis_calculate_cam_master_dynamics_data(
+				cam_id					:= csp_transfer_upstacker_downstream.cam_id_run, //TRANSFER_UPSTACKER_DOWNSTREAM_RUN_CAM,
+				slave_position			:= csp_transfer_upstacker_downstream.axis.actual_position, 
+				master_offset			:= 0.0,
+				slave_offset			:= 0.0,
+				master_scaling			:= 1.0,
+				slave_scaling			:= 1.0,
+				master_start_position	:= 0.0,
+				master_accuracy			:= 0.1,
+				CONVERSION_this			:= axis)
+		THEN
+			IF  axis_cam_master_dynamics_data_calculated(axis)
+			THEN
+				IF	axis_redefine_position(
+					position			:= axis_get_cam_master_dynamics_master_axis_position_upper(axis),
+					mode				:= AXIS_REDEFINE_POSITION_MODE_ABSOLUTE,
+					CONVERSION_this		:= axis)
+				THEN
+					phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_DOWNSTREAM;
+				ELSE
+					phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_DOWNSTREAM;
+				END_IF
+			END_IF	
+		ELSE
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_DOWNSTREAM;
+		END_IF
+
+			
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_DOWNSTREAM:
+	
+		axis_engage_cam(
+			cam_id 				:= csp_transfer_upstacker_downstream.cam_id_run, //TRANSFER_UPSTACKER_DOWNSTREAM_RUN_CAM,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+			activation_position	:= 0,
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			master_offset 		:= master_offset_rephase,
+			slave_offset 		:= 0.0,
+			master_scaling 		:= 1.0,
+			slave_scaling 		:= 1.0,
+			interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+			master 				:= axis,
+			CONVERSION_this 	:= csp_transfer_upstacker_downstream.axis);	
+	
+		IF axis_is_cam_engaged(csp_transfer_upstacker_downstream.axis)
+		THEN	
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_UPSTREAM;	
+		END_IF
+			
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_UPSTREAM:
+		
+		axis_engage_cam(
+			cam_id 				:= csp_transfer_upstacker_upstream.cam_id_run, //TRANSFER_UPSTACKER_UPSTREAM_RUN_CAM,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+			activation_position	:= 0,
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			master_offset 		:= master_offset_rephase,
+			slave_offset 		:= 0.0,
+			master_scaling 		:= 1.0,
+			slave_scaling 		:= 1.0,
+			interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+			master 				:= axis,
+			CONVERSION_this 	:= csp_transfer_upstacker_upstream.axis);
+			
+		IF	axis_is_cam_engaged(csp_transfer_upstacker_upstream.axis)
+		THEN					
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_FINGER_LS;
+		END_IF
+	
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_FINGER_LS:
+	
+		axis_move_absolute(
+			position 		:= finger_ls_slave_position,
+			velocity 		:= csp_transfer_accumulator_finger_ls.MOTOR_PHASE_VELOCITY_DEGPS,
+			direction		:= AXIS_SHORTEST_WAY,
+			acceleration 	:= csp_transfer_accumulator_finger_ls.MOTOR_MAX_ACCELLERATION_DEGPS2,
+			deceleration 	:= csp_transfer_accumulator_finger_ls.MOTOR_MAX_DECELLERATION_DEGPS2, 
+			jerk 			:= csp_transfer_accumulator_finger_ls.MOTOR_MAX_JERK_DEGPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_transfer_accumulator_finger_ls.axis);
+		
+		IF axis_is_absolute_moving(csp_transfer_accumulator_finger_ls.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_FINGER_OS;
+		END_IF
+	
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_MOVE_FINGER_OS:
+	
+		IF	axis_is_standstill(csp_transfer_accumulator_finger_ls.axis)
+		THEN
+			axis_move_absolute(
+				position 		:= finger_os_slave_position,
+				velocity 		:= csp_transfer_accumulator_finger_os.MOTOR_PHASE_VELOCITY_DEGPS,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= csp_transfer_accumulator_finger_os.MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration 	:= csp_transfer_accumulator_finger_os.MOTOR_MAX_DECELLERATION_DEGPS2, 
+				jerk 			:= csp_transfer_accumulator_finger_os.MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_transfer_accumulator_finger_os.axis);
+		END_IF
+		
+		IF axis_is_absolute_moving(csp_transfer_accumulator_finger_os.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_FINGER_LS;
+		END_IF
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_FINGER_LS:
+	
+		IF	axis_is_standstill(csp_transfer_accumulator_finger_os.axis)
+		THEN
+			axis_engage_cam(
+				cam_id 				:= csp_transfer_accumulator_finger.cam_id,
+				master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+				slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+				activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+				activation_position	:= 0,
+				master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				master_offset 		:= csp_transfer_accumulator_finger_ls.master_offset + master_offset_rephase,
+				slave_offset 		:= 0.0,
+				master_scaling 		:= 1.0,
+				slave_scaling 		:= 1.0,
+				interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+				master 				:= axis,
+				CONVERSION_this 	:= csp_transfer_accumulator_finger_ls.axis);
+											
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_FINGER_OS;
+		END_IF
+		
+		
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ENGAGE_FINGER_OS:
+	
+		IF	axis_is_cam_engaged(csp_transfer_accumulator_finger_ls.axis)
+		THEN
+			axis_engage_cam(
+				cam_id 				:= csp_transfer_accumulator_finger.cam_id,
+				master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+				slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+				activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+				activation_position	:= 0,
+				master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				master_offset 		:= csp_transfer_accumulator_finger_os.master_offset + master_offset_rephase,
+				slave_offset 		:= 0.0,
+				master_scaling 		:= 1.0,
+				slave_scaling 		:= 1.0,
+				interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+				master 				:= axis,
+				CONVERSION_this 	:= csp_transfer_accumulator_finger_os.axis);									
+		END_IF
+		
+		IF axis_is_cam_engaged(csp_transfer_accumulator_finger_os.axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DONE;	
+		END_IF
+	
+	
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_DONE:	(* Phase done *)
+	
+		IF	axis_is_cam_engaged(csp_transfer_upstacker_upstream.axis)
+		THEN		
+			phase_after_test_mode := FALSE;	
+			case_removed := FALSE;
+			phase_running := FALSE;
+			phase_done := TRUE;		
+		END_IF
+		
+	
+	CSP_TRANSFER_UPSTACKER_STATUS_PHASE_ERROR:	(* Phase error *)
+	
+		IF	phase_running
+		THEN
+			phase_error := TRUE;
+			axis_disable(axis);
+			axis_disable(csp_transfer_upstacker_downstream.axis);
+			axis_disable(csp_transfer_upstacker_upstream.axis);
+			axis_disable(csp_transfer_accumulator_finger_ls.axis);
+			axis_disable(csp_transfer_accumulator_finger_os.axis);						
+		END_IF
+		phase_running := FALSE;
+		
+		IF	phase_conditions 	
+		THEN
+			phase_status_next := CSP_TRANSFER_UPSTACKER_STATUS_PHASE_START;
+		END_IF
+		
+END_CASE
+
+IF 	NOT debug_phase_state_machine
+	OR
+	debug_phase_machine_one_step	
+THEN
+	phase_status := phase_status_next;
+	debug_phase_machine_one_step := FALSE;
+END_IF
+
+(* Phasing timeout *)
+IF (phase_running
+	AND NOT debug_phase_state_machine)
+	OR phase_error
+THEN
+	IF	timer_is_expired(phase_time_out_tmr)
+	THEN
+		process_message_set(1, phase_status, 0, phase_faulted_aem);
+	END_IF
+ELSE
+	timer_restart(600000, phase_time_out_tmr);
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,212 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_magazine_level_zonemin" Id="{8c693597-9b0c-40b8-9be3-faaccdce43f3}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_magazine_level_zonemin
+VAR
+	prc:										process;
+	prc_path:									STRING;
+	
+	di_accumulation:							BOOL;
+	di_status:									BOOL; 
+	di:											digital_input;
+	di_flt:										filter;
+	flt_timer_off_on:							DINT:= 5000; (*$P min := 0; max := 10000; step := 1; unit :=  ms; desc := Timer OFF to ON; $*)
+	flt_timer_on_off:							DINT:= 5000; (*$P min := 0; max := 10000; step := 1; unit :=  ms; desc := Timer ON to OFF; $*)
+
+	di_running_boolean:							boolean;	
+	
+	magazine_level_zone_min_prime_dchk: 		digital_check;
+	magazine_level_zone_min_wem:				message;
+	min_count:									INT := 0; (*$M $*)
+	min_count_limit:							INT := 15;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+di_status := digital_input_is_active(di);
+
+IF 	di_status = TRUE
+AND filter_is_on(di_flt) 
+	THEN
+		di_accumulation := TRUE;
+ELSE
+	di_accumulation := FALSE;
+END_IF
+
+//If MIN is lost while running, stop the machine with alarm saying Magazine Min prime
+IF axis_is_moving(csp_main_motorization_virtualManager.axis)
+	AND NOT digital_input_is_active(di)
+THEN
+	boolean_set(di_running_boolean);
+ELSE
+	boolean_reset(di_running_boolean); 
+	min_count := 0;
+END_IF
+
+//When below LOW on magazine, set status message on HMI. No stop occurs, just obligation message.
+IF 	csp_case_feed_magazine_level.level_status > CSP_CASE_FEED_MAGAZINE_LEVEL_STATUS_LOW
+THEN
+	process_message_set(1, 1, 1, magazine_level_zone_min_wem);
+ELSE
+	process_message_reset(magazine_level_zone_min_wem);
+END_IF
+
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{be528f71-5d0a-4825-a53b-491a4521791a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{5d07c661-fbf5-41fe-b42b-3da64235ed2f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{713abaea-06fd-4b5f-bce2-32422c5df5fe}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{32e3e594-5dd2-4b4d-b3a3-c62642dc38b5}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_feed_magazine_level_zonemin.prc', 
+		process						:= csp_case_feed_magazine_level.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* INPUTS *)
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= di);
+		
+	filter_init(
+		object_name 				:= CONCAT(prc_path, '_di_flt'),
+		delay_off_on				:= flt_timer_off_on,
+		delay_on_off 				:= flt_timer_on_off,
+		process			 			:= prc,
+		CONVERSION_this 			:= di_flt);	
+		
+	boolean_init(
+		object_name					:= CONCAT(prc_path, '_di_running_boolean'), 
+		process						:= prc, 
+		CONVERSION_this				:= di_running_boolean);
+		
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_magazine_level_zone_min_prime_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 0, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= magazine_level_zone_min_prime_dchk);
+		
+	digital_check_add_boolean(
+		boolean:= di_running_boolean, 
+		CONVERSION_this:= magazine_level_zone_min_prime_dchk);	
+
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_magazine_level_zone_min_wem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NO_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_OBLIGATION,
+		process						:=	prc,
+		CONVERSION_this				:=	magazine_level_zone_min_wem);
+
+		
+END_IF
+
+	IF objects_running()
+	THEN
+		process_cycle(prc);
+		filter_cycle(
+					input 			:= di_status,
+					CONVERSION_this := di_flt);		
+		digital_check_cycle(magazine_level_zone_min_prime_dchk);	
+	END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{ee525016-8a5c-4689-bd26-fd360aa5f706}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{da3344ea-46e0-401c-aaa4-d3ff51c3f278}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{37914b66-4894-4204-846b-6a04b6508de6}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{d4131fd3-2a0e-464b-b31b-3e149dbc0afc}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

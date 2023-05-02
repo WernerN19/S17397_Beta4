@@ -1,0 +1,84 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_add_dout_activate" Id="{1590b21d-8c22-49a7-828f-a5ea9dea332a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+    The method adds the <a href="#digital_output_object"><i>digital_output</i></a> that performs
+    the "lamp" functioning to the instance specified by the parameter <a href="#button "><i>this</i></a>.<br/>
+
+    <p>
+    This function should be called at startup only.<br/>
+    Against errors on the input parameters the cpu is stopped, in this case the cause <br/>
+    can be inspected in the global struct <i>framework.abort_error</i>: <br/>
+    <br/>
+    <li> <b>ERRORID_1 = 5</b>: <b><i>this</i></b> instance has already a digital_output </li>
+    <li> <b>ERRORID_1 = 7</b>: <b><i>this</i></b> instance has already a multicolor lamp </li>
+    </p>
+$*)
+FUNCTION analog_actuator_add_dout_activate: VOID
+VAR_IN_OUT
+    do_activate:   digital_output;
+    (*$ Active <a href="#digital_output_object"><i>digital_output</i></a> that has to be added $*)
+    CONVERSION_this:   analog_actuator; (*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF CONVERSION_this.has_do_activate
+   AND
+   CONVERSION_this.do_activate = ADR(do_activate)
+THEN
+	RETURN;
+END_IF
+
+IF analog_actuator_is_not_initialized(CONVERSION_this)
+   OR
+   digital_output_is_not_initialized(do_activate)
+THEN
+	IF framework_initialization()
+	THEN
+		RETURN;
+	END_IF
+END_IF
+
+IF analog_actuator_is_not_initialized(CONVERSION_this)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(CONVERSION_this),
+		object_size := SIZEOF(CONVERSION_this), 
+		abort := TRUE,
+		error_str_1 := 'object not initialized', 
+		error_str_2 := 'analog_actuator_add_do_activate'
+	);
+    RETURN;
+END_IF
+
+IF digital_output_is_not_initialized(do_activate)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(do_activate), 
+		object_size := SIZEOF(do_activate),
+		abort := TRUE, 
+		error_str_1 := 'object not initialized',
+		error_str_2 := CONCAT('Please check analog_actuator_add_do_activate of ',CONVERSION_this.object_name)				
+	);
+    RETURN;
+END_IF
+
+IF CONVERSION_this.has_do_activate
+   AND
+   CONVERSION_this.do_activate <> ADR(do_activate)
+THEN
+    abort(
+		object_name := CONVERSION_this.object_name,
+        errorID_1 := 2,
+        errorID_2 := 0,
+        errorID_3 := 0,
+        error_str_1 := CONCAT(CONVERSION_this.object_name, ' analog_actuator has already an activate digital_output'),
+		error_str_2 := 'analog_actuator_add_do_activate'
+        );
+    RETURN;
+END_IF
+
+CONVERSION_this.do_activate := ADR(do_activate);
+CONVERSION_this.has_do_activate := TRUE;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

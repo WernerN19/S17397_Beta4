@@ -1,0 +1,134 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="csp_main_safety_drives_powerSupply" Id="{24018267-3e7f-42d8-903d-4b3dfadbf809}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/09 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref:= prc; $*)
+
+PROGRAM csp_main_safety_drives_powerSupply
+VAR
+	prc:												process;
+	prc_path:											STRING;
+	
+	sig:												safety_integrated_group;
+	sis:												safety_integrated_series;	
+END_VAR
+
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_objects_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		;
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+safety_integrated_series_close(sis);
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{bbb1f6fa-6255-4cc5-a353-e72a1dd25d77}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{1f223d6e-6572-4b39-9e9a-1aafe5c73e73}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{3cd72b90-6c05-41b5-97c7-4f0c9241a068}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{91d4c457-8655-40fe-afb8-e601ab7f2344}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+
+	sub_process_init(
+		object_name				:= 'csp_main_safety_drives_powerSupply.prc', 
+		process					:= csp_main_safety_drives.prc, 
+		CONVERSION_this			:= prc);
+		
+	prc_path 					:= process_get_path(prc);
+	
+	
+
+END_IF
+IF	objects_running()
+THEN
+    process_cycle(prc);
+
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{68917894-d4d7-479f-a099-44f21df318a3}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{2c4506c8-1982-4262-8bc3-ed2ce8640982}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{744cd708-97aa-4459-9806-8b761e82c189}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{6342659d-2fcc-492b-867c-426652b00a2e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

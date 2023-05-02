@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_get_all_slave_axis_engaged" Id="{52ee7324-4cf4-470a-8028-ae30b1c7224c}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Returns <i>all_slave_axis_engaged</i> of the instance <b><i>this.axis_list[index]</i></b>.
+$*)
+FUNCTION jog_manager_get_all_slave_axis_engaged : BOOL
+VAR_INPUT
+	index:				UINT;
+END_VAR
+VAR_IN_OUT
+    CONVERSION_this:	jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	(index > JOG_MANAGER_JOG_LIST_NONE)
+	AND
+	(index <= JOG_MANAGER_JOG_LIST_MAX)
+	AND_THEN
+	(CONVERSION_this.axis_list[index].axis <> G_framework.NULL)
+THEN
+	jog_manager_get_all_slave_axis_engaged := CONVERSION_this.axis_list[index].all_slave_axis_engaged;
+ELSE
+	jog_manager_get_all_slave_axis_engaged := FALSE;
+END_IF]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

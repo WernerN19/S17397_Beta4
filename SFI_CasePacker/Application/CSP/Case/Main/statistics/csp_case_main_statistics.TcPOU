@@ -1,0 +1,336 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_main_statistics" Id="{ee0039b2-bd61-0795-0175-453e9314ecfd}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+WU exit shift register
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/24 	0000.00	 	G.Cera 			Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_case_main_statistics
+VAR
+	prc:											process;
+	prc_path:										STRING;
+	
+	sr:												shift_register;
+	sr_id:											shift_register_id;
+	
+	logsect:										log_section;
+	
+	(* Machine emptying *)	
+	number_of_products:								INT;
+	counter:										DINT;
+	shift_first_step_to_check:						DINT;
+	shift_last_step_to_check:						DINT;	
+	is_empty:										BOOL;
+	reject_shift_array:								ARRAY [0..30] OF BOOL; 
+	number_of_rejects: 								INT;
+	counter1:										DINT;
+	amr_step_shift: 								INT;
+	AMR_TEST_1: 									BOOL;
+	ResetSRDefault: 								BOOL;
+	i:												DINT;
+	number_of_boxes: 								INT;
+	counter2:										DINT;
+	boxes_shift_array:								ARRAY [0..30] OF BOOL; 
+	SHIFT_case_at_feed: 							BOOL;
+	SHIFT_case_at_loader: 							BOOL;
+	SHIFT_case_at_closing: 							BOOL;
+	SHIFT_case_at_discharge: 						BOOL;
+	SHIFT_case_at_unused: 							BOOL;
+
+	Set_case_at_feed: 								BOOL;
+	Set_case_at_loader: 							BOOL;
+END_VAR
+
+VAR CONSTANT
+	SHIFT_LAST_STEP:								INT := 29;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		is_empty := TRUE;	
+	
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(* Manage of the machine emptying *)
+shift_first_step_to_check :=
+	shift_register_get_first_step(sr);
+	
+shift_last_step_to_check :=
+	SHIFT_LAST_STEP;
+
+number_of_products:= 0;
+FOR counter:= shift_first_step_to_check TO shift_last_step_to_check BY 1 DO
+	IF	shift_register_step_has_status_item(
+			step_id:= counter,
+			status_bits_to_be_true:= ITEM_CASE_FEED,
+			status_bits_to_be_false:= 0,
+			CONVERSION_this:= sr)
+	THEN
+		number_of_products:= number_of_products + 1;
+	END_IF
+END_FOR
+
+IF	number_of_products <> 0
+THEN
+	is_empty:= FALSE;
+ELSE
+	is_empty:= TRUE;
+END_IF
+
+IF csp_case_main_services.dry_cycle_mode
+THEN
+	log_section_disable(logsect);
+ELSE
+	log_section_enable(logsect);
+END_IF
+
+number_of_rejects:= 0;
+FOR counter1:= shift_first_step_to_check TO shift_last_step_to_check BY 1 DO
+	IF	shift_register_step_has_any_reject_reason(
+			step_id:= counter1,
+			CONVERSION_this:= sr)
+	THEN
+		number_of_rejects:= number_of_rejects + 1;
+		reject_shift_array[counter1] := 1; (* A 1 indicates a shift step with reject status *)
+	ELSE
+		reject_shift_array[counter1] := 0;(* A 0 indicates a shift step with no reject *)
+	END_IF
+END_FOR
+
+(*Clears shift register when the cleanout mode has been completed *)
+IF process_message_is_on(csp_case_virtualMaster.runout_complete)
+	OR csp_transfer_upstacker.dry_cycle_ftrig.Q
+	OR csp_main_accuChange.Brand_Change_Occurred
+	OR ResetSRDefault
+THEN
+	FOR i := shift_first_step_to_check TO shift_last_step_to_check BY 1 DO
+	shift_register_set_default_step(i,sr);
+	END_FOR
+END_IF
+
+(*Resets shift to default state of blank (empty) *)
+IF AMR_TEST_1
+THEN
+	shift_register_set_default_step(amr_step_shift,sr);
+END_IF
+
+number_of_boxes:= 0;
+FOR counter2:= shift_first_step_to_check TO shift_last_step_to_check BY 1 DO
+	IF	shift_register_step_has_status_item(
+			step_id:= counter2,
+			status_bits_to_be_true:= ITEM_CASE_FEED,
+			status_bits_to_be_false:= 0,
+			CONVERSION_this:= sr)
+	THEN
+		number_of_boxes:= number_of_boxes + 1;
+		boxes_shift_array[counter2] := 1; (* A 1 indicates a shift step case status *)
+	ELSE
+		boxes_shift_array[counter2] := 0;(* A 0 indicates a shift step with *)
+	END_IF
+END_FOR
+
+IF	shift_register_step_has_status_item(
+			step_id:= 25,
+			status_bits_to_be_true:= ITEM_CASE_FEED,
+			status_bits_to_be_false:= 0,
+			CONVERSION_this:= sr)
+THEN
+	SHIFT_case_at_feed := TRUE;
+ELSE
+	SHIFT_case_at_feed := FALSE;	
+END_IF
+
+IF	shift_register_step_has_status_item(
+			step_id:= 26,
+			status_bits_to_be_true:= ITEM_CASE_FEED,
+			status_bits_to_be_false:= 0,
+			CONVERSION_this:= sr)
+THEN
+	SHIFT_case_at_loader := TRUE;
+ELSE
+	SHIFT_case_at_loader := FALSE;	
+END_IF
+
+IF	shift_register_step_has_status_item(
+			step_id:= 27,
+			status_bits_to_be_true:= ITEM_CASE_FEED,
+			status_bits_to_be_false:= 0,
+			CONVERSION_this:= sr)
+THEN
+	SHIFT_case_at_closing := TRUE;
+ELSE
+	SHIFT_case_at_closing := FALSE;	
+END_IF
+
+IF	shift_register_step_has_status_item(
+			step_id:= 28,
+			status_bits_to_be_true:= ITEM_CASE_FEED,
+			status_bits_to_be_false:= 0,
+			CONVERSION_this:= sr)
+THEN
+	SHIFT_case_at_discharge := TRUE;
+ELSE
+	SHIFT_case_at_discharge := FALSE;	
+END_IF
+
+IF	shift_register_step_has_status_item(
+			step_id:= 29,
+			status_bits_to_be_true:= ITEM_CASE_FEED,
+			status_bits_to_be_false:= 0,
+			CONVERSION_this:= sr)
+THEN
+	SHIFT_case_at_unused := TRUE;
+ELSE
+	SHIFT_case_at_unused := FALSE;	
+END_IF
+
+(* Sets case at feed true for step 25 *)
+IF 	Set_case_at_feed
+THEN
+	shift_register_set_status_item(
+		step_id                 :=  25,
+		status_bits_to_set      :=  ITEM_CASE_FEED,
+		status_bits_to_reset    :=  0,
+		CONVERSION_this         :=  csp_case_main_statistics.sr);
+	Set_case_at_feed := FALSE;
+END_IF
+
+(* Sets case at feed true for step 26 *)
+IF 	Set_case_at_loader
+THEN
+	shift_register_set_status_item(
+		step_id                 :=  26,
+		status_bits_to_set      :=  ITEM_CASE_FEED,
+		status_bits_to_reset    :=  0,
+		CONVERSION_this         :=  csp_case_main_statistics.sr);
+	Set_case_at_loader := FALSE;
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{0f991ebb-92cb-0532-2e95-aa5151235540}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{dbb39449-32b3-014a-23e0-5b8aab0535c2}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{b480d1b4-59e4-000b-2a5d-ceb61f9106f6}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{3dbbcf1e-7e4e-0ffc-235d-610da64043a7}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name						:= 'csp_case_main_statistics.prc', 
+		process							:= csp_case_feed.prc, 
+		CONVERSION_this					:= prc);
+		
+	prc_path 							:= process_get_path(prc);
+	
+	shift_register_init(
+		object_name						:=	CONCAT(prc_path, '_sr'), 
+		enable							:=	TRUE,
+		shift_phase						:=	1,
+		first_step						:=	2,
+		startup_item_state_info			:=	ITEM_ABSENT,
+		equipment						:=	SHIFT_REGISTER_NO_EQUIPMENT,
+		number_of_equipments			:=	1,
+		generator						:=	csp_case_transport_virtualMaster.transport_vm_phgen,
+		process							:=	prc,
+		CONVERSION_this					:=	sr);
+		
+	log_section_init(
+		object_name						:= CONCAT(prc_path, '_logsect'),
+		last_step						:= 29,
+		log_enable						:= TRUE, 
+		shift_register					:= sr, 
+		process							:= prc, 
+		CONVERSION_this					:= logsect);
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{9898c220-001f-00b2-3d67-f38f81fb7e05}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{435f101a-9dd3-05dd-118f-8a37351354e6}">
+      <Implementation>
+        <ST><![CDATA[;				]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{551ae1af-1f9c-0aa5-3054-85438f4c9f37}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{65c20a64-94ad-03e3-1c1a-0fdd218e3999}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

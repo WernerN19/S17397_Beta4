@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_case_feed_highest" Id="{bf0c963e-b8a1-48e9-ac1b-7ec2d6245649}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_case_feed_highest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[csp_case_feed();
+
+(* CASE *)
+	(* FEED *)
+		(* ARM *)
+		csp_case_feed_arm_elbow();
+		csp_case_feed_arm_sensors();
+		csp_case_feed_arm_shoulder();
+		csp_case_feed_arm_wrist();
+		csp_case_feed_kinematic();
+			csp_case_feed_kinematic_x();
+			csp_case_feed_kinematic_y();
+			csp_case_feed_kinematic_tilt();
+		csp_case_feed_virtualMaster();
+		
+	(* SHUTTLE *)
+			(* HORIZONTAL *)
+			csp_case_feed_shuttle_horizontal();
+			(* SENSORS *)
+			csp_case_feed_shuttle_sensors();
+			csp_case_feed_shuttle_sensors_os();
+			csp_case_feed_shuttle_sensors_ls();
+			(*VERTICAL*)
+			csp_case_feed_shuttle_vertical();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

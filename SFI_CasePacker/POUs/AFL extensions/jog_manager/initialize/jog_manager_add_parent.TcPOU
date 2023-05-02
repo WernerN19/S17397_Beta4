@@ -1,0 +1,97 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_add_parent" Id="{fba87ab4-687b-4863-bf4c-640f264d855a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Adds the <a href="#jog_manager_object"><i>jog_manager</i></a> that act 
+	as parent, to the instance specified by the parameter <i><b>this</i></b>.	
+	This function should be called at startup only.<br/>	
+	Against errors on the input parameters the cpu is stopped, in this case the cause <br/>
+	can be inspected in the global struct <i>framework.abort_error</i>: <br/>
+	<br/>
+    <li> <b>ERRORID_1 = 9</b>: <b><i>this</i></b> instance parent itself </li>   	
+	</p>
+$*)
+FUNCTION jog_manager_add_parent : BOOL
+VAR_IN_OUT
+	parent:				jog_manager;	
+	CONVERSION_this:	jog_manager;				(*$ Instance to which the method applies $*)
+END_VAR
+VAR
+	i:					UINT;
+	found:				BOOL := FALSE;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF 	jog_manager_is_not_initialized(CONVERSION_this)
+   	OR
+   	jog_manager_is_not_initialized(parent)
+THEN
+	IF framework_initialization()
+	THEN
+		RETURN;
+	END_IF
+END_IF
+
+IF 	jog_manager_is_not_initialized(CONVERSION_this)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(CONVERSION_this),
+		object_size := SIZEOF(CONVERSION_this),
+		abort := TRUE,
+		error_str_1 := 'object not initialized', 
+		error_str_2 := CONCAT('Please check jog_manager_init of ', CONVERSION_this.object_name)				
+	);
+    RETURN;
+END_IF
+
+IF 	jog_manager_is_not_initialized(parent)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(parent),
+		object_size := SIZEOF(parent),
+		abort := TRUE,
+		error_str_1 := 'object not initialized', 
+		error_str_2 := CONCAT('Please check cam_engage_manager_init of ', CONVERSION_this.object_name)				
+	);
+    RETURN;
+END_IF
+
+IF	CONVERSION_this.CONVERSION_private.my_address = ADR(parent)
+THEN 
+	abort(
+		object_name := CONVERSION_this.object_name,
+		errorID_1 := 9,
+		errorID_2 := 0,
+		errorID_3 := 0,
+		error_str_1 := CONCAT(CONVERSION_this.object_name, ' jog_manager and parent are equal'),
+		error_str_2 := 'jog_manager_add_parent'
+		);
+	RETURN;
+END_IF
+
+IF 	CONVERSION_this.parents_next_free < JOG_MANAGER_MAX_PARENTS
+THEN
+	FOR i := 1 TO CONVERSION_this.parents_next_free-1 DO
+		IF	CONVERSION_this.parents[i] = ADR(parent)
+		THEN
+			found := TRUE;
+			EXIT;
+		END_IF
+	END_FOR
+	IF 	NOT found
+	THEN	
+		CONVERSION_this.parents[CONVERSION_this.parents_next_free] := ADR(parent);
+		CONVERSION_this.parents_next_free := CONVERSION_this.parents_next_free + 1;
+	END_IF
+	
+	jog_manager_add_parent := TRUE;
+	RETURN;
+end_if
+	
+jog_manager_add_parent := FALSE;
+
+
+
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

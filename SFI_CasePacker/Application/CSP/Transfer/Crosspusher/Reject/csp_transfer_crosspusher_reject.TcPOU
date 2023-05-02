@@ -1,0 +1,456 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_crosspusher_reject" Id="{1ed1a9bc-cca5-44a0-923f-e96a703dc936}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_crosspusher_reject
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	extend_do:										digital_output;
+	
+	reject_sact:									digital_actuator;
+	
+	reject_complete:								BOOL := FALSE;
+	
+	reject_phase_generator:							phase_generator;
+	
+	reject_not_present_fault_check:					digital_check; (* Stops machine if backup sensor doesnt trigger during reject *)
+	reject_present_fault:							BOOLEAN;
+	reject_ctrlsect_bool:							boolean;
+	
+	reject_present_check:							digital_check; (* Alerts operator of reject present in chute *)
+	reject_delay:                                   TON;
+	reject_plate_done:								Bool :=false;	
+	
+	backup_di_check_delay:							DINT:= 5000; (*$P min := 0; max := 10000; step := 1; unit :=  ms; $*)
+	backup_di_dchk:									digital_check;
+	
+	debug_state_machine:							BOOL := FALSE;	
+	debug_reject_machine_one_step:					BOOL := FALSE;
+	reject_status:									csp_transfer_crosspusher_reject_sensor_status_enum;
+	reject_status_next:								csp_transfer_crosspusher_reject_sensor_status_enum;	
+
+	remove_cartons_wem:								message;
+	remove_cartons_aem:								message;
+	case_ctrlsect:									control_section;
+	case_stepcond:									step_condition;
+END_VAR
+
+VAR_INPUT
+	backup_di:										digital_input;
+	present_di:										digital_input;
+	retracted_di:									digital_input;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(* WAITS FOR SIGNALS TO START IT FROM *)
+IF 	csp_transfer_crosspusher.reject_running (* Reject action of csp_transfer_crosspusher is running *)
+	AND csp_transfer_crosspusher.reject_status = CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_REJECT_STACK (* Sensor reject state ready *)
+THEN
+	reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_START;
+END_IF
+
+(* IF REJECT WAS NOT VERIFIED BY BACKUP, DEACTIVATES PUSHER PLATE AND WAITS FOR IT TO RETRACT, ADVANCES TO DONE *)
+IF reject_not_present_fault_check.input_alarm_filter.output
+THEN
+	boolean_reset(reject_present_fault);
+	digital_actuator_deactivate(reject_sact);
+	process_message_set(0,0,0,remove_cartons_wem);
+	process_message_set(0,0,0,remove_cartons_aem);
+	IF digital_actuator_is_inactive(reject_sact)
+	THEN
+		reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_WAIT_RESET;
+	END_IF
+END_IF
+
+CASE reject_status OF
+	
+	CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_START:
+	
+		reject_complete := FALSE;		
+		reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_EXTEND_PLATE;
+		
+		
+	(* SKIPPING FOR NOW. DON'T CARE IF PRESENT. ONLY BACKUP *)
+	CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_CHECK_PRESENCE_IN_CHUTE:
+	
+		IF digital_input_is_active(present_di) (* Verify that there is not a reject present in reject chute. Fires digital check if it is. *)
+		THEN
+			boolean_set(reject_present_fault);
+		ELSE
+			boolean_reset(reject_present_fault);
+		END_IF
+		
+		reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_EXTEND_PLATE;
+		
+	
+	CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_EXTEND_PLATE:
+	
+		IF digital_actuator_is_inactive(reject_sact)(* Checks that reject plate is retracted so it can extend *)
+		THEN
+			digital_actuator_activate(reject_sact);
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_VERIFY_REJECT;
+		END_IF
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_VERIFY_REJECT:
+	
+		boolean_set(reject_present_fault);	
+		
+		reject_delay(IN:= NOT digital_input_is_active(retracted_di) , PT:=T#2S , Q=> reject_plate_done , ET=> );
+	 (* Verifies that the reject was activated AND the reject made it in to the chute OR a two second timer to allow for boxes that miss the sensor during reject*)
+		IF reject_plate_done
+		THEN
+			boolean_reset(reject_present_fault);	
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_RETRACT_PLATE;
+		END_IF
+			
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_RETRACT_PLATE:
+	
+		digital_actuator_deactivate(reject_sact); (* Set low of reject plate *)
+		IF digital_input_is_active(retracted_di)(* Check that reject plate is retracted *)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_DONE;				
+		END_IF
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_DONE:
+	
+		reject_complete := TRUE;
+
+		IF 	csp_transfer_crosspusher.reject_status = CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_DONE 
+			OR csp_transfer_crosspusher.reject_status = CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_WAITING
+		THEN
+			reject_complete := FALSE;
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_WAITING;
+		END_IF
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_WAITING:
+	
+		;
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_WAIT_RESET:
+	
+		IF NOT message_is_on(remove_cartons_aem)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_SENSOR_STATUS_DONE;
+		END_IF
+
+
+END_CASE
+
+IF 	NOT debug_state_machine
+	OR
+	debug_reject_machine_one_step	
+THEN
+	reject_status := reject_status_next;
+	debug_reject_machine_one_step := FALSE;
+END_IF
+
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{517e7615-98f2-4f1e-bdd4-42b41c608f34}">
+      <Implementation>
+        <ST><![CDATA[IF csp_transfer_upstacker_virtualMaster.guard_open 
+	AND message_is_on(remove_cartons_wem)
+THEN
+	process_message_reset(remove_cartons_wem);
+END_IF
+
+IF 	NOT csp_transfer_upstacker_virtualMaster.guard_open 
+	AND csp_main.o_reset_button
+	AND message_is_on(remove_cartons_aem) //AND error happening	
+	AND NOT message_is_on(remove_cartons_wem)
+THEN
+	process_message_reset(remove_cartons_aem);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{68e358b5-584e-4b34-b512-cc1370db2cc3}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{b92815cd-ba42-4817-bc47-e4f338c1a156}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{d0f2808d-f1f6-46f4-addc-13c6bb429c50}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_crosspusher_reject.prc', 
+		process						:= csp_transfer_crosspusher.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* OUTPUTS *)
+	digital_output_init(
+		object_name 				:= CONCAT(prc_path, '_extend_do'),
+		polarity_direct 			:= TRUE,
+		process 					:= prc,
+		CONVERSION_this 			:= extend_do);
+		
+	(* INPUTS *)
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_backup_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= backup_di);
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_present_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= present_di);
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_retracted_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= retracted_di);
+		
+	(* DIGITAL ACTUATOR *)
+	digital_actuator_init(
+		object_name:= CONCAT(prc_path, '_reject_sact'), 
+		_type:= DIGITAL_ACTUATOR_TYPE_IN_xI, 
+		fault_reaction:= DIGITAL_ACTUATOR_FAULT_REACTION_DEACTIVATING, 
+		active_time:= 1000, 
+		inactive_time:= 2000, 
+		dout:= extend_do, 
+		process:= prc, 
+		CONVERSION_this:= reject_sact);
+		
+	digital_actuator_add_di_inactive(
+		di_inactive:= retracted_di, 
+		CONVERSION_this:= reject_sact);		
+	
+		
+	
+	(* PHASE  *)
+	phase_generator_init(
+		object_name:= CONCAT(prc_path, '_crosspusher_phase_generator'), 
+		modulo:= 360, 
+		resolution:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis:= csp_transfer_crosspusher_horizontal.axis, 
+		process:= prc, 
+		CONVERSION_this:= reject_phase_generator);
+		
+	(* DIGITAL CHECKS *)
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_reject_not_present_fault_check'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 5000, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= reject_not_present_fault_check);
+		
+	digital_check_add_boolean(
+		boolean:= reject_present_fault, 
+		CONVERSION_this:= reject_not_present_fault_check);	
+
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_reject_present_check'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 0, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_NO_STOP, 
+		typology:= MESSAGE_TYPOLOGY_OBLIGATION, 
+		process:= prc, 
+		CONVERSION_this:= reject_present_check);	
+	
+	digital_check_add_di(
+		di:= present_di, 
+		CONVERSION_this:= reject_present_check);
+		
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_backup_di_check'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= backup_di_check_delay, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= backup_di_dchk);
+		
+	digital_check_add_di(
+		di:= backup_di, 
+		CONVERSION_this:= backup_di_dchk);
+		
+		
+	(* BOOLEAN *)
+	boolean_init(
+		object_name:= CONCAT(prc_path, '_reject_present_fault'), 
+		process:= prc, 
+		CONVERSION_this:= reject_present_fault);
+		
+	process_message_init(
+		object_name						:=	CONCAT(prc_path, '_remove_cartons_wem'), 
+		behaviour						:=	MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout					:=	0,
+		disableable						:=	TRUE,
+		individual_reset				:=	FALSE,
+		machine_reaction				:=	MACHINE_REACTION_NO_STOP,
+		typology						:=	MESSAGE_TYPOLOGY_OBLIGATION,
+		process							:=	prc,
+		CONVERSION_this					:=	remove_cartons_wem);
+		
+	process_message_init(
+		object_name						:=	CONCAT(prc_path, '_remove_cartons_aem'), 
+		behaviour						:=	MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout					:=	0,
+		disableable						:=	TRUE,
+		individual_reset				:=	FALSE,
+		machine_reaction				:=	MACHINE_REACTION_STOP_IN_PHASE_ONE,
+		typology						:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process							:=	prc,
+		CONVERSION_this					:=	remove_cartons_aem);
+		(* BOOLEAN *)
+	boolean_init(
+		object_name:= CONCAT(prc_path, '_reject_ctrlsect_bool'), 
+		process:= prc, 
+		CONVERSION_this:= reject_ctrlsect_bool);
+		
+	control_section_phase_mode_init(
+		object_name						:= CONCAT(prc_path, '_case_ctrlsect'), 
+		_type							:= CONTROL_SECTION_REJECT_TYPE, 
+		powerup_activation_mode			:= CONTROL_SECTION_POWERUP_ACTIVATE_MODE, 
+		control_enable					:= TRUE, 
+		_step							:= 24, 
+		activation_phase				:= 122, 
+		activation_delay				:= 0, 
+		activation_max_compensation		:= 100, 
+		activation_time					:= 100, (*ms*) 
+		status_bits_to_set				:= ITEM_REJECTED, (* 19062020 to be introduced the reject reason*)
+		status_bits_to_reset			:= ITEM_TO_REJECT,
+		shift_register					:= csp_transfer_main_statistics.crosspusher_sr, 
+		process							:= prc, 
+		CONVERSION_this					:= case_ctrlsect);
+		
+	step_condition_init(
+		object_name						:= CONCAT(prc_path, '_case_stepcond'), 
+		status_bits_to_be_true			:= ITEM_CASE_FEED + ITEM_TO_REJECT,(* ITEM_HAS_CARTON+ ITEM_TO_REJECT*)
+		status_bits_to_be_false			:= common_global_variables.NONE,
+		any_reject_bit_set				:= TRUE, 
+		none_reject_bit_set				:= FALSE, 
+		shift_register					:= csp_transfer_main_statistics.crosspusher_sr, 
+		process							:= prc, 
+		CONVERSION_this					:= case_stepcond);
+		
+	control_section_add_step_condition(
+		enable							:= TRUE, 
+		_step							:= 0, 
+		step_condition					:= case_stepcond, 
+		CONVERSION_this					:= case_ctrlsect);	
+		
+	control_section_add_boolean_actuator(
+		boolean_actuator				:= reject_ctrlsect_bool, (*output - scritto dalla Control section 19062020*)
+		CONVERSION_this					:= case_ctrlsect);
+		
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);	
+	phase_generator_cycle(reject_phase_generator);
+	digital_actuator_cycle(reject_sact);
+	digital_check_cycle(reject_not_present_fault_check);
+	digital_check_cycle(reject_present_check);
+	digital_check_cycle(backup_di_dchk);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{29134289-ee31-410c-8406-20e1c703ddc5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{b0224b72-89ea-4bcd-b3f3-a1ae7877797a}">
+      <Implementation>
+        <ST><![CDATA[reject_complete := csp_transfer_crosspusher_sensors.reject_complete;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{700b53c7-ed0f-4fdd-bba2-a7ec3e016072}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{6297395c-c659-4fb1-a067-9d7aa9f78967}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

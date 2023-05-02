@@ -1,0 +1,92 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_case_glue_hotmelt" Id="{c41d862e-7255-4b9c-9be8-72fb1465997c}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_case_glue_hotmelt
+VAR
+  level_ok_dchk_shd : digital_check_shadow;
+  level_ok_di_shd : digital_input_shadow;
+  ready_dchk_shd : digital_check_shadow;
+  ready_di_shd : digital_input_shadow;
+  standby_do_shd : digital_output_shadow;
+  standby_sact_shd : digital_actuator_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{04cb0574-a23d-44fe-8483-413e304f803f}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	digital_check_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_glue_hotmelt.level_ok_dchk, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= level_ok_dchk_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_glue_hotmelt.level_ok_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= level_ok_di_shd);
+
+	digital_check_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_glue_hotmelt.ready_dchk, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= ready_dchk_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_glue_hotmelt.ready_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= ready_di_shd);
+
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_glue_hotmelt.standby_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= standby_do_shd);
+
+	digital_actuator_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_glue_hotmelt.standby_sact, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= standby_sact_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	digital_check_shadow_cycle(level_ok_dchk_shd);
+	digital_input_shadow_cycle(level_ok_di_shd);
+	digital_check_shadow_cycle(ready_dchk_shd);
+	digital_input_shadow_cycle(ready_di_shd);
+	digital_output_shadow_cycle(standby_do_shd);
+	digital_actuator_shadow_cycle(standby_sact_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

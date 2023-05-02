@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_transfer_infeed_reject_highload_status_enum" Id="{3e18d168-ebff-450d-95d4-9063cb066799}">
+    <Declaration><![CDATA[
+TYPE csp_transfer_infeed_reject_highload_status_enum :
+(
+	IN_RANGE 				:= 0,
+	OUT_OF_LOWER_RANGE 		:= 1,
+	OUT_OF_UPPER_RANGE 		:= 2,
+	NOT_CHECKED 			:= 10
+) := NOT_CHECKED;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

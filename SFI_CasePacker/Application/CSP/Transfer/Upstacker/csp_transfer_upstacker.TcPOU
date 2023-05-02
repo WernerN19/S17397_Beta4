@@ -1,0 +1,352 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_upstacker" Id="{c0f2963e-08ab-46f3-b0f3-028725fd5ae2}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_upstacker
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	move_request:									BOOL;
+	
+	debug_active_bool:								BOOL := FALSE;
+	debug_active_clear:								BOOL := FALSE;
+	dry_cycle_ftrig:                                F_TRIG;
+	cleanout_mode_ftrig:                            F_TRIG;
+	
+	stack_count:									INT := 0; (*$M $*)
+	stack_made:										BOOL := FALSE; (*$M $*)
+	stack_on_way_to_loader:							BOOL := FALSE; (*$M $*)
+	stack_at_loader:								BOOL := FALSE; (*$M $*)
+	clear_pos_stack_at_loader:						LREAL := 800;
+	
+	stack_in_case_at_loader:						BOOL := FALSE; (*$M $*)
+	stack_in_case_at_loader_boolean:				boolean;
+	
+	stack_count_remainder:							INT;
+	
+	stack_made_test:								BOOL := FALSE;
+	
+	test_loader_enable:								BOOL := TRUE;
+	test_loader_timer:								timer;
+	test_loader_stroke_time:						UINT := 150;
+	
+	cam_check_ph:									phase;
+	phgen:											phase_generator;
+	
+	
+	stack_removed_from_upstack:						BOOL := FALSE;
+	stack_removed_from_upstack_cbtn:				command_button;
+	
+	
+	First_cycle_after_dry: 							BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+phase_set_data(
+	phase				:= csp_transfer_upstacker_sensors.BACKSTOP_CHECK_DEG, //CAM_CHECK_DEG
+	delay				:= 0,			
+	max_compensation	:= 0,			
+	CONVERSION_this		:= cam_check_ph);
+	
+
+(* COUNTS STACK BASED OFF OF CURRENT UPSTACKER CAM AND TRANSFER VIRTUAL CROSSING ZERO *)
+IF 	phase_edge(csp_transfer_upstacker_sensors.count_stack_ph)
+	AND ((digital_input_is_active(csp_transfer_upstacker_sensors.carton_backstop_di) OR csp_transfer_upstacker_sensors.debug_active) OR (csp_transfer_upstacker_sensors.cleanout_one_stack_timeout AND csp_main_motorization.empty_command))  //AMR
+	AND (csp_transfer_upstacker_virtualMaster.active_cam = FORWARD_CAM
+	OR csp_transfer_upstacker_virtualMaster.active_cam = TRANSFER_UPSTACKER_VIRTUAL_START_CAM)
+THEN
+	stack_count := stack_count + 1;
+END_IF
+
+
+(* IF AN UPSTACKER MOTOR FAULTS AFTER THE COUNT STACK PHASE EDGE, A STACK COUNT WILL BE REMOVED *)
+IF 	csp_transfer_accumulator_virtualMaster.axis.actual_position > csp_transfer_upstacker_sensors.COUNT_STACK_PHASE_CHECK
+	AND 
+	(
+		NOT axis_is_ok(TRUE, csp_transfer_upstacker_upstream.axis)
+		OR
+		NOT axis_is_ok(TRUE, csp_transfer_upstacker_downstream.axis)
+	)
+	AND stack_count > 0
+THEN
+	stack_count := stack_count - 1;
+END_IF
+
+
+(* USED TO LATCH A BIT TO CLEAR DATA AFTER UPSTACK TEST MODE IS OFF *)
+IF 	csp_transfer_upstacker_sensors.debug_active
+THEN
+	debug_active_bool := TRUE;
+END_IF
+
+IF 	debug_active_bool
+	AND NOT csp_transfer_upstacker_sensors.debug_active
+THEN
+	debug_active_clear := TRUE;
+	debug_active_bool := FALSE;
+END_IF
+
+dry_cycle_ftrig(CLK :=csp_case_main_services.dry_cycle_mode); // falling edge of dry cycle mode, clear upstacker counts on completion of dry cycle mode. 
+cleanout_mode_ftrig(CLK :=csp_main_motorization.empty_command); // falling edge of clean out mode, clear upstacker counts on completion of dry cycle mode. 
+
+
+(* CLEARS SHIFT REGISTER BITS DURING SIZE CHANGE *)
+IF 	csp_main_accuchange.machine_empty
+	OR debug_active_clear
+	OR process_message_is_on(csp_case_virtualMaster.runout_complete)
+	OR dry_cycle_ftrig.Q
+	OR cleanout_mode_ftrig.Q
+THEN
+	stack_count := 0;
+	stack_made := FALSE;
+	stack_on_way_to_loader := FALSE;
+	stack_at_loader := FALSE;
+	First_cycle_after_dry := TRUE;
+	debug_active_clear := FALSE;
+END_IF
+
+//Resets First_Cycle_After_Dry
+
+IF 	First_Cycle_After_Dry
+	AND csp_main_motorization_virtualManager.axis.actual_position > 355
+	AND csp_main_motorization_virtualManager.axis.actual_position < 359
+THEN
+	First_Cycle_After_Dry := False;
+END_IF
+
+
+(* CLEARS STACK AT LOADER AND ON WAY TO LOADER IF CROSSPUSHER REJECT *)
+IF 	csp_transfer_crosspusher.reject_running
+THEN
+	stack_on_way_to_loader := FALSE;
+	stack_at_loader := FALSE;
+END_IF
+
+
+(* MANUAL REMOVAL OF STACK AT UPSTACKER *)
+IF 	stack_removed_from_upstack_cbtn.value_from_hmi = HMI_BUTTON_STATUS_ON//command_button_is_pressed(stack_removed_from_upstack_cbtn) 
+THEN
+	stack_removed_from_upstack := TRUE;
+ELSE
+	stack_removed_from_upstack := FALSE;
+END_IF
+
+IF stack_removed_from_upstack
+THEN
+	stack_count := 0;
+END_IF
+
+
+(* CHECKS STACK COUNT AGAINST CASE PATTERN COUNT TO KNOW IF STACK IS MADE *)
+IF 	stack_count >= csp_main_brand.case_pattern.case_pattern_W
+	OR stack_made_test
+THEN 
+	stack_made := TRUE;
+ELSE
+	stack_made := FALSE;
+END_IF
+
+
+(* CLEARS STACK MADE WHEN CORSSPUSHER RUNS TO LOAD - SAVES STACK AT LOADER VARIABLE FOR LOADER*)
+IF 	stack_made
+	AND csp_transfer_crosspusher_horizontal.active_cam = TRANSFER_CROSSPUSHER_HORIZONTAL_TO_LOAD
+THEN
+	stack_count := 0;
+	stack_on_way_to_loader := TRUE;
+END_IF
+
+
+(* LOADER TRIGGER *)
+IF 	test_loader_enable
+	AND stack_on_way_to_loader (* STACK HAS BEEN PUSHED FROM UPSTACKER TO LOAD *)
+	AND csp_transfer_crosspusher.loader_clear (* LOADER IS CLEAR *)
+	AND csp_transfer_crosspusher_horizontal.at_load (* HORIZONTAL AT LOAD *)
+	AND ABS(csp_transfer_crosspusher_follower.axis.actual_position - csp_transfer_crosspusher_follower.slave_scaling) < 2 (* FOLLOWER AT LOAD *)
+	AND NOT csp_transfer_crosspusher_sensors.reject_stack (* NOT REJECT STACK *)
+	AND NOT csp_transfer_crosspusher_sensors.no_load_bool.status (* NOT NO LOAD *)
+	AND NOT csp_transfer_upstacker_sensors.debug_active
+THEN
+	//ITEM_HAS_TRANSFER_LOAD_BUILD_COMPLETE;
+	;
+END_IF
+
+
+(* CLEARS STACK AT LOADER WHEN LOADER RUNS RUN CAM *)
+clear_pos_stack_at_loader := csp_case_loader_pusher.slave_scaling - 15;
+
+IF 	stack_on_way_to_loader
+	AND csp_transfer_crosspusher_horizontal.at_load
+	AND NOT csp_transfer_crosspusher_sensors.reject_stack (* NOT REJECT STACK *)
+	AND NOT csp_transfer_crosspusher_sensors.no_load_bool.status (* NOT NO LOAD *)
+THEN
+	stack_at_loader := TRUE;
+	stack_on_way_to_loader := FALSE;
+END_IF
+
+IF 	csp_case_loader_pusher.axis.actual_position > clear_pos_stack_at_loader
+	AND stack_at_loader
+THEN
+	stack_in_case_at_loader := TRUE;
+	stack_at_loader := FALSE;
+END_IF
+
+
+IF 	(csp_case_transport_ls_trailing.axis.actual_position > 60)
+	AND (csp_case_transport_ls_trailing.axis.actual_position < 300)
+THEN
+	stack_in_case_at_loader := FALSE;
+END_IF
+
+(* MANUAL REMOVAL OF CASES AT LOADER*)
+IF 	command_button_is_pressed(csp_case_loader.case_removed_at_loader_cbtn)
+   	AND csp_transfer_upstacker.stack_in_case_at_loader
+THEN
+   csp_transfer_upstacker.stack_in_case_at_loader := FALSE;
+END_IF
+
+
+IF 	stack_in_case_at_loader
+THEN
+	boolean_set(stack_in_case_at_loader_boolean);
+ELSE
+	boolean_reset(stack_in_case_at_loader_boolean);
+END_IF
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{11069205-04fb-4605-baaa-c62bd5f61370}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{0c0908ce-86ee-4488-be78-45defa1a7425}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{ea00471c-c520-413d-959e-4e7b193dd68d}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{206f67b5-5e11-4cea-a790-680285195e05}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_upstacker.prc', 
+		process						:= csp_transfer.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	
+	phase_generator_init(
+		object_name					:= CONCAT(prc_path, '_phgen'), 
+		modulo						:= 360, 
+		resolution					:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis						:= csp_transfer_upstacker_virtualMaster.axis, 
+		process						:= prc, 
+		CONVERSION_this				:= phgen);
+		
+	phase_init(
+        object_name 				:= CONCAT(prc_path, '_cam_check_ph'),
+        phase 						:= 0,	//Set at runtime!
+        delay 						:= 0,
+        max_compensation 			:= 0,
+        generator 					:= phgen,
+        process 					:= prc,
+        CONVERSION_this 			:= cam_check_ph);
+		
+		
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_stack_removed_from_upstack_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= stack_removed_from_upstack_cbtn);
+	
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	phase_generator_cycle(phgen);
+	phase_cycle(cam_check_ph);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{ac67f849-7c5c-41e4-be49-6337115e9795}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{770b7de8-effc-4d66-b778-e03c1ec497aa}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{bd3316a7-dd96-457f-88b5-191c61a30bf6}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{00208540-b661-4bda-908d-80819f25c59f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

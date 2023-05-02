@@ -1,0 +1,185 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_old_2" Id="{478711e1-ad15-42d3-9e9c-18152cfd32ad}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_old_2
+VAR
+	prc:												process;
+	prc_path:											STRING;
+		
+	cabinet_ethercat_master:							net_ethercat_master;
+	cabinet_transfer_ethercat_master:					net_ethercat_master;
+	
+	is_SFI:												BOOL := TRUE;
+	
+END_VAR
+
+VAR_INPUT
+	
+	i_cabinet_is_running:								BOOL;
+	
+	i_machine_motor_axis_ref:							POINTER TO axis;
+
+END_VAR
+
+VAR_OUTPUT
+	o_reset_button:										BOOL;
+	o_start_button:										BOOL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{386ff36e-c05e-404d-9e80-3cfd49332548}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{422fdd41-8543-48d4-a616-c81818b0a63f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{e6debde7-d436-4cd0-bab3-fd994326537e}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{ece38cdc-6619-41ff-b665-666f6e46e22b}">
+      <Implementation>
+        <ST><![CDATA[IF net_initialization()
+THEN
+		
+	net_ethercat_master_init(
+		object_name 				:= CONCAT(prc_path, '_cabinet_ethercat_master'), 
+		hw_connected				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= cabinet_ethercat_master);
+		
+(*	net_ethercat_master_init(
+		object_name 				:= CONCAT(prc_path, '_cabinet_case_ethercat_master'), 
+		hw_connected				:= FALSE, 
+		process						:= prc, 
+		CONVERSION_this				:= cabinet_case_ethercat_master);*)
+
+net_ethercat_master_init(
+		object_name 				:= CONCAT(prc_path, '_cabinet_transfer_ethercat_master'), 
+		hw_connected				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= cabinet_transfer_ethercat_master);				
+
+	
+END_IF
+
+
+IF objects_initialization()
+THEN
+	process_init(
+		object_name					:= 'csp_main.prc', 
+		machine						:= csp.mch, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	hmi_init(
+		hmi_is_required				:= TRUE, 
+		plc_hmi_protocol_enable		:= FALSE, 
+		process						:= prc);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{97a0c0b9-6344-4d59-bf69-ebd323d116d1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{c66e30b9-b4cf-4a26-b6ae-5839e88106eb}">
+      <Implementation>
+        <ST><![CDATA[//i_cabinet_is_running					:= cb.o_machine_is_running; (*MARCO*)
+i_machine_motor_axis_ref				:= ADR(csp_main_motorization_virtualManager.virtual_master_test); //TODO: this will need an update
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{2fc8cb00-b7ac-4b39-b219-e63efe99471f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{c5f5d6c8-fb31-4ccd-ba45-d0393be44012}">
+      <Implementation>
+        <ST><![CDATA[o_reset_button	:= csp_case_main_services_pushbuttons.reset_pressed OR csp_transfer_main_services_pushbuttons.reset_pressed;
+o_start_button	:= 
+	(
+		csp_case_main_services_pushbuttons.start_pressed
+	 	OR
+		csp_transfer_main_services_pushbuttons.start_pressed
+	)
+	AND
+	not csp_main_jogManager.jog_is_active;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

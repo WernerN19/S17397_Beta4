@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="application_status_manager_low" Id="{eb452637-6d31-4971-af8d-3c963a7cda4f}" SpecialFunc="None">
+    <Declaration><![CDATA[(********************* G.D S.p.A. - Technical Department ***********************************
+Date        Version Author      	Description             
+----------  ------- ----------- 	--------------------------------------------------------
+2019/04/23	0000.01	G.Cera			Creation of the POU
+
+DESCRIPTION:
+Manager of the application status low. it is called by highest speed task
+
+
+NOTES:
+
+********************************************************************************************)
+PROGRAM application_status_manager_low
+VAR
+
+END_VAR
+
+VAR_OUTPUT
+
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF g_application_status=APPLICATION_STATUS_1ST_POWERUP_ABSOLUTE
+THEN
+   	g_application_status_1st_powerup_low_absolute:=TRUE;
+END_IF
+
+IF g_application_status=APPLICATION_STATUS_1ST_POWERUP
+THEN
+   	g_application_status_1st_powerup_low:=TRUE;
+END_IF
+
+IF g_application_status=APPLICATION_STATUS_2ND_POWERUP
+THEN
+   	g_application_status_2nd_powerup_low:=TRUE;
+END_IF
+
+IF g_application_status=APPLICATION_STATUS_3RD_POWERUP
+THEN
+   	g_application_status_3rd_powerup_low:=TRUE;
+END_IF;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="ST_BIS00LH_Inputs" Id="{0897099f-a3f0-4026-a102-d1e4cc5648d0}">
+    <Declaration><![CDATA[TYPE ST_BIS00LH_Inputs :
+STRUCT
+	DeviceDiag AT %I*: BOOL;
+	DeviceState AT %I*: BOOL;
+	ChannelState AT %I*: USINT;
+	InfoDataState AT %I*: UINT;
+	ByteArr AT %I*: ARRAY[0..9] OF BYTE;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<TcSmItem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2012/07/TcSmProject" TcSmVersion="1.0" TcVersion="3.1.4024.7" ClassName="CNvPubSubDef" SubType="9051">
+	<DataTypes>
+		<DataType>
+			<Name GUID="{732480A7-5392-0A1F-50AB-897A82278605}" IecBaseType="true" AutoDeleteType="true">ARRAY [0..15] OF BYTE</Name>
+			<BitSize>128</BitSize>
+			<BaseType GUID="{18071995-0000-0000-0000-000000000001}">BYTE</BaseType>
+			<ArrayInfo>
+				<LBound>0</LBound>
+				<Elements>16</Elements>
+			</ArrayInfo>
+		</DataType>
+	</DataTypes>
+	<Box Id="103" BoxType="9051">
+		<Name>__FILENAME__</Name>
+		<ImageId>99</ImageId>
+		<Vars VarGrpType="1">
+			<Name>Inputs</Name>
+			<Var BoxStateVariable="true">
+				<Name>FrameState</Name>
+				<Comment><![CDATA[0x0001 = Not sent (frame skipped)
+0x0002 = Error (frame oversized)
+0x0004 = Subscriber missing (Unicast only)
+]]></Comment>
+				<Type>UINT</Type>
+			</Var>
+		</Vars>
+		<Vars VarGrpType="2">
+			<Name>Outputs</Name>
+			<Var BoxStateVariable="true">
+				<Name>FrameCtrl</Name>
+				<Comment><![CDATA[0x0001 = Disable sending
+0x0002 = Remove destination MAC from ARP cache
+]]></Comment>
+				<Type>UINT</Type>
+			</Var>
+		</Vars>
+		<Eap InOut="1" Mac="010105040000" ArpRetryInterval="1000">
+			<EapVar Id="101" VarInOut="1" NvId="101" NvLength="16">
+				<Name>RAJ_To_Flexlink_Var</Name>
+				<ImageId>97</ImageId>
+				<Vars VarGrpType="1">
+					<Name>Inputs</Name>
+					<Var BoxStateVariable="true">
+						<Name>VarState</Name>
+						<Comment><![CDATA[0x0001 = Not sent (variable skipped)
+]]></Comment>
+						<Type>UINT</Type>
+						<BitOffs>16</BitOffs>
+					</Var>
+				</Vars>
+				<Vars VarGrpType="2">
+					<Name>Outputs</Name>
+					<Var BoxStateVariable="true">
+						<Name>VarCtrl</Name>
+						<Comment><![CDATA[0x0001 = Disable publishing
+]]></Comment>
+						<Type>UINT</Type>
+						<BitOffs>16</BitOffs>
+					</Var>
+					<Var>
+						<Name>VarData</Name>
+						<Type GUID="{732480A7-5392-0A1F-50AB-897A82278605}">ARRAY [0..15] OF BYTE</Type>
+						<BitOffs>32</BitOffs>
+					</Var>
+				</Vars>
+			</EapVar>
+		</Eap>
+	</Box>
+</TcSmItem>

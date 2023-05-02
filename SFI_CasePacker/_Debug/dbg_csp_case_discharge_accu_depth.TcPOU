@@ -1,0 +1,52 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="dbg_csp_case_discharge_accu_depth" Id="{04ebd2d2-a1a6-4be4-8d2a-8e128033f253}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_case_discharge_accu_depth
+VAR
+  axis_shd : axis_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{9300531c-8019-4b53-a644-743f739397d9}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	axis_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_reject_accU_depth.axis, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= axis_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	axis_shadow_cycle(axis_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

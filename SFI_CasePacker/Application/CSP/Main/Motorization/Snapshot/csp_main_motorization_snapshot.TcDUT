@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="csp_main_motorization_snapshot" Id="{da459a60-e302-46ff-a374-c3f1c63a017f}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main motorization manager snapshot struct definition
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+
+(*$S desc := Snapshot; $*)
+TYPE 
+	csp_main_motorization_snapshot:	STRUCT
+		message:            message;
+		reason:             STRING := '';			(*$ It contains detailed information abaout axis faults $*)
+		connection_status:	INT;					(*$ It contains information about the connection status when the message is switched on $*)
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

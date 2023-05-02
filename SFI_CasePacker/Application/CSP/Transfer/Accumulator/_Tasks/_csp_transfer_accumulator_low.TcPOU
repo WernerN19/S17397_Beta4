@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_transfer_accumulator_low" Id="{d98ef67b-15e6-485a-97f5-4d4093afe26a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_transfer_accumulator_low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* TRANSFER *)
+	(* ACCUMULATOR *)
+		(* ACCU-U-CHANGE*)
+			(* TOP RAIL LENGTH *)
+			csp_transfer_accumulator_accU_topRailLength();
+			(* TOP RAIL WIDTH *)
+			csp_transfer_accumulator_accU_topRailWidth();
+			(* DEPTH *)
+			csp_transfer_accumulator_accU_depth();
+			(* CONVEYOR DEPTH*)
+			csp_transfer_accumulator_accU_convDepth();
+			
+			csp_transfer_accumulator_accU_virtualMaster();
+			
+		(* FINGER *)
+			(* LS *)
+			csp_transfer_accumulator_finger_ls();
+			(* OS *)
+			csp_transfer_accumulator_finger_os();
+		(* LIFT *)
+		;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

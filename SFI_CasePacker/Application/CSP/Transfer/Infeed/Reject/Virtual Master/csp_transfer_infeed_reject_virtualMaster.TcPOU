@@ -1,0 +1,374 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_infeed_reject_virtualMaster" Id="{4c87d852-8065-4f73-8c4d-66533b286522}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_infeed_reject_virtualMaster
+VAR
+	
+	prc:												process;
+	prc_path:											STRING;
+	
+	fsm_enable_condition:								BOOL := FALSE;
+	fsm_next_status:									csp_transfer_infeed_reject_status_enum;
+	fsm_status:											csp_transfer_infeed_reject_status_enum;
+	
+	axis: 												axis;
+	disable_req:										BOOL  := FALSE;
+	debug_state_machine:								BOOL  :=FALSE;
+	debug_state_machine_one_step:						BOOL  :=FALSE;
+	reject_ok:											BOOL  := FALSE;
+	reject_busy:										BOOL  := FALSE;
+	ready_for_cam:										BOOL  := FALSE;
+	cam_engaged:										BOOL  := FALSE;
+
+	slave_scaling:										LREAL := 360;
+	master_scaling:										LREAL := 360;
+	
+	reject_test:										BOOL;
+
+	
+END_VAR
+
+VAR CONSTANT
+	
+	CONSTANTS:								csp_transfer_infeed_constant_struct;
+
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(************************************************************************)
+
+(*FSM Control*)
+fsm_enable_condition := axis_is_ok(FALSE, axis)
+						AND
+						process_is_ready(prc)
+						AND
+						process_subtree_is_ready(prc);
+
+IF	(NOT fsm_enable_condition
+	OR
+	disable_req)
+	AND
+	fsm_status <> CSP_TRANSFER_INFEED_REJECT_STATUS_DISABLED
+	AND
+	fsm_status < CSP_TRANSFER_INFEED_REJECT_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_TRANSFER_INFEED_REJECT_STATUS_STOP_REQUEST;
+END_IF
+
+CASE fsm_status OF
+	
+	CSP_TRANSFER_INFEED_REJECT_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_next_status := CSP_TRANSFER_INFEED_REJECT_STATUS_DISABLED;
+        END_IF
+
+		
+	CSP_TRANSFER_INFEED_REJECT_STATUS_DISABLED:
+
+		IF	fsm_enable_condition
+		THEN
+			fsm_next_status := CSP_TRANSFER_INFEED_REJECT_STATUS_ENABLE_REQUEST;
+		END_IF;
+
+		
+	CSP_TRANSFER_INFEED_REJECT_STATUS_ENABLE_REQUEST:
+	
+		axis_enable(axis);
+		IF axis_is_standstill(axis)
+		THEN
+			fsm_next_status	:=	CSP_TRANSFER_INFEED_REJECT_STATUS_ENABLED;
+		END_IF;		
+		
+
+	CSP_TRANSFER_INFEED_REJECT_STATUS_ENABLED:
+
+		fsm_next_status	:=	CSP_TRANSFER_INFEED_REJECT_STATUS_PHASE_REQUEST;
+
+		
+	CSP_TRANSFER_INFEED_REJECT_STATUS_PHASE_REQUEST:
+
+		IF	axis_is_standstill(axis)
+			AND NOT axis_is_cam_engaged(csp_transfer_infeed_reject_pusher.axis)
+		THEN
+
+ 		axis_redefine_position(position:= 0, mode:= AXIS_REDEFINE_POSITION_MODE_ABSOLUTE, CONVERSION_this:= axis);
+			
+		END_IF
+
+		IF axis_is_position_redefined(axis)
+		THEN
+			fsm_next_status	:=	CSP_TRANSFER_INFEED_REJECT_STATUS_WAITING_SLAVE_ENGAGE;
+		END_IF
+
+		
+	CSP_TRANSFER_INFEED_REJECT_STATUS_WAITING_SLAVE_ENGAGE:
+		
+		IF csp_transfer_infeed_reject_pusher.pusher_cam_engaged
+		THEN
+			fsm_next_status := CSP_TRANSFER_INFEED_REJECT_STATUS_READY;
+		END_IF
+
+	
+	CSP_TRANSFER_INFEED_REJECT_STATUS_READY:
+	
+		IF (reject_test
+			OR csp_transfer_infeed_reject_highLoad.reject_run)
+			AND NOT axis_is_moving(axis)
+		THEN
+		
+			IF axis.actual_position < 5
+			THEN
+				 axis_move_absolute(
+					position 		:= 359,
+					velocity 		:= csp_transfer_infeed_reject_pusher.reject_velocity,
+					direction		:= AXIS_POSITIVE_DIRECTION,
+					acceleration 	:= 48000,
+					deceleration 	:= 48000,
+					jerk 			:= 1000000, 
+					buffer_mode 	:= AXIS_BUFFER_MODE_ABORTING,
+					CONVERSION_this := axis); 
+					
+			ELSE
+				axis_move_absolute(
+					position 		:= 0,
+					velocity 		:= csp_transfer_infeed_reject_pusher.reject_velocity,
+					direction		:= AXIS_NEGATIVE_DIRECTION, (*AXIS_POSITIVE_DIRECTION*)
+					acceleration 	:= 48000,
+					deceleration 	:= 48000,
+					jerk 			:= 1000000, 
+					buffer_mode 	:= AXIS_BUFFER_MODE_ABORTING,
+					CONVERSION_this := axis); 
+			END_IF			
+		END_IF
+	
+		IF axis_is_absolute_moving(axis)
+		THEN
+			fsm_next_status := CSP_TRANSFER_INFEED_REJECT_STATUS_MOVING;
+		END_IF
+		
+		
+		IF NOT csp_transfer_infeed_reject_pusher.pusher_cam_engaged(*axis_is_cam_engaged(csp_transfer_infeed_reject_pusher.axis)*)
+		THEN
+			fsm_next_status:= CSP_TRANSFER_INFEED_REJECT_STATUS_STOP_REQUEST;
+		END_IF
+		
+	
+	CSP_TRANSFER_INFEED_REJECT_STATUS_MOVING: 
+	
+		IF 	axis_is_standstill(axis)
+			AND NOT axis_is_moving(csp_transfer_infeed_reject_pusher.axis)
+		THEN
+			fsm_next_status := CSP_TRANSFER_INFEED_REJECT_STATUS_READY;
+		END_IF
+	
+	
+	CSP_TRANSFER_INFEED_REJECT_STATUS_STOP_REQUEST:
+
+		axis_stop(
+		    deceleration 	:= CONSTANTS.MAX_DECELERATION_HZpSEC,
+		    jerk 			:= CONSTANTS.MAX_JERK_HZpSEC2,
+		    CONVERSION_this 			:= axis);
+
+		IF 	axis_is_standstill(axis)
+			OR
+			NOT axis_is_ok(FALSE, axis)
+			OR
+			axis_is_disabled(axis)
+			OR
+			axis_is_position_redefined(axis)
+		THEN
+			fsm_next_status := CSP_TRANSFER_INFEED_REJECT_STATUS_DISABLE_REQUEST;
+		END_IF
+
+		
+	CSP_TRANSFER_INFEED_REJECT_STATUS_DISABLE_REQUEST:
+	
+   		axis_disable(axis);
+   		fsm_next_status := CSP_TRANSFER_INFEED_REJECT_STATUS_DISABLING;
+
+		
+	CSP_TRANSFER_INFEED_REJECT_STATUS_DISABLING:
+	
+        IF	axis_is_disabled(axis)
+        THEN
+            fsm_next_status := CSP_TRANSFER_INFEED_REJECT_STATUS_DISABLED;
+        END_IF;
+
+END_CASE;
+
+(***fsm_status update***)
+IF NOT debug_state_machine
+	OR
+	debug_state_machine_one_step
+THEN
+	fsm_status := fsm_next_status;
+	debug_state_machine_one_step := FALSE;
+END_IF
+
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{a9c22c68-e095-49e8-9044-ddb014c0dbbc}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{5fd41bd5-ef76-4bf5-b46f-65382efb8938}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{dcb39f37-eb60-4afa-b0eb-b6d4daa7e807}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{5297a187-565a-4a9f-9521-0dd6e7a0f861}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_transfer_infeed_reject_virtualMaster.prc', 
+		process									:= csp_transfer_infeed_reject.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+	
+	axis_init(
+		object_name								:= CONCAT(prc_path, '_axis'), 
+		axis_type								:= AXIS_TYPE_VIRTUAL, 
+		encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo									:= G_MODULO_360_DEG, 
+		process									:= prc, 
+		CONVERSION_this							:= axis);
+	
+	axis_set_max_dynamic(
+		reference_velocity						:=	CONSTANTS.MAX_VELOCITY_HZ,
+		velocity								:=	CONSTANTS.MAX_VELOCITY_HZ,
+		acceleration							:=	CONSTANTS.MAX_ACCELERATION_HZpSEC,
+		deceleration							:=	CONSTANTS.MAX_DECELERATION_HZpSEC,
+		jerk									:=	CONSTANTS.MAX_JERK_HZpSEC2,
+		following_error							:=	CONSTANTS.MAX_FOLLOWING_ERROR_MM,
+		CONVERSION_this							:=	axis);
+		
+
+		
+		
+
+		
+
+(*********************************************************************************)
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{484d31d3-ae38-46b3-944c-e9968409e03b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{a9e59724-e1d4-4a6b-ba96-c8c507b96e66}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{e6caf9d4-fc24-45cb-a34c-018b75534753}">
+      <Implementation>
+        <ST><![CDATA[IF fsm_status = CSP_TRANSFER_INFEED_REJECT_STATUS_READY
+	OR
+	fsm_status = CSP_TRANSFER_INFEED_REJECT_STATUS_MOVING
+THEN
+	reject_ok:=TRUE;
+ELSE
+	reject_ok:=FALSE;
+END_IF
+
+IF fsm_status = CSP_TRANSFER_INFEED_REJECT_STATUS_MOVING
+THEN
+	reject_busy:=TRUE;
+ELSE
+	reject_busy:=FALSE;
+END_IF
+
+IF 	fsm_status >= CSP_TRANSFER_INFEED_REJECT_STATUS_WAITING_SLAVE_ENGAGE
+	AND
+	fsm_status < CSP_TRANSFER_INFEED_REJECT_STATUS_STOP_REQUEST
+THEN
+	ready_for_cam:=TRUE;
+ELSE
+	ready_for_cam:=FALSE;
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{1a522d85-8c84-40fa-9052-07fff4bddba1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

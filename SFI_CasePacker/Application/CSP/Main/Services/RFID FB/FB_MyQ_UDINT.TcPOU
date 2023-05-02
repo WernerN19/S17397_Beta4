@@ -1,0 +1,108 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="FB_MyQ_UDINT" Id="{97c21ce4-e326-4673-9b3b-0ccd81c0ed0a}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_MyQ_UDINT
+VAR_INPUT
+	/// NewValue : the value of the new data inserted into the queue 
+	NewValue: UDINT;
+END_VAR
+VAR_IN_OUT
+	/// LoadNew : triggers loading of NewValue 
+	Insert: BOOL;
+	/// GetOld	: retrieve the oldest value in the queue 
+	Remove: BOOL;
+	/// Peek		: View but do not retrieve the oldest value in the queue, queue is not affected 
+	Peek: BOOL;
+	Dump: BOOL;
+	/// Reset	: Zero out all counters and queues 
+	Reset: BOOL;
+END_VAR
+VAR_OUTPUT
+	/// OldValue	: the oldest value retrieved from the queue when the 'GetOld' input is triggered 
+	OldValue: UDINT;
+	/// PeekValue : the oldest value viewed but not retrieved (queue is not affected) from the queue when 'Peek' input is triggered 
+	PeekValue: UDINT;
+	FifoDump: ARRAY[1..QUEUESIZE] OF UDINT;
+	FifoSize: INT;
+	/// Count	: number of values in the queue 
+	Count: INT;
+	/// ExecutionCntr	: number of times this function block has been called 
+	ExecutionCntr: DINT;
+END_VAR
+VAR CONSTANT
+	QUEUESIZE: INT := 12;
+END_VAR
+VAR
+	HoldQueue: ARRAY[1..QUEUESIZE] OF UDINT;
+	rtInsert: R_TRIG;
+	rtRemove: R_TRIG;
+	rtPeek: R_TRIG;
+	rtDump: R_TRIG;
+	rtReset: R_TRIG;
+	i: INT;
+	ProcessQueue: ARRAY[1..QUEUESIZE] OF UDINT;
+	Elements: INT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[rtInsert(CLK:=Insert);
+rtRemove(CLK:=Remove);
+rtPeek(CLK:=Peek);
+rtDump(CLK:=Dump);
+rtReset(CLK:=Reset);
+
+IF rtInsert.Q THEN
+	IF Elements < QUEUESIZE THEN
+		Elements := Elements + 1;
+		ProcessQueue[Elements]:= NewValue;
+	ELSE
+		Elements := QUEUESIZE;
+		ProcessQueue[Elements]:= NewValue;	
+	END_IF
+	Insert:=FALSE;
+END_IF
+
+IF rtRemove.Q THEN
+	IF Elements > 0 THEN
+		OldValue := ProcessQueue[1];
+		FOR i:= 1 TO QUEUESIZE DO
+			HoldQueue[i] := ProcessQueue[i];	
+		END_FOR
+		FOR i:= 1 TO QUEUESIZE-1 DO
+			ProcessQueue[i] := HoldQueue[i+1];	
+		END_FOR
+		Elements := Elements - 1;
+	END_IF
+	Remove:=FALSE;
+END_IF
+
+IF rtPeek.Q THEN
+	IF Elements > 0 THEN
+		PeekValue := ProcessQueue[1];
+	END_IF
+	Peek:=FALSE;
+END_IF
+
+IF rtDump.Q THEN
+	FifoDump := ProcessQueue;
+	Dump:=FALSE;
+END_IF
+
+IF rtReset.Q THEN
+	FOR i:= 1 TO QUEUESIZE DO
+		HoldQueue[i] := 0;
+		ProcessQueue[i] := 0;
+		FifoDump[i] := 0;	
+	END_FOR
+	Elements := 0;
+	ExecutionCntr:= 0;
+	Reset:=FALSE;
+END_IF
+
+Count := Elements;
+ExecutionCntr:= ExecutionCntr+1;
+FifoSize:= QUEUESIZE;
+	]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

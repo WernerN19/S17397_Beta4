@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="IO_RFID" Id="{9329aa51-6942-4b1c-b28f-2e6f7b90ad53}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK IO_RFID
+VAR_INPUT
+	BitHeader1Out AT %Q*: BYTE;
+	Byte1OutCmdDesig_Data AT %Q*: BYTE;
+	Byte2OutStartAddrLow_Data AT %Q*: BYTE;
+	Byte3OutStartAddrHigh_Data AT %Q*: BYTE;
+	Byte4OutNumBytesLow_Data AT %Q*: BYTE;
+	Byte5OutNumBytesHigh_Data AT %Q*: BYTE;
+	Byte6OutData AT %Q*: BYTE;
+	Byte7OutData AT %Q*: BYTE;
+	Byte8OutData AT %Q*: BYTE;
+	BitHeader2Out AT %Q*: BYTE;
+	OutputByteArr AT %Q*: ARRAY[0..9] OF BYTE;
+END_VAR
+VAR_OUTPUT
+	DeviceDiag AT %I*: BOOL;
+	DeviceState AT %I*: BOOL;
+	ChannelState AT %I*: USINT;
+	InfoDataState AT %I*: UINT;
+	BitHeader1In AT %I*: BYTE;
+	Byte1InErrCode_Data_HighVer AT %I*: BYTE;
+	Byte2InData_LowVer AT %I*: BYTE;
+	Byte3InData AT %I*: BYTE;
+	Byte4InData AT %I*: BYTE;
+	Byte5InData AT %I*: BYTE;
+	Byte6InData AT %I*: BYTE;
+	Byte7InData AT %I*: BYTE;
+	Byte8InData AT %I*: BYTE;
+	BitHeader2In AT %I*: BYTE;
+	InputByteArr AT %I*: ARRAY[0..9] OF BYTE;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

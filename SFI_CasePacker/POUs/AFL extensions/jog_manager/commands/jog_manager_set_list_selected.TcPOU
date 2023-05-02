@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_set_list_selected" Id="{4933a07d-e4b6-4544-9f21-6b1c37d6a794}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Set the jog list selection in <b><i>this</i></b>.
+	The method returns <i>TRUE</i> if the command is accepted, otherwise it returns <i>FALSE</i>.
+$*)
+FUNCTION jog_manager_set_list_selected : BOOL
+VAR_INPUT
+	list_selected:			UINT;
+END_VAR
+VAR_IN_OUT
+    CONVERSION_this:		jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	NOT (descriptor_mode_is_operational(CONVERSION_this.descriptor)
+		(*OR
+		descriptor_mode_is_test(CONVERSION_this.descriptor)*))	
+THEN
+	jog_manager_set_list_selected := FALSE;					(* command rejected *)
+ 	RETURN;
+END_IF
+
+CONVERSION_this.CONVERSION_private.list_selected := list_selected;
+jog_manager_set_list_selected := TRUE;						(* command accepted *)]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

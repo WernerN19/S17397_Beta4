@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="jog_manager_private" Id="{15b5669c-983f-412e-9d4f-6cb8dd65eb50}">
+    <Declaration><![CDATA[TYPE
+	jog_manager_private :	STRUCT
+	initialized:		BOOL := FALSE;		(* The object has been initialized by _init function. *)
+	cycle_is_active:	BOOL := FALSE;		(* Cycle function is correctly called. *)
+	my_address:			POINTER_TO_VOID; 	(* Object address(pointer).
+												Used by HMI for establish
+												the objects relations *)
+																	
+	jog_pendant_positive:				BOOL;
+	jog_pendant_negative:				BOOL;
+		
+	axis_is_absolute_moving:			BOOL;
+	axis_absolute_moving_direction:		axis_direction_enum;
+			
+	update_parameters:					UINT;							
+	list_selected:						UINT;												
+	list_selected_is_valid:				BOOL;
+	list_selected_axis_is_valid:		BOOL;													
+	old_list_selected:					UINT;
+	old_list_selected_is_valid:			BOOL;
+	old_list_selected_axis_is_valid:	BOOL;							
+	sw_limit_active:					BOOL;
+	sw_limit_active_positive:			BOOL;
+	sw_limit_active_negative:			BOOL;
+	axis_is_linear:						BOOL;
+	axis_is_rotative:					BOOL;
+	jog_positive_enable:				BOOL;
+	jog_negative_enable:				BOOL;
+	
+	shared_pendant_jog_positive_status:	BOOL;
+	shared_pendant_jog_negative_status:	BOOL;
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

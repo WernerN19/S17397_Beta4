@@ -1,0 +1,305 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_phaseManager_end_job" Id="{96f6a66d-c063-09b6-36a0-e7d892e9b269}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+WN phase manager program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2021/03/18 	0000.01	 	S.Uccellari 	Creation of the PRG
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_phaseManager_end_job
+VAR
+	prc:												process;
+	prc_path:											STRING;
+	
+	fsm_enable_conditions:								BOOL;
+	fsm_status:											INT;
+	
+	cycle_disable_from_mes_asm:							message;	
+	
+	end_job_running:									BOOL;
+	end_job_done:										BOOL;
+	
+	i_start_job_done:									POINTER TO BOOL;	
+	i_run_out_done:										POINTER TO BOOL;	
+	
+	debug_mes_endJobReq:								BOOL;		
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+(**************************** PROGRAM HANDLER ***************************)
+run_cycle();
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{be68ee20-da05-0a75-23c8-46d0a471d56e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{a2b6fd2f-60d2-0629-3b2f-a92c15fae06a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{cb05b266-2291-0ef4-3b0a-9861bb1ce929}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{7233cbef-bc22-03f1-09e9-dbde5275a6f1}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_main_phaseManager_end_job.prc', 
+		process						:= csp_main_phaseManager.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_cycle_disable_from_mes_asm'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_EVENT, 
+		reset_timeout				:= 0, 
+		disableable					:= FALSE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_NORMAL_STOP, 
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= cycle_disable_from_mes_asm);
+
+
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{820d9017-8709-06d4-3b94-65c4410d4dfa}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{d858b543-0697-06e2-2257-d098e77ca161}">
+      <Implementation>
+        <ST><![CDATA[i_start_job_done 	:= ADR(csp_main_phaseManager_startJob.start_job_done);
+i_run_out_done		:= ADR(csp_main_phaseManager_run_out.run_out_done);]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{208f4089-e5a2-0afc-326f-e7759c9ce1ad}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{a7857172-e55d-06db-07db-7133d3e15316}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="run_cycle" Id="{b9e3cbf1-6ca5-0352-358d-da120d36da7a}">
+      <Implementation>
+        <ST><![CDATA[IF	csp_main_phaseManager.fsm_status = CSP_MAIN_PHASE_MANAGER_STATUS_UNDEFINED_0
+THEN	
+	fsm_status := 0;
+END_IF
+
+fsm_enable_conditions :=
+	(
+		csp_main_phaseManager.fsm_status
+		=
+		CSP_MAIN_PHASE_MANAGER_STATUS_END_JOB_70
+	);
+	
+IF	NOT fsm_enable_conditions
+THEN
+	IF	end_job_running	
+	THEN
+		fsm_status := 666;
+	END_IF;	
+END_IF
+
+CASE fsm_status OF
+	0:	
+		IF	fsm_enable_conditions
+		THEN
+				process_message_set(
+					errorID_1			:= 1, 
+					errorID_2			:= 0, 
+				errorID_3			:= 0, 
+					CONVERSION_this		:= cycle_disable_from_mes_asm);		
+			
+				end_job_done := FALSE;
+				end_job_running := TRUE;
+				fsm_status := 10;	
+		END_IF	
+		
+	
+	10:
+		IF	csp_main.i_end_job_request
+		THEN	
+			log_section_upd_and_reset_factory_driven(csp_case_main_statistics.logsect);				
+			csp_main.i_csp_data_ref^.Status.Job := 1;
+			csp_main.i_cartons_count := 0;
+			csp_main.i_cartoner_RunOutComplete:= FALSE;
+			csp_main.i_csp_data_ref^.Status.RunOutComplete := FALSE;
+			//Reset MES variables
+			
+			csp_main.i_mark_bubd_information^.BestUsedByDate 	:= '';
+			csp_main.i_mark_bubd_information^.Prefix 			:= '';
+			csp_main.i_mark_information^.ID 					:= '';
+			csp_main.i_mark_information^.KdpSite 				:= '';
+			csp_main.i_mark_information^.OriginDate 			:= '';
+			csp_main.i_mark_information^.PartnerSite			:= '';
+			csp_main.i_mark_information^.Template.Carton		:= '';
+			csp_main.i_mark_information^.Template.CASEPACK		:= '';
+			csp_main.i_mark_information^.Template.Pod			:= '';			
+			
+			csp_main.i_current_material_information^[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].ID 	:= '';
+			csp_main.i_current_material_information^[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].QTY	:= 0;
+			csp_main.i_next_material_information^[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].ID		:= '';
+			csp_main.i_next_material_information^[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].QTY		:= 0;
+            
+			csp_main.i_current_material_information^[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].ID 			:= '';
+			csp_main.i_current_material_information^[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].QTY			:= 0;
+			csp_main.i_next_material_information^[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].ID				:= '';
+			csp_main.i_next_material_information^[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].QTY				:= 0;
+
+			csp_main.i_next_recipe_information^.CasePacker														:= '';
+			csp_main.i_recipe_information^.CasePacker															:= '';			
+			csp_main.i_next_recipe_information^.Filler															:= '';
+			csp_main.i_recipe_information^.Filler																:= '';
+			csp_main.i_next_recipe_information^.Cartoner														:= '';
+			csp_main.i_recipe_information^.Cartoner																:= '';			
+
+			csp_main.i_order_information^.ID																	:= '';	
+			csp_main.i_order_information^.SapBatchID															:= '';			
+			csp_main.i_next_order_information^.ID						:= '';	
+			csp_main.i_next_order_information^.SapBatchID				:= '';			
+			
+			csp_main.i_csp_data_ref^.Production.GoodCases				:= 0;
+			
+			csp_main.i_product_information^.CaffeinatedFlag				:= FALSE;
+			csp_main.i_product_information^.CartonsPerCase				:= 0;
+			csp_main.i_product_information^.FillWeight.Maximum			:= 0;
+			csp_main.i_product_information^.FillWeight.Minimum			:= 0;
+			csp_main.i_product_information^.FillWeight.Target			:= 0;
+			csp_main.i_product_information^.FilterType					:= '';
+			csp_main.i_product_information^.FlavorDose					:= 0;
+			csp_main.i_product_information^.FlavorFlag					:= FALSE;
+			csp_main.i_product_information^.ID							:= '';
+			csp_main.i_product_information^.UPC							:= '';
+			csp_main.i_product_information^.KosherFlag					:= FALSE;
+			csp_main.i_product_information^.OrganicFlag					:= FALSE;
+			csp_main.i_product_information^.PodsPerCarton				:= 0;
+			csp_main.i_product_information^.PodsPerCase					:= 0;
+			csp_main.i_product_information^.ShelfLife					:= 0;			
+			csp_main.i_next_product_information^.CaffeinatedFlag		:= FALSE;
+			csp_main.i_next_product_information^.CartonsPerCase			:= 0;
+			csp_main.i_next_product_information^.FillWeight.Maximum		:= 0;
+			csp_main.i_next_product_information^.FillWeight.Minimum		:= 0;
+			csp_main.i_next_product_information^.FillWeight.Target		:= 0;
+			csp_main.i_next_product_information^.FilterType				:= '';
+			csp_main.i_next_product_information^.FlavorDose				:= 0;
+			csp_main.i_next_product_information^.FlavorFlag				:= FALSE;
+			csp_main.i_next_product_information^.ID						:= '';
+			csp_main.i_next_product_information^.UPC					:= '';
+			csp_main.i_next_product_information^.KosherFlag				:= FALSE;
+			csp_main.i_next_product_information^.OrganicFlag			:= FALSE;
+			csp_main.i_next_product_information^.PodsPerCarton			:= 0;
+			csp_main.i_next_product_information^.PodsPerCase			:= 0;
+			csp_main.i_next_product_information^.ShelfLife				:= 0;					
+			csp_main.i_csp_data_ref^.CaseBlanks.ConsumedCart			:= 0;			
+			csp_main.i_csp_data_ref^.CaseBlanks.ConsumedTotal			:= 0;
+			csp_main.i_csp_data_ref^.Labels.Consumed					:= 0;
+			
+			parameter_overwrite_set_bool_value(
+					value				:= FALSE, 
+					CONVERSION_this		:= csp_main_phaseManager.confirm_run_out_mode_pow);			
+
+			//IF csp_case_main_statistics.logsect.customer_driven_update_and_reset_received
+			//THEN
+			fsm_status := 555;
+			//END_IF
+						
+		END_IF
+	
+		
+	555:
+		i_start_job_done^ := FALSE;
+		i_run_out_done^ := FALSE;	
+		end_job_done := TRUE;
+		end_job_running := FALSE;
+		
+	
+		
+	666:
+		i_start_job_done^ := FALSE;
+		i_run_out_done^ := FALSE;		
+		end_job_running := FALSE;
+		end_job_done := FALSE;
+		fsm_status := 0;
+
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

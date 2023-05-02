@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_main_accuChange_RFID_read_write_status" Id="{15a6403e-da81-4176-94e3-0f67eedf5bab}">
+    <Declaration><![CDATA[TYPE csp_main_accuChange_RFID_read_write_status :
+(
+	READ_WRITE_STATUS_START_RFID_READ						:= 0,
+	READ_WRITE_STATUS_SEND_READ_COMMAND						:= 1,
+	READ_WRITE_STATUS_WAIT_FOR_READ_RESULT					:= 2,
+	READ_WRITE_STATUS_CHECK_READ_RESULT						:= 3,
+	
+	READ_WRITE_STATUS_START_RFID_WRITE						:= 101,
+	READ_WRITE_STATUS_SEND_WRITE_COMMAND					:= 102,
+	READ_WRITE_STATUS_WAIT_FOR_WRITE_SUCCESS				:= 103,
+	READ_WRITE_STATUS_WRITE_TO_READ							:= 104,
+	
+	READ_WRITE_STATUS_WAITING								:= 900,
+	READ_WRITE_STATUS_ERROR									:= 999
+):= READ_WRITE_STATUS_WAITING;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

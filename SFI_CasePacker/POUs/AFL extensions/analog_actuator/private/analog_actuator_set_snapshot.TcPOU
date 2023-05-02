@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_set_snapshot" Id="{ffa01f74-7218-4718-bdc1-3369174a9d9b}" SpecialFunc="None">
+    <Declaration><![CDATA[(* Dipslays a analog_actuator message *)
+FUNCTION analog_actuator_set_snapshot : VOID
+VAR_INPUT
+    errorID_1:	DINT;			(* Field for specify the fault codes or enter
+								   more message info *)
+    errorID_2:	DINT;			(* Field for specify the fault codes or enter
+								   more message info *)
+    errorID_3:	DINT;			(* Field for specify the fault codes or enter
+								   more message info *)
+END_VAR
+
+VAR
+	owner:			POINTER TO analog_actuator;
+END_VAR
+(*All VAR_IN_OUT variables have been moved to the end of the declaration due to compatibility reasons*)
+VAR_IN_OUT
+    CONVERSION_this:			analog_actuator_snapshot;
+								(* analog_actuator snapshot reference *)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[owner := CONVERSION_this.message.CONVERSION_private.owner;
+
+IF message_set(errorID_1, errorID_2, errorID_3, CONVERSION_this.message)
+THEN
+    CONVERSION_this.status := owner^.status;
+    CONVERSION_this.command := owner^.command;
+    CONVERSION_this.is_active := owner^.is_active;
+    CONVERSION_this.is_inactive := owner^.is_inactive;
+END_IF]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

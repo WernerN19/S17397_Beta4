@@ -1,0 +1,268 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_main_statistics" Id="{8eb363ac-5dbc-4cb1-af39-21d2f5034814}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+WU exit shift register
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/24 	0000.00	 	G.Cera 			Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_transfer_main_statistics
+VAR
+	prc:														process;
+	prc_path:													STRING;
+	
+	waterfall_sr:												shift_register;
+	(*waterfall_sr_id:											shift_register_id;
+	accumulation_sr:											shift_register;
+	accumulation_sr_id:											shift_register_id;
+	upstacker_1st_sr:											shift_register;
+	upstacker_1st_sr_id:										shift_register_id;
+	upstacker_2nd_sr:											shift_register;
+	upstacker_2nd_sr_id:										shift_register_id;
+	upstacker_3rd_sr:											shift_register;
+	upstacker_3rd_sr_id:										shift_register_id;*)
+	upstacker_1st_column_sr:									shift_register;
+	upstacker_1st_column_sr_id:									shift_register_id;
+	upstacker_2nd_column_sr:									shift_register;
+	upstacker_2nd_column_sr_id:									shift_register_id;
+	upstacker_3rd_column_sr:									shift_register;
+	upstacker_3rd_column_sr_id:									shift_register_id;
+	crosspusher_sr:												shift_register;
+	crosspusher_sr_id:											shift_register_id;
+	
+	loader_vm_phgen:											phase_generator;
+	
+		(* Machine emptying *)	
+	number_of_products:											INT:=0;
+	shift_first_step_to_check:									DINT;
+	shift_first_step_to_check_2:								DINT;
+	shift_last_step_to_check:									DINT;	
+	shift_last_step_to_check_2:									DINT;
+	is_empty:													BOOL;
+	//accumulation_phgen:										phase_generator;
+
+	
+END_VAR
+
+VAR CONSTANT
+	SHIFT_LAST_STEP:											DINT := 10;
+	SHIFT_LAST_STEP_2:											DINT := 2;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		is_empty := TRUE;	
+	
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(* Manage of the machine emptying *)
+shift_first_step_to_check :=
+	shift_register_get_first_step(crosspusher_sr);
+	
+shift_first_step_to_check_2 :=
+	shift_register_get_first_step(waterfall_sr);
+	
+shift_last_step_to_check :=
+	SHIFT_LAST_STEP;
+	
+shift_last_step_to_check_2 :=
+	SHIFT_LAST_STEP_2;
+
+number_of_products:= 0;
+
+
+IF	number_of_products <> 0
+THEN
+	is_empty:= FALSE;
+ELSE
+	is_empty:= TRUE;
+END_IF
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{da6e5541-89c5-4cb8-bddc-2133a37f6206}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{1f156acc-f2ec-4df1-a199-68e9117806b4}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{51c81659-5511-457a-8436-f5b35f39a8c1}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{9b6f5ce5-bf06-496b-ba32-2fba7fcbfb96}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name						:= 'csp_transfer_main_statistics.prc', 
+		process							:= csp_transfer_main.prc, 
+		CONVERSION_this					:= prc);
+		
+	prc_path 							:= process_get_path(prc);
+	
+	(*			
+	shift_register_init(
+		object_name						:=	CONCAT(prc_path, '_waterfall_sr'), 
+		enable							:=	TRUE,
+		shift_phase						:=	180,
+		first_step						:=	2,
+		startup_item_state_info			:=	ITEM_ABSENT,
+		equipment						:=	SHIFT_REGISTER_NO_EQUIPMENT,
+		number_of_equipments			:=	1,
+		generator						:=	csp_transfer_infeed_reject.reject_phase_generator,
+		process							:=	prc,
+		CONVERSION_this					:=	waterfall_sr);
+		*)
+	shift_register_init(
+		object_name						:=	CONCAT(prc_path, '_upstacker_1st_column_sr'), 
+		enable							:=	TRUE,
+		shift_phase						:=	180,
+		first_step						:=	12,
+		startup_item_state_info			:=	ITEM_ABSENT,
+		equipment						:=	SHIFT_REGISTER_NO_EQUIPMENT,
+		number_of_equipments			:=	1,
+		generator						:=	csp_transfer_upstacker_virtualMaster.vm_phgen,
+		process							:=	prc,
+		CONVERSION_this					:=	upstacker_1st_column_sr);
+		
+	shift_register_init(
+		object_name						:=	CONCAT(prc_path, '_upstacker_2nd_column_sr'), 
+		enable							:=	TRUE,
+		shift_phase						:=	180,
+		first_step						:=	16,
+		startup_item_state_info			:=	ITEM_ABSENT,
+		equipment						:=	SHIFT_REGISTER_NO_EQUIPMENT,
+		number_of_equipments			:=	1,
+		generator						:=	csp_transfer_upstacker_virtualMaster.vm_phgen,
+		process							:=	prc,
+		CONVERSION_this					:=	upstacker_2nd_column_sr);
+		
+	shift_register_init(
+		object_name						:=	CONCAT(prc_path, '_upstacker_3rd_column_sr'), 
+		enable							:=	TRUE,
+		shift_phase						:=	180,
+		first_step						:=	20,
+		startup_item_state_info			:=	ITEM_ABSENT,
+		equipment						:=	SHIFT_REGISTER_NO_EQUIPMENT,
+		number_of_equipments			:=	1,
+		generator						:=	csp_transfer_upstacker_virtualMaster.vm_phgen,
+		process							:=	prc,
+		CONVERSION_this					:=	upstacker_3rd_column_sr);
+	
+		
+	(* CASE section MARCO 31.07.20 *)
+	shift_register_init(
+		object_name						:=	CONCAT(prc_path, '_crosspusher_sr'), 
+		enable							:=	TRUE,
+		shift_phase						:=	180,
+		first_step						:=	24,
+		startup_item_state_info			:=	ITEM_ABSENT,
+		equipment						:=	SHIFT_REGISTER_NO_EQUIPMENT,
+		number_of_equipments			:=	1,
+		generator						:=	loader_vm_phgen,
+		process							:=	prc,
+		CONVERSION_this					:=	crosspusher_sr);
+		
+	(*log_section_add_shift_register( //19062020
+		last_step:= 25, 
+		include_good_products_count:= FALSE, 
+		shift_register:= crosspusher_sr, 
+		CONVERSION_this:= csp_case_main_statistics._logsect);*)
+		
+	phase_generator_init(
+		object_name					:= CONCAT(prc_path, '_loader_vm_phgen'), 
+		modulo						:= axis_get_modulo(csp_case_loader_virtualMaster.axis), 
+		resolution					:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis						:= csp_case_loader_virtualMaster.axis, 
+		process						:= prc, 
+		CONVERSION_this				:= loader_vm_phgen);
+		
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	phase_generator_cycle(loader_vm_phgen);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{09dfa01f-6fa4-433c-9a44-6895ad906ea8}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{672251a6-cd51-4b51-a3b1-c11a2bd09609}">
+      <Implementation>
+        <ST><![CDATA[;				]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{17babbcb-aba1-45fa-9464-b86552bec2fb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{eef2b8b0-6e6c-4b7f-b491-c17b842897be}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="iol_slave_mlg2prime_system_status_1" Id="{faed7c66-216f-032f-2b6d-8114d13dc573}">
+    <Declaration><![CDATA[TYPE iol_slave_mlg2prime_system_status_1 :
+STRUCT
+	sync_error:					BIT;
+	teach_fail:					BIT;
+	hardware_error:				BIT;
+	contamination_alarm:		BIT;
+	teach_active:				BIT;
+	over_temp:					BIT;
+	data_invalid:				BIT;
+	q_short_circuit:			BIT;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

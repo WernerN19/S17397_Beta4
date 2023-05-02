@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_main_brand_case_pattern" Id="{78eb9d58-56ed-028b-3cb7-9292fdd3e5bb}">
+    <Declaration><![CDATA[TYPE csp_main_brand_case_pattern :
+STRUCT
+	
+	case_pattern_L:								INT := 2; (*$P min := 0; max := 5; step := 1; unit := u ; desc := Case Pattern L; $*)
+	case_pattern_W:								INT := 2; (*$P min := 0; max := 5; step := 1; unit := u; desc := Case Pattern W; $*)
+	case_pattern_D:								INT := 1; (*$P min := 0; max := 5; step := 1; unit := u; desc := Case Pattern D; $*)
+			
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

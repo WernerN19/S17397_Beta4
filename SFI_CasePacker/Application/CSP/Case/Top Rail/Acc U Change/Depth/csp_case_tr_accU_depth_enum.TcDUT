@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.18">
+  <DUT Name="csp_case_tr_accU_depth_enum" Id="{341cc3b5-2715-400f-b820-f4c56c0207d2}">
+    <Declaration><![CDATA[TYPE csp_case_tr_accU_depth_enum :
+(
+	CSP_CASE_TR_ACCU_DEPTH_STATUS_NOT_INITIALIZED 								:= 0,
+	CSP_CASE_TR_ACCU_DEPTH_STATUS_DISABLED 										:= 10,
+	CSP_CASE_TR_ACCU_DEPTH_STATUS_POSITION_CHECK								:= 20,
+	CSP_CASE_TR_ACCU_DEPTH_STATUS_ENABLE_REQUEST 								:= 30,
+	CSP_CASE_TR_ACCU_DEPTH_STATUS_ENABLED 										:= 40,
+	CSP_CASE_TR_ACCU_DEPTH_STATUS_ABS_MOVE_REQUEST								:= 50,
+	CSP_CASE_TR_ACCU_DEPTH_STATUS_ABS_MOVING									:= 60,
+	CSP_CASE_TR_ACCU_DEPTH_STATUS_STOP_REQUEST 									:= 70,
+	CSP_CASE_TR_ACCU_DEPTH_STATUS_DISABLE_REQUEST 								:= 80,
+	CSP_CASE_TR_ACCU_DEPTH_STATUS_DISABLING 									:= 90
+) := CSP_CASE_TR_ACCU_DEPTH_STATUS_NOT_INITIALIZED;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

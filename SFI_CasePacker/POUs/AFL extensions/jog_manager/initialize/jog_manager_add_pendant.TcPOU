@@ -1,0 +1,118 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_add_pendant" Id="{61fe4f4f-aa4d-4f62-ae71-ed332a16cf08}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Adds the <a href="#digital_input_object"><i>digital_input</i></a> that performs 
+	the jog plus and jog minus pendant command to the instance specified by the 
+	parameter <i><b>this</i></b>.	
+	This function should be called at startup only.<br/>	
+	Against errors on the input parameters the cpu is stopped, in this case the cause <br/>
+	can be inspected in the global struct <i>framework.abort_error</i>: <br/>
+	<br/>
+    <li> <b>ERRORID_1 = 5</b>: <b><i>this</i></b> instance has already a jog positive digital_input </li>
+    <li> <b>ERRORID_1 = 6</b>: <b><i>this</i></b> instance has already a jog negative digital_input </li>		
+	</p>
+$*)
+FUNCTION jog_manager_add_pendant: VOID
+VAR_IN_OUT
+	di_pendant_positive:	digital_input;
+	(*$ Jog positive <a href="#digital_input_object"><i>digital_input</i></a> that has to be added $*)	
+	di_pendant_negative:	digital_input;
+	(*$ Jog negative <a href="#digital_input_object"><i>digital_input</i></a> that has to be added $*)		
+	CONVERSION_this:		jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF 	CONVERSION_this.has_pendant
+   	AND
+   	CONVERSION_this.di_pendant_positive = ADR(di_pendant_positive)
+	AND
+	CONVERSION_this.di_pendant_negative = ADR(di_pendant_negative)
+THEN
+	RETURN;
+END_IF
+
+IF jog_manager_is_not_initialized(CONVERSION_this)
+   OR
+   digital_input_is_not_initialized(di_pendant_positive)
+   OR
+   digital_input_is_not_initialized(di_pendant_negative)
+THEN
+	IF 	framework_initialization()
+	THEN
+		RETURN;
+	END_IF
+END_IF
+
+IF 	jog_manager_is_not_initialized(CONVERSION_this)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(CONVERSION_this), 
+		object_size := SIZEOF(CONVERSION_this),
+		abort := TRUE,
+		error_str_1 := 'object not initialized', 
+		error_str_2 := 'jog_manager_add_pendant'
+	);
+    RETURN;
+END_IF
+
+IF 	digital_input_is_not_initialized(di_pendant_positive)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(di_pendant_positive), 
+		object_size := SIZEOF(di_pendant_positive),
+		abort := TRUE, 
+		error_str_1 := 'object not initialized', 
+		error_str_2 := CONCAT('Please check jog_manager_add_pendant of ',CONVERSION_this.object_name)				
+	);
+    RETURN;
+END_IF
+
+IF 	digital_input_is_not_initialized(di_pendant_negative)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(di_pendant_negative), 
+		object_size := SIZEOF(di_pendant_negative),
+		abort := TRUE, 
+		error_str_1 := 'object not initialized', 
+		error_str_2 := CONCAT('Please check jog_manager_add_pendant of ',CONVERSION_this.object_name)				
+	);
+    RETURN;
+END_IF
+
+IF 	CONVERSION_this.has_pendant
+   	AND
+   	CONVERSION_this.di_pendant_positive <> ADR(di_pendant_positive)
+THEN
+    abort(
+		object_name := CONVERSION_this.object_name,
+        errorID_1 := 5,
+        errorID_2 := 0,
+        errorID_3 := 0,
+        error_str_1 := CONCAT(CONVERSION_this.object_name, ' jog_manager has already a jog positive digital_input'),
+		error_str_2 := 'jog_manager_add_pendant'
+        );
+    RETURN;
+END_IF
+
+IF 	CONVERSION_this.has_pendant
+   	AND
+   	CONVERSION_this.di_pendant_negative <> ADR(di_pendant_negative)
+THEN
+    abort(
+		object_name := CONVERSION_this.object_name,
+        errorID_1 := 5,
+        errorID_2 := 0,
+        errorID_3 := 0,
+        error_str_1 := CONCAT(CONVERSION_this.object_name, ' jog_manager has already a jog negative digital_input'),
+		error_str_2 := 'jog_manager_add_pendant'
+        );
+    RETURN;
+END_IF
+
+CONVERSION_this.di_pendant_positive := ADR(di_pendant_positive);
+CONVERSION_this.di_pendant_negative := ADR(di_pendant_negative);
+CONVERSION_this.has_pendant := TRUE;
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_transfer_main_normal" Id="{ca2eb222-3ed3-47fb-be19-1284ef7d777f}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_transfer_main_normal
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*MAIN*)
+
+	(*Brand*)
+	
+	(*Drives*)
+	csp_transfer_main_safety_interface(); 
+	csp_transfer_main_drives();
+	(*Motorization*)
+
+	(*Cam Manager*)
+	
+	(*Services*)
+	csp_transfer_main_services();
+
+		csp_transfer_main_services_pushbuttons();
+
+		csp_transfer_main_services_breakers();
+
+	csp_transfer_main_ioLink();
+
+	(*Interface*)
+	
+	(*Safety*)
+	]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

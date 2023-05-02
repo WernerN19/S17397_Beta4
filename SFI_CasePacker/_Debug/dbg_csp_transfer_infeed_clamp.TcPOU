@@ -1,0 +1,84 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_transfer_infeed_clamp" Id="{a177e0b4-d986-41a6-abaa-b1da26f632b3}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_transfer_infeed_clamp
+VAR
+  extend_do_shd : digital_output_shadow;
+  ls_retracted_di_shd : digital_input_shadow;
+  ls_sact_shd : digital_actuator_shadow;
+  os_retracted_di_shd : digital_input_shadow;
+  os_sact_shd : digital_actuator_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{c7989c97-0d02-4b13-8d43-a7b373bea354}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_infeed_clamp.extend_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= extend_do_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_infeed_clamp.ls_retracted_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= ls_retracted_di_shd);
+
+	digital_actuator_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_infeed_clamp.ls_sact, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= ls_sact_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_infeed_clamp.os_retracted_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= os_retracted_di_shd);
+
+	digital_actuator_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_infeed_clamp.os_sact, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= os_sact_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	digital_output_shadow_cycle(extend_do_shd);
+	digital_input_shadow_cycle(ls_retracted_di_shd);
+	digital_actuator_shadow_cycle(ls_sact_shd);
+	digital_input_shadow_cycle(os_retracted_di_shd);
+	digital_actuator_shadow_cycle(os_sact_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,252 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_brand" Id="{5d706678-779a-4209-ab57-388a8357f753}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp brand management program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_brand
+VAR
+	prc:														process;
+	prc_path:													STRING;
+
+	p_carton_format:											csp_main_brand_carton_format_enum;	(*$P $*)
+	
+	carton_dimension:											csp_main_brand_product_dimension;
+	
+	case_pattern:												csp_main_brand_case_pattern;
+
+	nominal_case_rate_ppm:										LREAL := 15.63; (*$P $*)
+	surge_case_rate_ppm:										LREAL := 17.19; (*$P $*)
+	
+	cartons_per_minute:											INT := 63;
+	
+	cups_number_for_carton:										INT	:=	24;	
+	infeed_reject_use_both_sides:								BOOL := FALSE; (*$P $*)
+	Rollover_Carton:											BOOL := TRUE; (*$P $*)
+	carton_belts_tooth_distance_mm:								LREAL := 150;
+	choice:														DINT :=1;
+	
+	metering_carton_gap:										LREAL; (*$P $*)
+	post_waterfall_carton_gap:									LREAL; (*$P $*)
+	
+	count_changed:												BOOL;
+	
+	count:														STRING := 'First Start'; (*$P $*)
+	count_old:													STRING := 'First Start'; (*$P $*)
+	count_old_po:												parameter_overwrite;
+	
+	cam_data_changed:											BOOL;			
+	Cartons_per_case: 											INT;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+
+
+(************************************************************************)
+
+IF	(
+		count_old
+		<>
+		count
+	)
+	AND
+	(
+		count <> ''
+	)
+THEN		
+	count_old := count;
+	count_changed := TRUE;
+END_IF
+
+IF csp_main_accuChange.Brand_Change_Occurred 
+THEN 
+	count_changed := FALSE;
+END_IF
+
+
+IF 	p_carton_format = csp_MAIN_BRAND_16_COUNT_2x3CARTON_4_COUNT_CASE
+	OR
+	p_carton_format = csp_MAIN_BRAND_18_COUNT_2x3CARTON_4_COUNT_CASE
+	OR
+	p_carton_format = csp_MAIN_BRAND_20_COUNT_2x4CARTON_4_COUNT_CASE	
+	OR
+	p_carton_format = csp_MAIN_BRAND_22_COUNT_2x4CARTON_4_COUNT_CASE
+	OR
+	p_carton_format = csp_MAIN_BRAND_24_COUNT_2x4CARTON_4_COUNT_CASE	
+	OR
+	p_carton_format = csp_MAIN_BRAND_28_COUNT_2x4CARTON_4_COUNT_CASE	
+	OR
+	p_carton_format = csp_MAIN_BRAND_30_COUNT_2x4CARTON_4_COUNT_CASE
+	OR	
+	p_carton_format = csp_MAIN_BRAND_32_COUNT_2x4CARTON_4_COUNT_CASE
+	OR
+	p_carton_format = csp_MAIN_BRAND_34_COUNT_3x4CARTON_4_COUNT_CASE
+	OR	
+	p_carton_format = csp_MAIN_BRAND_36_COUNT_3x4CARTON_4_COUNT_CASE
+	OR	
+	p_carton_format = csp_MAIN_BRAND_44_COUNT_3x4CARTON_4_COUNT_CASE
+	OR
+	p_carton_format = csp_MAIN_BRAND_46_COUNT_3x4CARTON_4_COUNT_CASE
+	OR
+	p_carton_format = csp_MAIN_BRAND_48_COUNT_3x4CARTON_4_COUNT_CASE
+	OR
+	count = '32Count'
+	OR
+	count = '24Count'
+	THEN
+		Cartons_per_case := 4;
+	ELSE
+		Cartons_per_case := 6;
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{4f1de4d2-ebcf-44f0-b0d8-e4b84a2f27b1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{e0c18dde-98df-4d42-8f12-fbbbfb088d04}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{5f125338-1dc6-4f7f-a0c2-a70e0ceaa337}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{307f7904-3e20-41a5-a379-e53d88f80229}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_main_brand.prc', 
+		process						:= csp_main.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+
+
+	
+parameter_overwrite_string_init(
+        object_name:= 'csp_main_brand.count_old_po',
+        size_of_parameter:= SIZEOF(count_old),
+        parameter:= count_old,
+        process:= prc,
+        CONVERSION_this:= count_old_po);	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{943b4f67-73da-4533-9f64-b50c7b052cdf}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{28736926-59bb-41a5-9f19-1f54450d992e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{9ba1b6da-f53c-41f0-97fd-36931a472069}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{6b1b1786-3026-4831-bc23-19db97585012}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_main_brand">
+      <LineId Id="155" Count="86" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_brand._handle_messages">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_brand._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_brand._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_brand._object_manager">
+      <LineId Id="2" Count="21" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_brand._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_brand._read_var_input">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_brand._set_runtime_properties">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_brand._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

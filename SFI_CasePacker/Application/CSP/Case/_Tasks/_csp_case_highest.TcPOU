@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_case_highest" Id="{959a6113-d1ec-46a0-a8bf-5760e3fafe72}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_case_highest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[csp_case_virtualMaster();
+
+_csp_case_closing_highest();
+
+_csp_case_discharge_highest();
+
+_csp_case_feed_highest();
+
+_csp_case_flapControl_highest();
+
+_csp_case_glue_highest();
+
+_csp_case_loader_highest();
+
+_csp_case_openFlap_highest();
+
+_csp_case_main_highest();
+
+_csp_case_topRail_highest();
+
+_csp_case_transport_highest();
+
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

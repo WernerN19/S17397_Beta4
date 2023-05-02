@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_casePackerCaseBlanks" Id="{3353d670-ab98-4bb2-b247-aabc3aaab31c}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_casePackerCaseBlanks :
+STRUCT
+	
+	ConsumedTotal:			DINT;				(*$H_R desc := Real time total material consumption for this order; $*)
+	ConsumedCart:			DINT;				(*$H_R desc := Real time material consumption from the current cart; $*)
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

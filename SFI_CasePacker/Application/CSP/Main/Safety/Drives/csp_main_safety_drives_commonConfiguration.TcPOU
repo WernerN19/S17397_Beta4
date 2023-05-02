@@ -1,0 +1,205 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="csp_main_safety_drives_commonConfiguration" Id="{85254e8f-b313-417f-9f5e-cb97f3ae073f}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine drives common configurations
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/07/24 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+
+PROGRAM csp_main_safety_drives_commonConfiguration
+VAR
+	prc:					process;
+	prc_path:				STRING;
+	
+	sig:					safety_integrated_group;
+	rack_smes_sis:			safety_integrated_series;
+	standalone_smes_sis:	safety_integrated_series;
+	smm1_sis:				safety_integrated_series;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF descriptor_get_reset_edge(prc.descriptor)
+THEN
+	safety_integrated_series_close(rack_smes_sis);
+	safety_integrated_series_close(standalone_smes_sis);
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{cb074747-61f9-44c4-a64c-14f4d206e9c2}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{ab7348a1-cabb-4757-b7fa-236555b70c1f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{59229848-610c-435b-aa39-41e472a8d595}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{9fd20473-ae45-41cd-80f8-f07a74d8bc60}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_main_safety_drives_commonConfiguration.prc', 
+		process						:= csp_main_safety_drives.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(*
+	(* SIG *)
+	safety_integrated_group_init(
+		object_name					:=	CONCAT(prc_path, '_sig'),
+		controller					:=	sw_configurator.WU_INTERFACE.drives_safety_controller_ref^,
+		process						:=	prc,
+		CONVERSION_this				:=	sig);	
+		
+	(* DRIVES RACK SERIES *)
+	safety_integrated_series_init(
+		object_name					:=	CONCAT(prc_path, '_rack_smes_sis'),
+		_type						:=	SAFETY_INTEGRATED_SERIES_TYPE_RESET,
+		discrepancy_active			:=	FALSE,
+		forced_open_active			:=	TRUE,
+		process						:=	prc,
+		conversion_this				:=	rack_smes_sis);
+
+	safety_integrated_series_add_safety_integrated_group(
+		group						:=	sig,
+		CONVERSION_this				:=	rack_smes_sis);
+
+	safety_integrated_series_add_safety_integrated_series(
+		series_active				:=	TRUE,
+		series_polarity_direct		:=	TRUE,
+		contact						:=	wu_main_safety_drives_powerSupply.sis,
+		CONVERSION_this				:=	rack_smes_sis);	
+
+	(* STANDALONE DRIVES SERIES *)
+	safety_integrated_series_init(
+		object_name					:=	CONCAT(prc_path, '_standalone_smes__sis'),
+		_type						:=	SAFETY_INTEGRATED_SERIES_TYPE_RESET,
+		discrepancy_active			:=	FALSE,
+		forced_open_active			:=	TRUE,
+		process						:=	prc,
+		conversion_this				:=	standalone_smes_sis);
+
+	safety_integrated_series_add_safety_integrated_group(
+		group						:=	sig,
+		CONVERSION_this				:=	standalone_smes_sis);
+
+	safety_integrated_series_add_safety_integrated_series(
+		series_active				:=	TRUE,
+		series_polarity_direct		:=	TRUE,
+		contact						:=	sw_configurator.WU_INTERFACE.delayed_emergency_series_ref^,
+		CONVERSION_this				:=	standalone_smes_sis);			
+	
+	(* COMMON SMM1 *)		
+	safety_integrated_series_init(
+		object_name					:=	CONCAT(prc_path, '_smm1_sis'),
+		_type						:=	SAFETY_INTEGRATED_SERIES_TYPE_RESET,
+		discrepancy_active			:=	FALSE,
+		forced_open_active			:=	TRUE,
+		process						:=	prc,
+		CONVERSION_this				:=	smm1_sis);
+
+	safety_integrated_series_add_safety_integrated_group(
+		group						:=	sig,
+		CONVERSION_this				:=	smm1_sis);
+
+	safety_integrated_series_add_safety_integrated_series(
+		series_active 				:= TRUE,
+		series_polarity_direct 		:= TRUE,
+		contact 					:= wu_main_safety_handwheel.sis,
+        CONVERSION_this 			:= smm1_sis);	
+*)	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	safety_integrated_group_cycle(sig);
+	safety_integrated_series_cycle(rack_smes_sis);
+	safety_integrated_series_cycle(standalone_smes_sis);
+	safety_integrated_series_cycle(smm1_sis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{f67af30f-e2fd-4f91-8af9-d57eb7104339}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{e28c0061-15c9-4280-801c-ed72d20751cb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{69ae22eb-6778-402e-b580-10f2326bb74b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{4e2dbf47-21d2-4dc5-925b-966ee0f1d570}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

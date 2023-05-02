@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_set_all_slave_axis_engaged" Id="{c4bd08a9-182c-4bc9-b298-e546943c70fd}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Set the all slave axis engaged condition <b><i>this</i></b>.
+	The method returns <i>TRUE</i> if the command is accepted, otherwise it returns <i>FALSE</i>.
+$*)
+FUNCTION jog_manager_set_all_slave_axis_engaged : BOOL
+VAR_INPUT
+	index:					UINT;
+	all_slave_axis_engaged:	BOOL;
+END_VAR
+VAR_IN_OUT
+    CONVERSION_this:		jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	NOT (descriptor_mode_is_operational(CONVERSION_this.descriptor)
+		(*OR
+		descriptor_mode_is_test(CONVERSION_this.descriptor)*)
+		OR
+		(index <= JOG_MANAGER_JOG_LIST_NONE)
+		OR
+		(index > JOG_MANAGER_JOG_LIST_MAX))
+THEN
+	jog_manager_set_all_slave_axis_engaged := FALSE;				(* command rejected *)
+ 	RETURN;
+END_IF
+
+IF	(CONVERSION_this.axis_list[index].axis = G_framework.NULL)
+	OR
+	NOT CONVERSION_this.axis_list[index].master_axis 
+THEN
+	jog_manager_set_all_slave_axis_engaged := FALSE;				(* command rejected *)
+ 	RETURN;
+END_IF
+
+CONVERSION_this.axis_list[index].all_slave_axis_engaged := all_slave_axis_engaged;
+jog_manager_set_all_slave_axis_engaged := TRUE;						(* command accepted *)]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

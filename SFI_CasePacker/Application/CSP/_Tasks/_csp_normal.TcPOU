@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_normal" Id="{b6e548fc-0ca6-41f5-ad7b-25bdb8d38fa3}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+CSP: normal task
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	G.Cera 			Creation of the PRG
+
+**********************************************************************************************************)
+
+PROGRAM _csp_normal
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[csp();
+
+_csp_case_normal();
+
+_csp_transfer_normal();
+
+_csp_main_normal();
+
+_csp_customerInterfaces_normal();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

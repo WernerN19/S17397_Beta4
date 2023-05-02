@@ -1,0 +1,185 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_infeed_accumulation_level_min" Id="{127dd25a-6f4e-4688-9c41-3a4dd7ed051c}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_infeed_accumulation_level_min
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	di_flt:											filter;
+	di_status:										BOOL;
+	di_presence:									BOOL; (*$M $*)
+	di_accumulation:								BOOL;
+	
+	min_flt_timer_off_on:							DINT:= 2000; (*$P min := 0; max := 10000; step := 1; unit :=  ms; desc := Timer OFF to ON; $*)
+	min_flt_timer_on_off:							DINT:= 4000; (*$P min := 0; max := 10000; step := 1; unit :=  ms; desc := Timer ON to OFF; $*)
+
+	
+END_VAR
+
+VAR_INPUT
+	di:												digital_input;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(************************************************************************)
+
+di_status := digital_input_is_active(di);
+
+filter_set_delays(
+	delay_off_on := csp_transfer_infeed_accumulation_level.one_carton_in_ms,
+	delay_on_off := csp_transfer_infeed_accumulation_level.one_carton_in_ms,
+	CONVERSION_this := di_flt);
+
+IF di_status = TRUE
+THEN 
+	di_presence := TRUE;
+	IF filter_is_on(di_flt) 
+	THEN
+		di_accumulation := TRUE;
+	END_IF
+ELSE 
+	di_accumulation := FALSE;
+	IF filter_is_off(di_flt) (*di OFF for a time = 5000ms*)
+	THEN
+		di_presence := FALSE;
+	END_IF
+END_IF
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{2abd68b2-05b0-470c-8eaa-e192119781ac}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{64d101e6-84fc-4a9a-9385-3ecddc8eba67}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{32f490ca-2633-4fdc-9b8c-1f8d81c39249}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{6fffc14f-884f-4a74-8b93-feb5e0ee6a08}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_infeed_accumulation_level_min.prc', 
+		process						:= csp_transfer_infeed_accumulation_level.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* INPUTS *)
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= di);
+		
+	filter_init(
+		object_name 				:= CONCAT(prc_path, '_min_flt'),
+		delay_off_on				:= min_flt_timer_off_on,
+		delay_on_off 				:= min_flt_timer_on_off,
+		process			 			:= prc,
+		CONVERSION_this 			:= di_flt);
+		
+
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	filter_cycle(
+				input 				:= di_status,
+				CONVERSION_this 	:= di_flt);
+
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{71807fc3-f9e3-4cec-84a4-a1d06bc65b50}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{349fa10b-0f29-40c7-9d6b-467e68ab9c87}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{84f61f49-3db8-4083-a90f-023e0283c13a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{2dae90da-059a-48a3-8f62-0874cccf6f42}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

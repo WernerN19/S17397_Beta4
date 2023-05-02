@@ -1,0 +1,361 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_magazine_os_belt" Id="{59d67c55-2e12-4ae6-a642-fabcf9515f58}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_magazine_os_belt
+VAR
+		
+	prc:											process;
+	prc_path:										STRING;
+	
+	axis:											axis;
+	
+	actual_velocity_mms:							LREAL:=0.0;
+	velocity_req_mms:								LREAL:=0.0;
+	ready:											BOOL:=FALSE;
+
+	disabled:										BOOL:=FALSE;
+	
+	velocity_req_limited_mms:						LREAL:= 0.0;
+	override_percent:								REAL:= 0.0; (*$P $*)
+
+	fsm_enable_condition:							BOOL;
+	fsm_status:										csp_caser_feed_magazine_os_belt_status_enum;
+	fsm_log:										fsm;
+	torque_limit:									INT := 2000;    (*$P $*)
+	torque_limit_old:								INT;	
+	belt_speed: 									LREAL := 10;
+	servo_on_condition: 							BOOL;
+	enable_delay: 									TON;
+	Torque_force_constant: 							LREAL := 0.47;
+END_VAR
+
+VAR_INPUT
+
+	i_downstream_ready:								BOOL;(*$M desc := Downstream Process Ready; $*)
+	i_upstream_running:								BOOL;
+	i_upstream_velocity:							LREAL;
+	disable_req:									BOOL:=FALSE;
+	fault_bool:										BOOL:=FALSE;
+END_VAR
+
+VAR CONSTANT
+	
+	CONSTANTS:										csp_case_feed_magazine_constant_struct;
+	
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT:
+		IF axis_get_mode(axis) = MODE_TEST
+		THEN
+			safety_integrated_series_close(csp_case_main_safety_drives_SD8400.chA_smes_sis);
+		END_IF
+		RETURN;
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(************************************************************************)
+axis.actual_torque := (axis.actual_current * Torque_force_constant)/1000;
+
+fsm_enable_condition :=	NOT disable_req
+						AND
+						NOT fault_bool
+						AND
+						axis_is_ok(FALSE, axis)
+						AND
+						process_is_ready(prc)
+						AND
+						process_subtree_is_ready(prc)
+						AND NOT 
+						csp_main_accuchange.Brand_Change_Occurred
+						AND
+						servo_on_condition;
+
+IF	NOT fsm_enable_condition
+	AND
+	fsm_status <> CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_DISABLED
+	AND
+	fsm_status < CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_DISABLE_REQUEST;
+END_IF
+
+IF torque_limit <> Torque_limit_old
+THEN
+	 IF soe_drive_channel_write_parameter(
+		channel:=csp_case_feed_magazine_os_belt.axis.soe_drive_channel, 
+		idn:= S_0_IDN + 92, 
+		data_element:=soe_drive_element_value , 
+		data_source:= ADR(torque_limit), 
+		data_lenght:= SIZEOF(torque_limit), 
+		CONVERSION_this:= csp_case_feed_magazine_os_belt.axis.soe_drive^)= SOE_DRIVE_RETURN_VALUE_DONE 
+	THEN
+		torque_limit_old := Torque_limit;
+	END_IF
+END_IF
+
+CASE fsm_status OF
+	
+	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_status := CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_DISABLED;
+        END_IF
+
+		
+	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_DISABLED:
+	
+		IF	fsm_enable_condition
+		THEN
+			fsm_status := CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_ENABLE_REQUEST;
+		END_IF;
+
+		
+	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_ENABLE_REQUEST:
+	
+ 	   	axis_enable(axis);
+		IF axis_enable(axis)
+		THEN
+			fsm_status	:=	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_ENABLING;
+		END_IF;
+
+		
+	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_ENABLING:
+	
+		IF	axis_is_standstill(axis)
+		THEN
+			fsm_status	:=	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_ENABLED;
+		END_IF;
+
+		
+	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_ENABLED:
+	
+		velocity_req_limited_mms := velocity_req_mms;
+		velocity_req_limited_mms := MAX(velocity_req_limited_mms, CONSTANTS.MIN_VELOCITY_MMpSEC);
+		velocity_req_limited_mms := MIN(velocity_req_limited_mms, CONSTANTS.MAX_VELOCITY_MMpSEC);
+
+		IF filter_is_off(csp_case_feed_magazine_os_sensors.feed_di_flt)
+			THEN			
+				IF axis_move_velocity(
+					velocity		:=	belt_speed,//MOTOR_MAX_VELOCITY_DEGPS,
+					acceleration	:= CONSTANTS.RUNNING_ACCELERATION_MMMpSEC2, 
+					deceleration	:= CONSTANTS.RUNNING_DECELERATION_MMpSEC2, 
+					jerk			:= CONSTANTS.RUNNING_JERK_MMpSEC3,
+					buffer_mode		:=	AXIS_BUFFER_MODE_ABORTING,
+					CONVERSION_this			:=	axis)
+					
+				THEN
+					fsm_status	:=	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_RUNNING;
+				END_IF
+		END_IF
+					
+
+	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_RUNNING:
+	
+		IF 	(filter_is_on(csp_case_feed_magazine_os_sensors.feed_di_flt) //prox met and on for X amount of ms entered in filter
+			OR
+				(
+					csp_case_feed_kinematic.x_actual_position < -940 //Position in X when case EOAT at PICK positon
+					AND NOT motorization_conditioner_is_active(csp_case_feed_magazine.magazine_not_primed_motcond)
+				)
+			)
+			OR message_is_on(csp_case_feed_magazine.os_magazine_run_limit_aem)
+		THEN
+			axis_set_override(
+				speed_override_percent 	:= 0,
+				CONVERSION_this 		:= axis);
+		ELSE
+			axis_set_override(
+				speed_override_percent 	:= 100,
+				CONVERSION_this 		:= axis);
+		END_IF
+	
+		
+	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_STOP_REQUEST:
+
+		axis_stop(
+		    deceleration 		:= CONSTANTS.RUNNING_DECELERATION_MMpSEC2,
+		    jerk 				:= CONSTANTS.MAX_JERK_MMpSEC3,
+		    CONVERSION_this 	:= axis);
+
+		IF 	axis_is_standstill(axis)
+			OR
+			NOT axis_is_ok(FALSE, axis)
+			OR
+			axis_is_disabled(axis)
+		THEN
+			fsm_status := CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_DISABLE_REQUEST;
+		END_IF
+
+		
+	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_DISABLE_REQUEST:
+	
+   		axis_disable(axis);
+   		fsm_status := CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_DISABLING;
+
+		
+	CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_DISABLING:
+	
+        IF	axis_is_disabled(axis)
+        THEN
+            fsm_status := CSP_CASE_FEED_MAGAZINE_OS_BELT_STATUS_DISABLED;
+        END_IF;
+
+END_CASE;
+
+(************************************************************************)
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{a886f857-8d8e-47bc-9057-5535e7e79bda}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{246c93fe-6cac-4d38-9897-06fd2b38d631}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{57fbd0e3-87b8-4d86-87a6-619850bf649c}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{40cff748-3ea6-4ac6-a8f1-121af2d676dc}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name									:= 'csp_case_feed_magazine_os_belt.prc', 
+		process										:= csp_case_feed_magazine_os.prc, 
+		CONVERSION_this								:= prc);
+		
+	prc_path 										:= process_get_path(prc);
+	
+(* axis smes *)
+	IF csp_main_configurator.Physical_hw
+	THEN
+	
+		axis_init(
+			object_name								:= CONCAT(prc_path, '_axis'), 
+			axis_type								:= AXIS_TYPE_SERVO, 
+			encoder_scaling_factor					:= G_SERVO_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo									:= G_MODULO_360_DEG, 
+			process									:= prc, 
+			CONVERSION_this							:= axis);
+			
+		axis_add_safety_integrated_series(
+			safety_integrated_series 				:= csp_case_main_safety_drives_SD8400.chA_smes_sis,
+			CONVERSION_this							:= axis);
+			
+	ELSE
+		axis_init(
+			object_name								:= CONCAT(prc_path, '_axis'), 
+			axis_type								:= AXIS_TYPE_VIRTUAL, 
+			encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo									:= G_MODULO_360_DEG, 
+			process									:= prc, 
+			CONVERSION_this							:= axis);		
+				
+	END_IF
+	
+	axis_set_max_dynamic(
+		reference_velocity							:=	CONSTANTS.MOTOR_MAX_VELOCITY_DEGPS,
+		velocity									:=	CONSTANTS.MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration								:=	CONSTANTS.MOTOR_MAX_ACCELERATION_DEGPS2,
+		deceleration								:=	CONSTANTS.MOTOR_MAX_DECELERATION_DEGPS2,
+		jerk										:=	CONSTANTS.MOTOR_MAX_JERK_DEGPS3,
+		following_error								:=	CONSTANTS.MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this								:=	axis);
+		
+	
+	axis_add_soe_drive(
+		channel										:=	SOE_DRIVE_CHANNEL_A,
+		soe_drive									:=	csp_case_main_drives.SD8400_drv,
+		CONVERSION_this								:=	axis);
+
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{f49179fd-b476-4a84-9d8b-b4ff2c68b766}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{6d48a271-b9d0-4d5a-9754-803375d494eb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{7c2b8e17-8105-4515-b2fb-e32ac346c428}">
+      <Implementation>
+        <ST><![CDATA[enable_delay(IN:=axis_is_ready_to_enable(axis) , PT:=T#2S , Q=> servo_on_condition , ET=> );]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{6aec00dd-c6aa-467e-8413-dcb290d91a92}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

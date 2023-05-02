@@ -1,0 +1,153 @@
+<?xml version="1.0"?>
+<TcSmItem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2012/07/TcSmProject" TcSmVersion="1.0" TcVersion="3.1.4024.7" ClassName="CDevEthernetProtocolNvDef" SubType="112">
+	<DataTypes>
+		<DataType>
+			<Name GUID="{3541B441-5DEB-70C5-886A-9C40CC525AF6}" IecBaseType="true" AutoDeleteType="true">ARRAY [0..19] OF DINT</Name>
+			<BitSize>640</BitSize>
+			<BaseType GUID="{18071995-0000-0000-0000-000000000009}">DINT</BaseType>
+			<ArrayInfo>
+				<LBound>0</LBound>
+				<Elements>20</Elements>
+			</ArrayInfo>
+		</DataType>
+	</DataTypes>
+	<Device Id="6" DevType="112" AmsPort="28678" AmsNetId="0.0.0.0.7.1" RemoteName="Machine Line Connectivity (EtherCAT Automation Protocol)">
+		<Name>__FILENAME__</Name>
+		<AddressInfo>
+			<Pnp>
+				<DeviceDesc>X104 (TwinCAT-Intel PCI Ethernet Adapter (Gigabit) </DeviceDesc>
+				<DeviceName></DeviceName>
+				<DeviceData>000000000000</DeviceData>
+			</Pnp>
+		</AddressInfo>
+		<Image Id="14" AddrType="1" ImageType="3">
+			<Name>Image</Name>
+		</Image>
+		<Box File="Box 95 (Publisher).xti" Id="103"/>
+		<Box File="Box 96 (Subscriber).xti" Id="104"/>
+		<Box Id="105" BoxType="9051">
+			<Name>Box 97 (Publisher)</Name>
+			<ImageId>99</ImageId>
+			<Vars VarGrpType="1">
+				<Name>Inputs</Name>
+				<Var BoxStateVariable="true">
+					<Name>FrameState</Name>
+					<Comment><![CDATA[0x0001 = Not sent (frame skipped)
+0x0002 = Error (frame oversized)
+0x0004 = Subscriber missing (Unicast only)
+]]></Comment>
+					<Type>UINT</Type>
+					<BitOffs>224</BitOffs>
+				</Var>
+			</Vars>
+			<Vars VarGrpType="2">
+				<Name>Outputs</Name>
+				<Var BoxStateVariable="true">
+					<Name>FrameCtrl</Name>
+					<Comment><![CDATA[0x0001 = Disable sending
+0x0002 = Remove destination MAC from ARP cache
+]]></Comment>
+					<Type>UINT</Type>
+					<BitOffs>192</BitOffs>
+				</Var>
+			</Vars>
+			<Eap InOut="1" Mac="010105040000" ArpRetryInterval="1000">
+				<EapVar Id="50" VarInOut="1" NvId="50" NvLength="80">
+					<Name>RAJ_To_Cartoner</Name>
+					<ImageId>97</ImageId>
+					<Vars VarGrpType="1">
+						<Name>Inputs</Name>
+						<Var BoxStateVariable="true">
+							<Name>VarState</Name>
+							<Comment><![CDATA[0x0001 = Not sent (variable skipped)
+]]></Comment>
+							<Type>UINT</Type>
+							<BitOffs>240</BitOffs>
+						</Var>
+					</Vars>
+					<Vars VarGrpType="2">
+						<Name>Outputs</Name>
+						<Var BoxStateVariable="true">
+							<Name>VarCtrl</Name>
+							<Comment><![CDATA[0x0001 = Disable publishing
+]]></Comment>
+							<Type>UINT</Type>
+							<BitOffs>208</BitOffs>
+						</Var>
+						<Var>
+							<Name>VarData</Name>
+							<Type GUID="{3541B441-5DEB-70C5-886A-9C40CC525AF6}">ARRAY [0..19] OF DINT</Type>
+							<BitOffs>224</BitOffs>
+						</Var>
+					</Vars>
+				</EapVar>
+			</Eap>
+		</Box>
+		<Box Id="106" BoxType="9052">
+			<Name>Box 98 (Subscriber)</Name>
+			<ImageId>100</ImageId>
+			<Vars VarGrpType="1">
+				<Name>Inputs</Name>
+				<Var BoxStateVariable="true">
+					<Name>FrameState</Name>
+					<Type>UINT</Type>
+					<BitOffs>256</BitOffs>
+				</Var>
+			</Vars>
+			<Vars VarGrpType="2">
+				<Name>Outputs</Name>
+				<Var BoxStateVariable="true">
+					<Name>FrameCtrl</Name>
+					<Type>UINT</Type>
+					<BitOffs>864</BitOffs>
+				</Var>
+			</Vars>
+			<Eap Mac="010105040000">
+				<EapVar Id="5" NvId="51" NvLength="80">
+					<Name>Cartoner_To_RAJ_Var</Name>
+					<ImageId>98</ImageId>
+					<Vars VarGrpType="1">
+						<Name>Inputs</Name>
+						<Var BoxStateVariable="true">
+							<Name>VarState</Name>
+							<Comment><![CDATA[0x0001 = Invalid hash value received
+0x0002 = Invalid variable length received
+]]></Comment>
+							<Type>UINT</Type>
+							<BitOffs>272</BitOffs>
+						</Var>
+						<Var>
+							<Name>Quality</Name>
+							<Comment><![CDATA[Duration the variable is not refreshed (in 100µs)]]></Comment>
+							<Type>UINT</Type>
+							<BitOffs>288</BitOffs>
+						</Var>
+						<Var>
+							<Name>CycleIndex</Name>
+							<Comment><![CDATA[Incremented each publisher cycle]]></Comment>
+							<Type>UINT</Type>
+							<BitOffs>304</BitOffs>
+						</Var>
+						<Var>
+							<Name>VarData</Name>
+							<Type GUID="{3541B441-5DEB-70C5-886A-9C40CC525AF6}">ARRAY [0..19] OF DINT</Type>
+							<BitOffs>320</BitOffs>
+						</Var>
+					</Vars>
+					<Vars VarGrpType="2">
+						<Name>Outputs</Name>
+						<Var BoxStateVariable="true">
+							<Name>VarCtrl</Name>
+							<Comment><![CDATA[0x0001 = Ignore hash value
+]]></Comment>
+							<Type>UINT</Type>
+							<BitOffs>880</BitOffs>
+						</Var>
+					</Vars>
+				</EapVar>
+			</Eap>
+		</Box>
+		<Ethernet DeviceDesc="X104 (TwinCAT-Intel PCI Ethernet Adapter (Gigabit) #2)" VirtualDeviceName="true"/>
+		<Eap EapDeviceGuid="{49B3473B-32BF-4909-A222-F4616015764B}"/>
+	</Device>
+</TcSmItem>

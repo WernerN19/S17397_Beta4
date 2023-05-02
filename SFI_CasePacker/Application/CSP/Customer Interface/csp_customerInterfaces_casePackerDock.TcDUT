@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_casePackerDock" Id="{f993bd87-aa58-4b89-8cf7-3aa9481866f2}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_casePackerDock :
+STRUCT
+	
+	DropAvailable:		BOOL;				(*$H_R desc := Dock [x] is available for cart drop; $*)
+	PickAvailable:		BOOL;				(*$H_R desc := Dock [x] is available for cart pick; $*)
+	Active:				BOOL;				(*$H_R desc := Dock [x] is actively being consumed; $*)
+	EntryReq:			BOOL;				(*$H_RW	act_when := IMMEDIATE ;
+														desc := AMR is at Dock [x] and ready to drop or pick; $*)
+	EntryAck:			BOOL;				(*$H_R desc := Workcell acknowledge entry request [Future use]; $*)
+	EntryOK:			BOOL;				(*$H_R desc := OK for AMR to enter dock; $*)
+	AmrExited:			BOOL;				(*$H_RW	act_when := IMMEDIATE ;
+														desc := AMR has exited the dock; $*)
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

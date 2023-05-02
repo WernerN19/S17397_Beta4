@@ -1,0 +1,178 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="iol_slave_ray26p_configure" Id="{8e50756d-411b-0255-3814-7135667fe029}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+<p>This function configures a generic <a target="_blank" href="#iol_slave">iol_slave</a> as a <strong>Sick WTB2SC - 2P3244</strong>. It allow to connect the object to the device-specific
+parameters structure variable <a target="_blank" href="#iol_slave_wtb2sc_data">iol_slave_wtb2sc_data</a>.</p>
+<p>This function should be called at startup only.</p>
+$*)
+
+FUNCTION iol_slave_ray26p_configure : VOID
+VAR_IN_OUT
+	data:					iol_slave_ray26p_data;			(*$	Parameters struct variable$*)
+	CONVERSION_this:		iol_slave;						(*$ Instance to which the method applies $*)
+END_VAR
+
+VAR CONSTANT
+	NULL:                                   			XWORD := 0;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF iol_slave_is_not_initialized(CONVERSION_this := CONVERSION_this)
+	OR
+	iol_slave_is_configured(CONVERSION_this := CONVERSION_this)
+THEN
+	RETURN;
+END_IF
+
+(*** Start parameter configuration ***)
+
+(* STANDARD PARAMETERS CONFIGURATION *)
+
+iol_slave_configure_parameter(
+	current_value_address := ADR(CONVERSION_this.vendor_name),
+	configured_value_address := NULL,
+	length := SIZEOF(CONVERSION_this.vendor_name),
+	_type := ADST_STRING,
+	coe_index := 16#0010,
+	coe_sub_index := 16#00,
+	readable := TRUE,
+	writeable := FALSE,
+	to_check := FALSE,
+	CONVERSION_this := CONVERSION_this);
+
+iol_slave_configure_parameter(
+	current_value_address := ADR(CONVERSION_this.product_name),
+	configured_value_address := NULL,
+	length := SIZEOF(CONVERSION_this.product_name),
+	_type := ADST_STRING,
+	coe_index := 16#0012,
+	coe_sub_index := 16#00,
+	readable := TRUE,
+	writeable := FALSE,
+	to_check := FALSE,
+	CONVERSION_this := CONVERSION_this);
+
+iol_slave_configure_parameter(
+	current_value_address := ADR(CONVERSION_this.product_id),
+	configured_value_address := NULL,
+	length := SIZEOF(CONVERSION_this.product_id),
+	_type := ADST_STRING,
+	coe_index := 16#0013,
+	coe_sub_index := 16#00,
+	readable := TRUE,
+	writeable := FALSE,
+	to_check := FALSE,
+	CONVERSION_this := CONVERSION_this);
+
+
+iol_slave_configure_parameter(
+	current_value_address := ADR(CONVERSION_this.hardware_revision),
+	configured_value_address := NULL,
+	length := SIZEOF(CONVERSION_this.hardware_revision),
+	_type := ADST_STRING,
+	coe_index := 16#0016,
+	coe_sub_index := 16#00,
+	readable := TRUE,
+	writeable := FALSE,
+	to_check := FALSE,
+	CONVERSION_this := CONVERSION_this);
+
+iol_slave_configure_parameter(
+	current_value_address := ADR(CONVERSION_this.firmware_revision),
+	configured_value_address := NULL,
+	length := SIZEOF(CONVERSION_this.firmware_revision),
+	_type := ADST_STRING,
+	coe_index := 16#0017,
+	coe_sub_index := 16#00,
+	readable := TRUE,
+	writeable := FALSE,
+	to_check := FALSE,
+	CONVERSION_this := CONVERSION_this);
+
+
+(* CUSTOM PARAMETERS CONFIGURATION *)
+
+iol_slave_configure_parameter(
+	current_value_address := ADR(data.teach_in_state),
+	configured_value_address := NULL,
+	length := SIZEOF(data.teach_in_state),
+	_type := ADST_UINT8,
+	coe_index := 16#003B,
+	coe_sub_index :=16#00,
+	readable := TRUE,
+	writeable := FALSE,
+	to_check := FALSE,
+	CONVERSION_this := CONVERSION_this);
+	
+iol_slave_configure_parameter(
+	current_value_address := ADR(data.teach_in_channel),
+	configured_value_address := ADR(data.teach_in_channel),
+	length := SIZEOF(data.teach_in_channel),
+	_type := ADST_UINT8,
+	coe_index := 16#003A,
+	coe_sub_index :=16#00,
+	readable := TRUE,
+	writeable := TRUE,
+	to_check := TRUE, (* to be evaluated *)
+	CONVERSION_this := CONVERSION_this);
+	
+iol_slave_configure_parameter(
+	current_value_address := ADR(data.sender_configuration),
+	configured_value_address := ADR(data.sender_configuration),
+	length := SIZEOF(data.sender_configuration),
+	_type := ADST_UINT8,
+	coe_index := 16#0061,
+	coe_sub_index :=16#00,
+	readable := TRUE,
+	writeable := TRUE,
+	to_check := TRUE, (* to be evaluated *)
+	CONVERSION_this := CONVERSION_this);
+	
+iol_slave_configure_parameter(
+	current_value_address := ADR(data.Pin2_configuration),
+	configured_value_address := ADR(data.Pin2_configuration),
+	length := SIZEOF(data.Pin2_configuration),
+	_type := ADST_UINT8,
+	coe_index := 16#0079,
+	coe_sub_index :=16#00,
+	readable := TRUE,
+	writeable := TRUE,
+	to_check := TRUE, (* to be evaluated *)
+	CONVERSION_this := CONVERSION_this);
+
+iol_slave_configure_parameter(
+	current_value_address := ADR(data.quality_of_teach),
+	configured_value_address := NULL,
+	length := SIZEOF(data.quality_of_teach),
+	_type := ADST_UINT8,
+	coe_index := 16#0072,
+	coe_sub_index :=16#00,
+	readable := TRUE,
+	writeable := FALSE,
+	to_check := FALSE, (* to be evaluated *)
+	CONVERSION_this := CONVERSION_this);
+	
+iol_slave_configure_parameter(
+	current_value_address := ADR(data.system_state),
+	configured_value_address := NULL,
+	length := SIZEOF(data.system_state),
+	_type := ADST_UINT8,
+	coe_index := 16#00E2,
+	coe_sub_index :=16#00,
+	readable := TRUE,
+	writeable := FALSE,
+	to_check := FALSE, (* to be evaluated *)
+	CONVERSION_this := CONVERSION_this);
+
+
+CONVERSION_this.CONVERSION_private.last_info_data_index := 5;
+
+(*** End parameter configuration ***)
+
+iol_slave_configuration_completed(
+	parameters_ptr := ADR(data),
+	parameters_struct_size := SIZEOF(data),
+	CONVERSION_this := CONVERSION_this);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

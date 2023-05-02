@@ -1,0 +1,140 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_case_main_services_breakers" Id="{d379275b-709f-4ef0-9fc1-5407a7dbcd5a}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_case_main_services_breakers
+VAR
+  psw1_monitor_dchk_shd : digital_check_shadow;
+  psw1_monitor_di_shd : digital_input_shadow;
+  psw2_monitor_dchk_shd : digital_check_shadow;
+  psw2_monitor_di_shd : digital_input_shadow;
+  psw3_monitor_dchk_shd : digital_check_shadow;
+  psw3_monitor_di_shd : digital_input_shadow;
+  psw4_monitor_dchk_shd : digital_check_shadow;
+  psw4_monitor_di_shd : digital_input_shadow;
+  psw5_monitor_dchk_shd : digital_check_shadow;
+  psw5_monitor_di_shd : digital_input_shadow;
+  psw6_monitor_dchk_shd : digital_check_shadow;
+  psw6_monitor_di_shd : digital_input_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{acb8c600-dcb4-46dd-9003-858208b6b6f8}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	digital_check_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_services_breakers.psw1_monitor_dchk, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= psw1_monitor_dchk_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_services_breakers.psw1_monitor_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= psw1_monitor_di_shd);
+
+	digital_check_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_services_breakers.psw2_monitor_dchk, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= psw2_monitor_dchk_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_services_breakers.psw2_monitor_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= psw2_monitor_di_shd);
+
+	digital_check_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_services_breakers.psw3_monitor_dchk, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= psw3_monitor_dchk_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_services_breakers.psw3_monitor_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= psw3_monitor_di_shd);
+
+	digital_check_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_services_breakers.psw4_monitor_dchk, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= psw4_monitor_dchk_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_services_breakers.psw4_monitor_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= psw4_monitor_di_shd);
+
+	digital_check_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_services_breakers.psw5_monitor_dchk, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= psw5_monitor_dchk_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_services_breakers.psw5_monitor_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= psw5_monitor_di_shd);
+
+	digital_check_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_services_breakers.psw6_monitor_dchk, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= psw6_monitor_dchk_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_services_breakers.psw6_monitor_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= psw6_monitor_di_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	digital_check_shadow_cycle(psw1_monitor_dchk_shd);
+	digital_input_shadow_cycle(psw1_monitor_di_shd);
+	digital_check_shadow_cycle(psw2_monitor_dchk_shd);
+	digital_input_shadow_cycle(psw2_monitor_di_shd);
+	digital_check_shadow_cycle(psw3_monitor_dchk_shd);
+	digital_input_shadow_cycle(psw3_monitor_di_shd);
+	digital_check_shadow_cycle(psw4_monitor_dchk_shd);
+	digital_input_shadow_cycle(psw4_monitor_di_shd);
+	digital_check_shadow_cycle(psw5_monitor_dchk_shd);
+	digital_input_shadow_cycle(psw5_monitor_di_shd);
+	digital_check_shadow_cycle(psw6_monitor_dchk_shd);
+	digital_input_shadow_cycle(psw6_monitor_di_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

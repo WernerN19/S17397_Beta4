@@ -1,0 +1,453 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_discharge_reject" Id="{cc9127e5-8ad9-476f-908b-367cfd0333d9}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+ 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+ 
+
+============= REVISIONS ===============
+Date        Version         Author          Description             
+----------    -------        ------------      --------------------------------------------
+2019/04/05     0000.00         M.Grasso        Creation of the PRG
+
+ 
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_discharge_reject
+VAR
+        
+    prc:                                            	process;
+    prc_path:                                        	STRING;
+    
+    reject_ftrig:                                    	F_TRIG;
+    di:                                             	Digital_input;
+    reject_active:                                    	BOOL;
+    reject_belt_run_delay:                             	Timer;
+
+    status:                                         	STRING;
+    start_reject:                                   	BOOL;
+	trigger:                                         	BOOL;
+	MODSORT_reject:                                 	BOOL;
+    MODSORT_fwd:                                     	BOOL;
+	reject_confirm:                                 	TON;
+	start_reject_belt:                                	BOOL;
+    reject_confirmed:                                 	BOOL;
+    case_at_reject:                                  	INT:=28;
+	open_major_LS_detected: 							BOOL := FALSE;
+	open_major_OS_detected:								BOOL := FALSE;
+
+	open_trailing_minor:								BOOL;
+	Discharge_reject_count:								DINT;
+	timer1:												TOF;
+	timer1_value:									TIME := T#5S;
+	time_complete1: 									BOOL;
+	open_leading_minor: 								BOOL;
+	Startup_run_ton: 									Ton;
+	startup_run_condition: 								BOOL;
+	modsort_belt_speed_analog_reference_ao:             analog_output;
+    speed_value_nvr: 									REAL;
+	stopping_run_ton: 									Ton;
+	stop_run_condition: 								BOOL;
+	suspend_run_ton: 									TON;
+	suspend_run_condition: 								BOOL;
+END_VAR
+VAR CONSTANT
+    MOTOR_MAX_VELOCITY_DEGPS:                        	LREAL := 9600;
+    MOTOR_MIN_VELOCITY_DEGPS:                         	LREAL := 100;
+    MOTOR_MAX_ACCELLERATION_DEGPS2:                    	LREAL := 4800;
+    MOTOR_MAX_DECELLERATION_DEGPS2:                    	LREAL := 4800;
+    MOTOR_MAX_JERK_DEGPS3:                            	LREAL := 100000000; 
+    MOTOR_MAX_FOLLOWING_ERROR_DEG:                    	LREAL := 2;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+ 
+
+_object_manager();
+
+ 
+
+IF NOT objects_running()
+THEN
+    RETURN;    
+END_IF
+
+ 
+
+_read_process_image();
+
+ 
+
+_mode_manager();
+
+ 
+
+_set_runtime_properties();
+
+ 
+
+(********************************* BODY *********************************)
+(* Handles stops for reject belt and Modsort Motors to turnoff when machine is not in execute *)
+IF  (
+	axis_is_moving(csp_main_motorization_virtualManager.axis) 
+	OR 
+	NOT stop_run_condition
+	)
+	AND NOT csp.o_machine_is_emergency_stopped
+THEN 
+ 	speed_value_nvr := csp_main_motorization_manager.motm.actual_velocity * 200;
+ELSE
+	speed_value_nvr := 0;
+END_IF
+
+analog_output_electrical_write(
+    electrical_value := speed_value_nvr,
+    conversion_THIS := modsort_belt_speed_analog_reference_ao);
+ 
+IF 	reject_confirmed
+THEN
+    modsort_reject := FALSE;
+    digital_output_reset(conversion_this:= csp_case_discharge_reject_modsort.MODSORT_REJECT_RUN_do); //stops modosort when machine is stopped
+END_IF
+
+(*Latches in open flap detected when in window and open flap PE is blocked *)
+IF 	((csp_case_virtualMaster.axis.actual_position > csp_case_openFlap_sensors.OpenMajorFlapChkBeginPhase)
+	AND
+	(csp_case_virtualMaster.axis.actual_position < csp_case_openFlap_sensors.OpenMajorFlapChkEndPhase))
+THEN
+	IF	NOT digital_input_is_active(csp_case_openFlap_sensors.open_flap_ls_di)
+	THEN
+		open_major_LS_detected :=TRUE;
+	END_IF
+	
+	IF	NOT digital_input_is_active(csp_case_openFlap_sensors.open_flap_os_di)
+	THEN
+		open_major_OS_detected :=TRUE;
+	END_IF
+ END_IF
+ 
+ 
+(* Resets open flap detected latch *)
+IF 	open_major_LS_detected
+ 	AND axis_get_actual_modulo_position(csp_case_transport_virtualMaster.axis) > 350 //resets open major detected before next case
+THEN
+	open_major_LS_detected := FALSE;
+END_IF
+
+(* Resets open flap detected latch *)
+IF 	open_major_OS_detected
+ 	AND axis_get_actual_modulo_position(csp_case_transport_virtualMaster.axis) > 350 //resets open major detected before next case
+THEN
+	open_major_OS_detected := FALSE;
+END_IF
+
+(* LATCHES BIT FOR OPEN TRAILING MINOR *)
+IF 	csp_case_transport_virtualMaster.axis.actual_position > csp_case_openFlap_sensors.open_trailing_minor_begin_phase
+	AND csp_case_transport_virtualMaster.axis.actual_position < csp_case_openFlap_sensors.open_trailing_minor_end_phase
+THEN
+	IF digital_input_is_active(csp_case_openFlap_sensors.open_trailing_minor_di)
+	THEN
+		open_trailing_minor := TRUE;
+	END_IF
+END_IF
+
+(* Resets open trailing minor detected latch *)
+IF 	open_trailing_minor
+	AND axis_get_actual_modulo_position(csp_case_transport_virtualMaster.axis) > 350 //resets open major detected before next case
+THEN
+ 	open_trailing_minor := FALSE;
+END_IF
+
+(* LATCHES BIT FOR OPEN LEADING MINOR *)
+IF 	csp_case_transport_virtualMaster.axis.actual_position > csp_case_openFlap_sensors.open_leading_minor_begin_phase
+	AND csp_case_transport_virtualMaster.axis.actual_position < csp_case_openFlap_sensors.open_leading_minor_end_phase
+THEN
+	IF digital_input_is_active(csp_case_openFlap_sensors.open_trailing_minor_di)
+	THEN
+		open_leading_minor := TRUE;
+	END_IF
+END_IF
+
+(* Resets open OPEN LEADING MINOR detected latch *)
+IF 	open_leading_minor
+	AND axis_get_actual_modulo_position(csp_case_transport_virtualMaster.axis) > 350 //resets open major detected before next case
+THEN
+ 	open_leading_minor := FALSE;
+END_IF
+
+(* Sets shift register if detected *)
+IF open_trailing_minor
+THEN
+	shift_register_step_set_reject_reason(
+		reject_reason_to_set := TRAILING_MINOR_FLAP_OPEN,
+		step_id := 28,
+		CONVERSION_this := csp_case_main_statistics.sr);
+END_IF
+
+(* Sets shift register if detected *)
+IF 	open_leading_minor
+THEN
+	shift_register_step_set_reject_reason(
+		reject_reason_to_set := LEADING_MINOR_FLAP_OPEN,
+		step_id := 28,
+		CONVERSION_this := csp_case_main_statistics.sr);
+END_IF
+
+(* Sets shift register if detected *)
+IF 	open_major_LS_detected
+THEN
+	shift_register_step_set_reject_reason(
+		reject_reason_to_set := OPEN_FLAP_LOADER_SIDE,
+		step_id := 28,
+		CONVERSION_this := csp_case_main_statistics.sr);
+END_IF
+
+(* Sets shift register if detected *)
+IF 	open_major_OS_detected
+THEN	
+	shift_register_step_set_reject_reason(
+		reject_reason_to_set := OPEN_FLAP_OPERATOR_SIDE,
+		step_id := 28,
+		CONVERSION_this := csp_case_main_statistics.sr);
+END_IF
+
+(* Shift Register detects if there is a reject *)
+IF shift_register_step_has_any_reject_reason(
+	step_id:= case_at_reject, 
+	CONVERSION_this:= csp_case_main_statistics.sr)
+THEN
+	reject_active := TRUE;
+ELSE
+	reject_active:= FALSE;
+END_IF
+             
+digital_input_read(trigger, csp_case_discharge_reject_sensors.reject_trigger_di); // sets 'trigger' as bool for digital input OF PhotoEye
+
+reject_ftrig(CLK := trigger); // falling edge of trigger //starts reject on trigger if reject_active (ON)
+
+reject_confirm(IN:=start_reject , PT:=T#2S , Q=> reject_confirmed , ET=> );// how long to run reject operation or setup with Photoeye for confirmation
+
+IF reject_active AND reject_ftrig.Q    //start sequence when PE triggered
+THEN
+	start_reject := TRUE;
+END_IF
+    
+(* Resets start_reject to end the reject sequence *)    
+IF reject_confirmed 
+THEN     (*resets bit when reject confirmed (2 Second Timer); works for max speed at 27.5 cpm with cycle being 2.18 seconds *)
+    start_reject := FALSE;    
+END_IF            
+
+(********************************* MODSORT LOGIC *********************************)
+stopping_run_ton(IN:= NOT axis_is_moving(csp_main_motorization_virtualManager.axis) , PT:=T#10S , Q=> stop_run_condition , ET=> );
+suspend_run_ton(
+				IN:= motorization_manager_is_held(csp_main_motorization_manager.motm) OR motorization_manager_is_suspended(csp_main_motorization_manager.motm),
+				PT:=T#20S,
+				Q=> suspend_run_condition,
+				ET=> );
+ 
+IF 	(
+		(
+			axis_is_moving(csp_main_motorization_virtualManager.axis) 
+			OR
+			NOT stop_run_condition //becomes true after moto VM stopped for 2 seconds
+		)
+		AND NOT suspend_run_condition //becomes true after 5 seconds of being in suspend or held state
+	)
+	AND NOT csp.o_machine_is_emergency_stopped
+THEN
+	IF digital_output_is_active(conversion_this:= csp_case_discharge_reject_modsort.MODSORT_REJECT_RUN_do)
+	THEN
+		digital_output_reset(conversion_this:= csp_case_discharge_reject_modsort.MODSORT_FWD_RUN_do);
+		modsort_fwd := FALSE; //testing
+	ELSE
+		modsort_fwd := TRUE; //testing
+		digital_output_set(conversion_this:= csp_case_discharge_reject_modsort.MODSORT_FWD_RUN_do);
+	END_IF    
+ELSE
+	modsort_fwd := FALSE; //testing
+	digital_output_reset(conversion_this:= csp_case_discharge_reject_modsort.MODSORT_FWD_RUN_do);
+END_IF
+
+(* If reject sequence activated, and machine running, then run modsort reject motor until confirmed with (2 second) timer.*)    
+IF 	reject_active 
+	AND start_reject 
+	AND NOT reject_confirmed    //reject once started until reject_confirm TRUE
+THEN
+	modsort_reject := TRUE;
+	digital_output_set(conversion_this:= csp_case_discharge_reject_modsort.MODSORT_REJECT_RUN_do);
+END_IF    
+    
+start_reject_belt := reject_active//start_reject                             //conditions for starting reject belt
+                    OR digital_output_is_active(conversion_this:= csp_case_discharge_reject_modsort.MODSORT_REJECT_RUN_do);          
+        
+
+(********************************* Belt Run duration *********************************)
+							
+timer1.IN := trigger;
+time_complete1 := NOT timer1.Q;
+timer1(PT := timer1_value);
+
+(********************************* REJECT BELT LOGIC *********************************)
+Startup_run_ton(IN:=axis_is_moving(csp_main_motorization_virtualManager.axis) , PT:=T#5S , Q=> startup_run_condition , ET=> );
+
+IF 	(
+		start_reject_belt 
+		AND NOT time_complete1
+	)
+	OR
+	(
+		axis_is_moving(csp_main_motorization_virtualManager.axis)
+		AND NOT startup_run_condition
+	)
+THEN
+	axis_set_override(                        //overides axis velocity to the set JOG speed, JOG set at 10 in csp_case_discharge_belts_conveyor (TEST SPEED - Austin)
+		speed_override_percent     := 30,
+		CONVERSION_this         := csp_case_discharge_reject_belt.axis);//csp_case_discharge_belts_conveyor.axis
+	status := 'Belt moving';
+ELSE
+	axis_set_override(          
+		speed_override_percent     := 0,
+		CONVERSION_this         := csp_case_discharge_reject_belt.axis);
+	status := 'Stopped';
+END_IF
+
+
+(************************************************************************)
+
+Discharge_Reject_Count :=
+(
+csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.reject_reasons_counters[16]
++
+csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.reject_reasons_counters[17]
++
+csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.reject_reasons_counters[18]
++
+csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.reject_reasons_counters[19]
++
+csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.reject_reasons_counters[20]
++
+csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.reject_reasons_counters[21]
++
+csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.reject_reasons_counters[22]
++
+csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.reject_reasons_counters[23]
++
+csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.reject_reasons_counters[24]
+);
+(************************************************************************)
+
+
+ 
+
+_handle_messages();
+
+ 
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{71e211cd-fb70-4d87-a9f7-9dfbc73445ea}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{4543a37a-300b-48c8-ab27-83ec6540ff00}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{ace098fb-b7f6-44ab-9874-3d1343cfb20a}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{c2ea49a3-ef9d-4289-be41-fd228af8fbac}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_discharge_reject.prc', 
+		process						:= csp_case_discharge.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	timer_init(
+    	object_name:= 'csp_case_discharge_reject.reject_belt_run_delay',
+    	process:= prc,
+    	conversion_THIS:= reject_belt_run_delay);
+
+ analog_output_init(
+            object_name            	:= '_modsort_belt_speed_analog_reference_ao',
+            field_min            	:= 0,                                (* Campo lettura modulo Beckhoff, unità - min value *)
+            field_max             	:= MAX_INT_VALUE,                    (* Campo lettura modulo Beckhoff, unità - max value *)
+            field_ele_xa        	:= 0,
+            field_ele_ya        	:= 0,
+            field_ele_xb        	:= MAX_INT_VALUE,
+            field_ele_yb        	:= 10000,
+            electrical_min        	:= 0,                                (* Saturazione - valore minimo in uscita, mV *)
+            electrical_max        	:= 10000,                            (* Saturazione - valore massimo in uscita, mV *)
+            ele_phy_xa           	:= 0,        (* mV *)
+            ele_phy_ya            	:= 0,        (* PPM *)
+            ele_phy_xb            	:= 10000,    (* mV *)
+            ele_phy_yb            	:= 10000,    (* PPM *)
+            physical_min        	:= 0,        (* rpm *)
+            physical_max         	:= 5000,    (* rpm *)
+            process                	:= prc,
+            conversion_THIS         := modsort_belt_speed_analog_reference_ao
+            ); 
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+    analog_output_cycle(conversion_THIS := modsort_belt_speed_analog_reference_ao);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{645c72f4-6f51-4030-b323-308676f12394}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{5b3830f7-91d8-45c7-88e4-3816aa630846}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{61e63fca-b4bc-49db-93e2-7ac0a9213cf3}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{ed3b0d14-5492-4197-9e2e-6952c74c6311}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

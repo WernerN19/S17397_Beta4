@@ -1,0 +1,238 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer" Id="{6d56858b-43ee-4041-9fff-143990deb0b0}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	disable_req:									BOOL;
+	virtual_disable_req:							BOOL;
+	
+	disable_all_axes:								BOOL := FALSE; (*$P $*)
+	manual_disable_all_axes:						BOOL := FALSE;
+	
+	transfer_cammed_motcond:						motorization_conditioner;
+	
+	PhaseOff_MainMoto_Transfer_VM: 					LREAL;
+	PhaseOff_TransferVM_Crosspush_VM: 				LREAL;
+	PhaseOff_TransferVM_Accumulator_VM: 			LREAL;
+	Gear_TransferVM_AcculatorVM: 					LREAL;
+	PhaseOff_AccumulatorVM_Upstacker_VM: 			LREAL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(* MACHINE COMMANDS *)
+IF csp_transfer_main_services_pushbuttons.reset_command
+THEN
+	machine_reset(csp.mch);
+END_IF
+
+IF csp_transfer_main_services_pushbuttons.start_command
+THEN
+	machine_start(csp.mch);
+END_IF
+
+
+(* Main disable request for real axes *)
+disable_req := 	NOT machine_is_running(csp.mch)
+				//OR
+				//csp.i_reset_button
+				//)
+				//AND
+				//process_is_ready(prc)
+				AND machine_is_stop_emergency_active(csp.mch)
+				AND csp_main_motorization_virtualManager.axis.actual_velocity = 0;
+
+				
+				
+(* Verifies tranfer virtual is cam engaged and allows motorization to start *)
+IF axis_is_cam_engaged(csp_transfer_virtualMaster.axis)
+THEN
+	motorization_conditioner_start_done(transfer_cammed_motcond);
+ELSE
+	motorization_conditioner_stop_done(transfer_cammed_motcond);
+END_IF
+
+
+IF csp_main_motorization.abort_axes
+THEN
+	disable_all_axes := TRUE;
+END_IF
+
+
+(* DISABLE VIRTUAL AXES *)
+IF disable_all_axes
+	OR manual_disable_all_axes
+	OR
+	(	
+		( (* TRANSFER VIRTUAL MASTER CONNECTION DONE + PHASE DONE BUT DISABLED *)
+			csp_transfer_virtualMaster.phase_done
+			AND
+			csp_transfer_virtualMaster.connection_done
+			AND
+			axis_is_disabled(csp_transfer_virtualMaster.axis)
+		)
+		OR
+		( (* ACCUMULATOR VIRTUAL MASTER CONNECTION DONE + PHASE DONE BUT DISABLED *)
+			csp_transfer_accumulator_virtualMaster.phase_done
+			AND
+			csp_transfer_accumulator_virtualMaster.connection_done
+			AND
+			axis_is_disabled(csp_transfer_accumulator_virtualMaster.axis)
+		)
+		OR
+		( (* UPSTACKER VIRTUAL MASTER CONNECTION DONE + PHASE DONE BUT DISABLED *)
+			csp_transfer_upstacker_virtualMaster.phase_done
+			AND
+			csp_transfer_upstacker_virtualMaster.connection_done
+			AND
+			axis_is_disabled(csp_transfer_upstacker_virtualMaster.axis)
+		)
+		OR
+		( (* CROSSPUSHER VIRTUAL MASTER CONNECTION DONE + PHASE DONE BUT DISABLED *)
+			csp_transfer_crosspusher_virtualMaster.phase_done
+			AND
+			csp_transfer_crosspusher_virtualMaster.connection_done
+			AND
+			axis_is_disabled(csp_transfer_crosspusher_virtualMaster.axis)
+		)
+	)
+THEN
+	disable_all_axes := FALSE;
+	manual_disable_all_axes := FALSE;
+	virtual_disable_req := TRUE;
+ELSE
+	virtual_disable_req := FALSE;
+END_IF
+		
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{d2365a1c-d7a7-4b61-85bb-b9936714724d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{e4d1ff09-9894-47f8-b38d-20e500af21dd}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{670ba494-82ae-4e91-9f2d-3aac0ee4ed46}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{81bf9df3-e850-4637-848f-83491abd22cc}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	process_init(
+		object_name					:= 'csp_transfer.prc', 
+		machine						:= csp.mch, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	
+	motorization_conditioner_init(
+		object_name								:=	CONCAT(prc_path, '_transfer_cammed_motcond'),
+		velocity_limit							:=	100.0,
+		velocity_limit_active					:=	FALSE,
+		idle_handshake_active					:=	FALSE,
+		execute_handshake_active				:=	FALSE,
+		hold_handshake_active					:=	FALSE,
+		suspend_handshake_active				:=	FALSE,
+		complete_handshake_active				:=	FALSE,
+		abort_handshake_active					:=	FALSE,
+		stop_handshake_active					:=	FALSE,
+		origin									:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager									:=	csp_main_motorization_manager.motm,
+		process									:=	prc,
+		CONVERSION_this							:=	transfer_cammed_motcond);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	motorization_conditioner_cycle(transfer_cammed_motcond);
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{b8331d05-94d6-4c1c-a47c-552b56eaddb7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{5fd75d06-1b5d-4cb8-b1d9-da3a46f7f2ec}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{721327f0-aa71-4e78-b97a-5b360bb8a5bd}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{8dc781b1-bdbf-45ce-b5b8-f5cf4a9e7cf1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

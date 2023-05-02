@@ -1,0 +1,99 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="FB_MyQ_REAL_OOP_v2" Id="{48115785-36c3-0733-1ce3-db6e2fcb4227}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_MyQ_REAL_OOP_v2
+VAR CONSTANT
+	QUEUESIZE: UDINT := 10;
+END_VAR
+VAR
+	HoldQueue: ARRAY[1..QUEUESIZE] OF REAL;
+	ProcessQueue: ARRAY[1..QUEUESIZE] OF REAL;
+	Elements: UDINT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[]]></ST>
+    </Implementation>
+    <Method Name="M_Copy" Id="{978fa762-a161-02fe-108f-f6bafdc31aaf}">
+      <Declaration><![CDATA[METHOD M_Copy : ARRAY[1..QUEUESIZE] OF REAL
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[MEMCPY(ADR(M_Copy[1]), ADR(ProcessQueue[1]), SIZEOF(M_Copy));
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_Insert" Id="{ad20217e-4848-0d32-37a5-cb74032d2370}">
+      <Declaration><![CDATA[METHOD M_Insert : BOOL
+VAR_INPUT
+	NewValue: REAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF Elements < QUEUESIZE THEN
+	Elements := Elements + 1;
+	ProcessQueue[Elements]:= NewValue;
+ELSE
+	Elements := QUEUESIZE;	
+	MEMCPY(ADR(HoldQueue[1]), ADR(ProcessQueue[1]), SIZEOF(HoldQueue)); 
+	MEMCPY(ADR(ProcessQueue[1]), ADR(HoldQueue[2]), SIZEOF(ProcessQueue)-SIZEOF(REAL));
+	MEMSET(ADR(ProcessQueue[Elements]), 0, SIZEOF(REAL));
+	ProcessQueue[Elements]:= NewValue;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_Peek" Id="{e6614b49-a211-0974-0057-c9cc0775cfcd}">
+      <Declaration><![CDATA[METHOD M_Peek : REAL
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF Elements > 0 THEN
+	M_Peek := ProcessQueue[1];
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_Remove" Id="{747d87a7-b45f-0031-1c98-cfbff0e71bcf}">
+      <Declaration><![CDATA[METHOD M_Remove : REAL
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF Elements > 0 THEN
+	M_Remove := ProcessQueue[1];
+	MEMCPY(ADR(HoldQueue[1]), ADR(ProcessQueue[1]), SIZEOF(HoldQueue)); 
+	MEMCPY(ADR(ProcessQueue[1]), ADR(HoldQueue[2]), SIZEOF(ProcessQueue)-SIZEOF(REAL));
+	MEMSET(ADR(ProcessQueue[Elements]), 0, SIZEOF(REAL));
+	Elements := Elements - 1;
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="M_Reset" Id="{7dfe5407-945e-0527-3df7-4f4793bfe8ae}">
+      <Declaration><![CDATA[METHOD M_Reset : BOOL
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[MEMSET(ADR(HoldQueue[1]), 0, SIZEOF(HoldQueue));
+MEMSET(ADR(ProcessQueue[1]), 0, SIZEOF(ProcessQueue));	
+Elements := 0;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Property Name="P_Count" Id="{90c80285-a92f-0bc1-1d0a-2f7e1829662d}">
+      <Declaration><![CDATA[PROPERTY P_Count : UDINT
+]]></Declaration>
+      <Get Name="Get" Id="{a34e4d9d-ef80-0b59-22da-d31801e0689e}">
+        <Declaration><![CDATA[]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[P_Count:=Elements;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+    <Property Name="P_FIFOSize" Id="{76cade04-bf17-05ac-1399-eee8d044752d}">
+      <Declaration><![CDATA[PROPERTY P_FIFOSize : UDINT
+]]></Declaration>
+      <Get Name="Get" Id="{963052b7-ca47-0040-0099-73793c91764e}">
+        <Declaration><![CDATA[]]></Declaration>
+        <Implementation>
+          <ST><![CDATA[P_FIFOSize:=QUEUESIZE;]]></ST>
+        </Implementation>
+      </Get>
+    </Property>
+  </POU>
+</TcPlcObject>

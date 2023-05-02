@@ -1,0 +1,213 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_arm_wrist" Id="{e47ad538-126a-4594-9d55-e4b18d249ce7}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_arm_wrist
+VAR
+		
+	prc:												process;
+	prc_path:											STRING;
+	
+	axis:												axis;
+	servo_on_condition:									BOOL;
+	torque_limit:										INT := 2000;    (*$P $*)
+	torque_limit_old:									INT;
+	
+    enable_delay:                                       TON;
+	Torque_force_constant: 								LREAL := 0.98;
+
+	
+	
+
+END_VAR
+
+VAR CONSTANT
+	MOTOR_MAX_VELOCITY_DEGPS:						LREAL := 9600;
+	MOTOR_MAX_ACCELLERATION_DEGPS2:					LREAL := 4800;
+	MOTOR_MAX_DECELLERATION_DEGPS2:					LREAL := 4800;
+	MOTOR_MAX_JERK_DEGPS3:							LREAL := 100000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:					LREAL := 2;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT:
+		IF axis_get_mode(axis) = MODE_TEST
+		THEN
+			safety_integrated_series_close(csp_case_main_safety_drives_SD8300.chA_smes_sis);
+		END_IF
+		RETURN;
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+axis.actual_torque := (axis.actual_current * Torque_force_constant)/1000;
+
+// Sets the torque limit for the case feed wrist
+IF torque_limit <> Torque_limit_old
+THEN
+	 IF soe_drive_channel_write_parameter(
+		channel:=csp_case_feed_arm_wrist.axis.soe_drive_channel, 
+		idn:= S_0_IDN + 92, 
+		data_element:=soe_drive_element_value , 
+		data_source:= ADR(torque_limit), 
+		data_lenght:= SIZEOF(torque_limit), 
+		CONVERSION_this:= csp_case_feed_arm_wrist.axis.soe_drive^)= SOE_DRIVE_RETURN_VALUE_DONE 
+	THEN	
+		torque_limit_old := Torque_limit;
+	END_IF
+END_IF	
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{6d66e51f-00bb-4a69-ac61-15c404cb92c5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{a4c04bab-13b7-47b1-a0dc-54ffed693201}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{c0db0030-c564-4d25-bfd2-3545613643c9}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{e1231e14-f906-4d2c-8204-a6f8fb3403eb}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name									:= 'csp_case_feed_arm_wrist.prc', 
+		process										:= csp_case_feed_arm.prc, 
+		CONVERSION_this								:= prc);
+		
+	prc_path 										:= process_get_path(prc);
+	
+(* axis smes *)
+	IF csp_main_configurator.Physical_hw
+	THEN	
+		axis_init(
+			object_name								:= CONCAT(prc_path, '_axis'), 
+			axis_type								:= AXIS_TYPE_SERVO, 
+			encoder_scaling_factor					:= G_SERVO_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo									:= G_NO_MODULO_DEG, 
+			process									:= prc, 
+			CONVERSION_this							:= axis);
+			
+		axis_add_safety_integrated_series(
+			safety_integrated_series 				:= csp_case_main_safety_drives_SD8300.chA_smes_sis,
+			CONVERSION_this							:= axis);
+			
+		axis_init_absolute_encoder_preset(
+			position                                := 66.5,
+			CONVERSION_this                         := axis);
+			
+			
+	ELSE
+		axis_init(
+			object_name								:= CONCAT(prc_path, '_axis'), 
+			axis_type								:= AXIS_TYPE_VIRTUAL, 
+			encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo									:= G_MODULO_360_DEG, 
+			process									:= prc, 
+			CONVERSION_this							:= axis);		
+			
+	END_IF
+	
+	axis_set_max_dynamic(
+		reference_velocity							:=	MOTOR_MAX_VELOCITY_DEGPS,
+		velocity									:=	MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration								:=	MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration								:=	MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk										:=	MOTOR_MAX_JERK_DEGPS3,
+		following_error								:=	MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this								:=	axis);
+		
+	axis_add_soe_drive(
+		channel										:=	SOE_DRIVE_CHANNEL_A,
+		soe_drive									:=	csp_case_main_drives.SD8300_drv,
+		CONVERSION_this								:=	axis);
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{24b7f3cf-c794-4a88-81c8-6a468dc1bf19}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{c09370a1-0bdc-47e0-abe7-914e3aeab1dc}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{f8001826-445c-42c6-a491-503ab488c5e5}">
+      <Implementation>
+        <ST><![CDATA[enable_delay(IN:=axis_is_ready_to_enable(axis) , PT:=T#2S , Q=> servo_on_condition , ET=> );]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{f96784a8-b426-4f8f-b745-1caedb4ac852}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

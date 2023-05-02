@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_reset_pendant_active" Id="{b494ccf0-ae7d-4aaf-a207-47cc678d786f}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Reset the pendant activation to ogject <b><i>this</i></b>.
+	The method returns <i>TRUE</i> if the command is accepted, otherwise it returns <i>FALSE</i>.
+$*)
+FUNCTION jog_manager_reset_pendant_active : BOOL
+VAR_INPUT	
+END_VAR
+VAR_IN_OUT
+    CONVERSION_this:		jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	NOT (descriptor_mode_is_operational(CONVERSION_this.descriptor)
+		(*OR
+		descriptor_mode_is_test(CONVERSION_this.descriptor)*))
+THEN
+	jog_manager_reset_pendant_active := FALSE;				(* command rejected *)
+ 	RETURN;
+END_IF
+
+parameter_overwrite_set_bool_value(FALSE, CONVERSION_this.pendant_active_pow);
+
+jog_manager_reset_pendant_active := TRUE;					(* command accepted *)]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

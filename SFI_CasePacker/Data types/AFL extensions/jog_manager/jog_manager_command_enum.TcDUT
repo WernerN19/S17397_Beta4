@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="jog_manager_command_enum" Id="{35e801e7-2069-49ed-9882-719d14ae7b83}">
+    <Declaration><![CDATA[TYPE
+	jog_manager_command_enum: (
+	JOG_MANAGER_CMD_NONE						:= 0,	(*$ No command assigned $*)
+	JOG_MANAGER_SET_ACTIVATION_CONDITION		:= 1,
+	JOG_MANAGER_RESET_ACTIVATION_CONDITION		:= 2,
+	JOG_MANAGER_STOP_ABSOLUTE_MOVEMENT			:= 3
+	) := JOG_MANAGER_CMD_NONE;
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

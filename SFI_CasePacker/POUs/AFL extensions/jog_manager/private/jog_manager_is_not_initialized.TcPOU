@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_is_not_initialized" Id="{f9b86204-d3ac-460e-b38a-c550c69bb50e}" SpecialFunc="None">
+    <Declaration><![CDATA[(* Function that returns if an object is not initialized. *)
+FUNCTION jog_manager_is_not_initialized : BOOL
+VAR_IN_OUT
+	CONVERSION_this:	jog_manager;	(* object reference *)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[jog_manager_is_not_initialized:=NOT CONVERSION_this.CONVERSION_private.initialized;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,345 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_infeed_accumulation_belt" Id="{e2f1a267-7bf9-4668-9bed-05405428eb08}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_infeed_accumulation_belt
+VAR
+	
+	prc:									process;
+	prc_path:								STRING;
+	
+	axis:									axis;
+	
+	actual_velocity_mms:					LREAL:=0.0;
+	velocity_req_mms:						LREAL:=0.0;
+	
+	
+	velocity_req_limited_mms:				LREAL:= 0.0;
+	override_percent:						REAL;
+	override_percentage_par:				REAL := 10; (*$P $*)
+
+	fsm_enable_condition:					BOOL;
+	fsm_status:								csp_transfer_infeed_accumulation_belt_status_enum;
+
+	torque_limit:							INT := 2000;    (*$P $*)
+	torque_limit_old:						INT;
+	servo_on_condition: BOOL;
+	enable_delay: TON;
+END_VAR
+
+VAR_INPUT
+	i_upstream_velocity:					LREAL;
+	disable_req:							BOOL:=FALSE;
+	fault_bool:								BOOL:=FALSE;
+END_VAR
+
+VAR CONSTANT
+	
+	CONSTANTS:								csp_transfer_infeed_constant_struct;
+
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT:
+		IF axis_get_mode(axis) = MODE_TEST
+		THEN
+			safety_integrated_series_close(csp_transfer_main_safety_drives_SD41700.chA_smes_sis);
+		END_IF
+		RETURN;
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+_set_runtime_properties();
+
+(*************************************************************************************
+**************************************************************************************)
+(*BODY*)
+// Sets the torque limit 
+IF torque_limit <> Torque_limit_old
+	THEN
+	 soe_drive_channel_write_parameter(
+		channel:=csp_transfer_infeed_accumulation_belt.axis.soe_drive_channel, 
+		idn:= S_0_IDN + 92, 
+		data_element:=soe_drive_element_value , 
+		data_source:= ADR(torque_limit), 
+		data_lenght:= SIZEOF(torque_limit), 
+		CONVERSION_this:= csp_transfer_infeed_accumulation_belt.axis.soe_drive^); // = SOE_DRIVE_RETURN_VALUE_DONE
+	torque_limit_old := Torque_limit;
+END_IF
+
+(*FSM Control*)
+fsm_enable_condition :=	NOT disable_req
+						AND
+						NOT fault_bool
+						AND
+						servo_on_condition
+						AND
+						axis_is_ok(FALSE, axis)
+						AND
+						process_is_ready(prc)
+						AND
+						process_subtree_is_ready(prc);
+
+
+IF	NOT fsm_enable_condition
+	AND
+	fsm_status <> CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_DISABLED
+	AND
+	fsm_status < CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_STOP_REQUEST;
+END_IF
+
+velocity_req_mms := i_upstream_velocity * (100 + override_percent) / 100;
+
+CASE fsm_status OF
+	
+	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_status := CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_DISABLED;
+        END_IF
+
+		
+	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_DISABLED:
+	
+		IF	fsm_enable_condition
+		THEN
+			fsm_status := CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_ENABLE_REQUEST;
+		END_IF;
+
+		
+	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_ENABLE_REQUEST:
+	
+ 	   	axis_enable(axis);
+		IF axis_enable(axis)
+		THEN
+			axis_set_override(
+				speed_override_percent 	:= 0,
+				CONVERSION_this 					:= axis);
+				
+			fsm_status	:=	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_ENABLING;
+		END_IF;
+
+		
+	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_ENABLING:
+	
+		IF	axis_is_standstill(axis)
+		THEN
+			fsm_status	:=	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_ENABLED;
+		END_IF;
+
+		
+	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_ENABLED:
+
+		IF velocity_req_mms > 0
+			AND csp_transfer_infeed_clamp.start_infeed_belts
+		THEN
+		
+			IF axis_move_velocity(
+				velocity		:=	1740,//velocity_req_mms,
+				acceleration	:=	2500,
+				deceleration	:=	2500,
+				jerk			:=	25000,
+				buffer_mode		:=	AXIS_BUFFER_MODE_ABORTING,
+				CONVERSION_this			:=	axis
+				)
+			THEN
+				fsm_status	:=	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_RUNNING;
+			END_IF
+		END_IF
+
+		
+	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_RUNNING:
+	
+		IF csp_transfer_infeed_clamp.start_infeed_belts
+		THEN
+		
+			velocity_req_limited_mms := velocity_req_mms; (*to monitor dynamic update coming from the upstream belt*)
+
+			velocity_req_limited_mms := MAX(velocity_req_limited_mms, 1740);
+			velocity_req_limited_mms := MIN(velocity_req_limited_mms, 0);
+		
+			override_percent := (velocity_req_mms / 1700 * 100);
+			actual_velocity_mms := velocity_req_mms;
+		ELSE
+			fsm_status := CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_STOP_REQUEST;
+		END_IF
+	
+		axis_set_override(
+			speed_override_percent := override_percent,
+			CONVERSION_this := axis
+			);
+			
+		
+	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_STOP_REQUEST:
+
+		axis_stop(
+		    deceleration 		:= 2500,
+		    jerk 				:= 25000,
+		    CONVERSION_this 	:= axis);
+
+		IF 	axis_is_standstill(axis)
+			OR
+			NOT axis_is_ok(FALSE, axis)
+			OR
+			axis_is_disabled(axis)
+		THEN
+			fsm_status := CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_DISABLE_REQUEST;
+		END_IF
+
+		
+	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_DISABLE_REQUEST:
+	
+   		axis_disable(axis);
+   		fsm_status := CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_DISABLING;
+
+		
+	CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_DISABLING:
+	
+        IF	axis_is_disabled(axis)
+        THEN
+            fsm_status := CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_DISABLED;
+        END_IF;
+
+END_CASE;
+
+(************************************************************************)
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{fa0bdee5-13a1-430a-9845-1e02a9e9b8c7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{1b763850-b963-48d9-ab1e-f4cb5045e3e3}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{ea73c476-6e54-4fcb-b4c4-a34650a9d7e0}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{5d940b5b-8bbe-4126-9eb8-a8e12e3cc896}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_transfer_infeed_accumulation_belt.prc', 
+		process									:= csp_transfer_infeed_accumulation.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+	
+	axis_init(
+		object_name								:= CONCAT(prc_path, '_axis'), 
+		axis_type								:= AXIS_TYPE_SERVO, 
+		encoder_scaling_factor					:= G_SERVO_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo									:= G_MODULO_360_DEG, 
+		process									:= prc, 
+		CONVERSION_this							:= axis);
+	
+	axis_set_max_dynamic(
+		reference_velocity						:=	CONSTANTS.MAX_VELOCITY_HZ,
+		velocity								:=	CONSTANTS.MAX_VELOCITY_HZ,
+		acceleration							:=	2500,
+		deceleration							:=	2500,
+		jerk									:=	25000,
+		following_error							:=	CONSTANTS.MAX_FOLLOWING_ERROR_MM,
+		CONVERSION_this							:=	axis);
+
+	axis_add_soe_drive(
+		channel									:=	SOE_DRIVE_CHANNEL_A,
+		soe_drive								:=	csp_transfer_main_drives.SD41700_drv,
+		CONVERSION_this							:=	axis);
+
+	IF csp_main_configurator.Physical_hw
+	THEN
+		axis_add_safety_integrated_series(
+			safety_integrated_series 			:= csp_transfer_main_safety_drives_SD41700.chA_smes_sis,
+			CONVERSION_this						:= axis);
+	END_IF
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{a0c3d61e-511b-4a77-8c13-010327041f0f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{8783fd35-4626-474e-88b8-96a2d8e03c36}">
+      <Implementation>
+        <ST><![CDATA[disable_req := csp_transfer_infeed_accumulation.disable_req;
+i_upstream_velocity := csp_transfer_infeed.accumulation_belt_rpm_req;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{041d0004-ad81-481b-b5b4-c4651a5ccea5}">
+      <Implementation>
+        <ST><![CDATA[enable_delay(IN:=axis_is_ready_to_enable(axis) , PT:=T#2S , Q=> servo_on_condition , ET=> );]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{fed20d77-3711-468a-bcb9-4435de2cf224}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

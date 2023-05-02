@@ -1,0 +1,248 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_main_safety_emergency" Id="{00c9e5c2-e599-426d-b262-29594b813ec5}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine notaus series
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/02/10 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref:= prc; $*)
+
+PROGRAM csp_case_main_safety_emergency
+VAR
+	prc:											process;
+	prc_path:										STRING;
+	
+	sig:											safety_integrated_group;		
+	HMI_button_sio:									safety_integrated_object; (*desc: ESTOP5011*)
+	sis:											safety_integrated_series;
+	delayed_sis:									safety_integrated_series;	
+	open_asm:										message;
+	
+	HMI_button_lamp_do:								digital_output;
+	HMI_Emergency_closed:							BOOL; (*$M $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_objects_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		;
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF	descriptor_get_reset_edge(prc.descriptor) 
+	//AND
+	//safety_integrated_series_is_safely_closed(sis)
+THEN
+	safety_integrated_series_close(sis);
+	safety_integrated_series_close(delayed_sis);
+END_IF
+
+IF safety_integrated_object_is_safely_closed (HMI_button_sio)
+THEN
+	HMI_Emergency_closed:=TRUE;
+ELSE
+	HMI_Emergency_closed:=FALSE;
+END_IF
+
+IF	safety_integrated_object_protection_is_open(HMI_button_sio)
+THEN
+	digital_output_set(HMI_button_lamp_do);
+ELSE
+	digital_output_reset(HMI_button_lamp_do);
+END_IF
+
+
+IF 	safety_integrated_series_is_safely_closed(sis)
+THEN
+	message_reset(open_asm);
+	safety_integrated_series_close(delayed_sis);
+ELSE
+	message_set(errorID_1 := 1, errorID_2 := 0, errorID_3 := 0, open_asm);
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{77cd7d58-41e8-4282-ba71-a8a07dd366c9}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{ae7a10b9-da09-47b6-b32a-a01405402861}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{44e0e9da-beb9-4c30-96b1-7a135848b6a9}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{fe14a6bc-7d2e-45da-adcf-e9b262814cd1}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+
+	sub_process_init(
+		object_name								:= 'csp_case_main_safety_emergency.prc', 
+		process									:= csp_case_main_safety.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+
+	 safety_integrated_group_init(
+        object_name 			:= CONCAT(prc_path, '_sig'),
+    	controller 				:= csp_case_main_safety_interface.SPLC5000_sic,
+        process 				:= prc,
+        CONVERSION_this 					:= sig);
+
+	(********************************** HMI Emergency Button **********************************)
+	safety_integrated_object_init(
+		object_name								:=	CONCAT(prc_path, '_HMI_button_sio'), 
+		_type									:=	SAFETY_INTEGRATED_OBJECT_WITHOUT_LOCK_TYPE,
+		discrepancy_active						:=	TRUE,
+		process									:=	prc,
+		CONVERSION_this							:=	HMI_button_sio);
+
+	safety_integrated_object_add_safety_integrated_group(
+		group									:=	sig,
+		CONVERSION_this							:=	HMI_button_sio);		
+		
+	digital_output_init(
+		object_name								:= CONCAT(prc_path, '_HMI_button_lamp_do'), 
+		polarity_direct							:= TRUE, 
+		process									:= prc, 
+		CONVERSION_this							:= HMI_button_lamp_do);	
+		
+	(************************************ Emergency Series  ***********************************)
+	safety_integrated_series_init(
+		object_name								:=	CONCAT(prc_path, '_sis'),
+		_type									:=	SAFETY_INTEGRATED_SERIES_TYPE_NO_RESET,
+		discrepancy_active						:=	TRUE,
+		forced_open_active						:=	TRUE,
+		process									:=	prc,
+		CONVERSION_this							:=	sis);
+
+	safety_integrated_series_add_safety_integrated_group(
+		group									:=	sig,
+		CONVERSION_this							:=	sis);
+
+	safety_integrated_series_add_safety_integrated_object(
+		protection_active						:=	TRUE,
+		protection_polarity_direct				:=	TRUE,
+		lock_active								:=	FALSE,
+		lock_polarity_direct					:=	TRUE,
+		contact									:=	HMI_button_sio,
+		CONVERSION_this							:=	sis);
+	
+		
+	safety_integrated_series_init(
+		object_name								:=	CONCAT(prc_path, '_delayed_sis'),
+		_type									:=	SAFETY_INTEGRATED_SERIES_TYPE_NO_RESET,
+		discrepancy_active						:=	true,
+		forced_open_active						:=	TRUE,
+		process									:=	prc,
+		CONVERSION_this							:=	delayed_sis);
+
+	safety_integrated_series_add_safety_integrated_group(
+		group									:=	sig,
+		CONVERSION_this							:=	delayed_sis);
+
+	safety_integrated_series_add_safety_integrated_series(
+		series_active							:= TRUE, 
+		series_polarity_direct					:= TRUE, 
+		contact									:= sis, 
+		CONVERSION_this							:= delayed_sis);	
+		
+	process_message_init(
+    	object_name 			:= CONCAT(prc_path, '_open_asm'),
+    	behaviour				:= MESSAGE_BEHAVIOUR_TRY_AND_CHECK,
+		reset_timeout 			:= 10000,
+    	disableable				:= FALSE,
+    	individual_reset 		:= FALSE,
+    	machine_reaction		:= MACHINE_REACTION_EMERGENCY_STOP,
+        typology 				:= MESSAGE_TYPOLOGY_EMERGENCY,
+    	process					:= prc,
+    	CONVERSION_this					:= open_asm);
+
+END_IF
+
+
+IF	objects_running()
+THEN
+    process_cycle(prc);
+
+	safety_integrated_group_cycle(sig);
+	safety_integrated_series_cycle(sis);
+	safety_integrated_series_cycle(delayed_sis);
+	safety_integrated_object_cycle(HMI_button_sio);	
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{9d4a6e27-a5a1-4ddb-8965-1126c6fb6022}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{ce3c171e-8828-4525-ba5f-dbd47e0a99b1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{59f0e46e-935c-43b4-be6e-247d8fe63975}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{6bc25ecd-6dcc-4944-ac0b-e9689dff4379}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

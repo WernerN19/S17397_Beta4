@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_case_discharge_low" Id="{7dbf8879-1509-4f79-9b24-40ec1ed30e9e}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_case_discharge_low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* CASE *)
+	(* DISCHARGE *)
+		(* SPEEDBELT *)
+		csp_case_discharge_speedBelt_os();
+		csp_case_discharge_speedBelt_ls();
+		(* SENSORS *)
+		;
+		(* REJECT *)
+		csp_case_discharge_reject_belt();
+		csp_case_discharge_reject_modsort();
+		csp_case_discharge_reject_sensors();
+	
+
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

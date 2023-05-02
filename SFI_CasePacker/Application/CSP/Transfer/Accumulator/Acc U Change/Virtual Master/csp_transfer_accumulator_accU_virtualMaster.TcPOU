@@ -1,0 +1,439 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_accumulator_accU_virtualMaster" Id="{4c102308-f052-444b-916f-b9188ef3e98a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/07/20 	0000.00	 	M.Peppo			Virtual Master axis that allows the Accumulator Depth and
+										Accumulator Conveyor Depth AccUchange axes to stay in sync
+										as both gear to the master.
+										
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_accumulator_accU_virtualMaster
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	axis:											axis;
+
+	not_in_position:								message;
+	geared_group_dif_exceeded:						message;
+
+	disable_req:									BOOL:=FALSE;
+	position_req_mm:								LREAL:=0.0;(*$P unit:= mm; $*)
+	move_velocity_req_mms:							LREAL:=10.0;(*$P unit:= mm; $*)
+	position_req_tolerance_mm:						LREAL:=0.2;	(*$P $*)
+	
+	axis_status:									axis_status_enum := AXIS_STATUS_PARAMETERS_START;(*$M $*)
+	in_position:									BOOL:=FALSE;(*$M $*)	
+	actual_position_mm:								LREAL:=0.0; (*$M unit:= mm; $*)
+	axis_move_condition:							BOOL:=FALSE;
+	
+	fsm_status:										csp_transfer_accumulator_accU_virtualMaster_enum;(*$M $*)
+	fsm_next_status:								csp_transfer_accumulator_accU_virtualMaster_enum;
+	fsm_enable_condition:							BOOL:=FALSE;
+	debug_state_machine:							BOOL:=FALSE;
+	debug_state_machine_one_step:					BOOL:=FALSE;
+	
+	master_redefined:								BOOL := FALSE;
+	
+	dif_depth_and_convDepth:						LREAL := -8; (* CONVEYOR DEPTH IS ON INSIDE OF DEPTH - NOT USING GUAGE BLOCK - RMH *)
+	slave_follow_limit:								LREAL := 0.01;
+	
+	debug1: 										DINT;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+//Axis move condition
+IF csp_main_accuChange.transfer_accumulator_accU_depth_move_req 
+	OR jog_manager_is_jog_axis_active(SMTR61720_SMTR61730_TRANSFER_ACCUMULATOR_DEPTH_AND_CONVEYOR_DEPTH, csp_main_jogManager.jog_manager_accuchange)
+THEN
+	axis_move_condition := TRUE;
+ELSE
+	axis_move_condition := FALSE;
+END_IF
+
+(*Jog Mode - Redefine Position*)
+IF 	jog_manager_is_jog_axis_active(SMTR61720_SMTR61730_TRANSFER_ACCUMULATOR_DEPTH_AND_CONVEYOR_DEPTH, csp_main_jogManager.jog_manager_accuchange)
+	AND axis_is_standstill(axis)
+	AND ABS(actual_position_mm - csp_transfer_accumulator_accU_depth.actual_position) > 0.5
+THEN
+	axis_redefine_position (
+		position    :=  csp_transfer_accumulator_accU_depth.actual_position,
+		mode        :=  AXIS_REDEFINE_POSITION_MODE_ABSOLUTE,
+		CONVERSION_this        :=  AXIS);	
+END_IF
+
+IF jog_manager_is_jog_axis_active(SMTR61720_SMTR61730_TRANSFER_ACCUMULATOR_DEPTH_AND_CONVEYOR_DEPTH, csp_main_jogManager.jog_manager_accuchange)
+	AND NOT axis_is_standstill(axis)
+	AND 
+	(
+		(ABS(axis_get_following_error(csp_transfer_accumulator_accu_convDepth.axis)) > slave_follow_limit)
+		OR
+		(ABS(axis_get_following_error(csp_transfer_accumulator_accu_Depth.axis)) > slave_follow_limit)
+		OR
+		(
+			(
+			NOT axis_is_gear_engaged(csp_transfer_accumulator_accu_convDepth.axis)
+			OR 
+			NOT axis_is_gear_engaged(csp_transfer_accumulator_accu_depth.axis)	
+			)
+		AND debug1.1
+		)
+	)
+ 
+THEN
+	axis_stop(
+		deceleration 	:= csp_main_accuChange.CONSTANTS.MAX_DECELERATION_MMpSEC2 * 0.5,
+		jerk 			:= csp_main_accuChange.CONSTANTS.MAX_JERK_MMpSEC3,
+		CONVERSION_this 			:= axis);
+	debug1.2 := TRUE;
+END_IF
+
+
+(*FSM Control*)
+fsm_enable_condition := axis_is_ok(FALSE, axis)
+						(*AND
+						process_is_ready(prc) *)
+						AND
+						process_subtree_is_ready(prc)
+						AND
+						process_get_mode(csp_main_accuChange.prc) = MODE_OPERATIONAL
+						AND
+						axis_move_condition
+						AND
+						NOT jog_manager_is_jog_axis_active(SMTR61720_SMTR61730_TRANSFER_ACCUMULATOR_DEPTH_AND_CONVEYOR_DEPTH, csp_main_jogManager.jog_manager_accuchange)
+						AND
+						NOT disable_req;	
+					
+IF	(NOT fsm_enable_condition
+	OR
+	disable_req)
+	AND
+	fsm_status <> CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_DISABLED
+	AND
+	fsm_status < CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_STOP_REQUEST;
+END_IF
+
+
+CASE fsm_status OF
+	
+	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_next_status := CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_DISABLED;
+        END_IF
+
+		
+	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_DISABLED:
+	
+		master_redefined := FALSE;
+
+		IF	fsm_enable_condition
+		THEN
+			(* Axis with absolute encoder, no home procedure request *)
+			fsm_next_status := CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_POSITION_CHECK;
+		END_IF;
+	
+		
+	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_POSITION_CHECK:
+	
+		IF (
+			NOT csp_transfer_accumulator_accu_depth.in_position
+			OR jog_manager_is_jog_axis_active(SMTR61720_SMTR61730_TRANSFER_ACCUMULATOR_DEPTH_AND_CONVEYOR_DEPTH, csp_main_jogManager.jog_manager_accuchange)
+			)
+			AND machine_is_ready(csp.mch)  
+		THEN
+			(* NOT IN TOLERANCE - NEED TO GEAR AND MOVE *)
+			fsm_next_status := CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_ENABLE_REQUEST;
+		END_IF		
+		
+		
+	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_ENABLE_REQUEST:
+	
+		axis_enable(axis);
+		IF axis_is_standstill(axis)
+		THEN
+			IF axis_redefine_position (
+				position    :=  csp_transfer_accumulator_accU_depth.actual_position,
+				mode        :=  AXIS_REDEFINE_POSITION_MODE_ABSOLUTE,
+				CONVERSION_this        :=  AXIS)
+			THEN
+				master_redefined := TRUE;
+				fsm_next_status	:=	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_CHECK_SLAVE_GEAR;
+			END_IF
+		END_IF	
+		
+		
+	(* REORDERED TO REDEFINE THEN GEAR THE SLAVES THEN ENABLE *)
+	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_CHECK_SLAVE_GEAR:
+	
+		IF axis_is_gear_engaged(csp_transfer_accumulator_accu_convdepth.axis)
+			AND axis_is_gear_engaged(csp_transfer_accumulator_accu_depth.axis)
+		THEN
+			fsm_next_status := CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_ENABLED;
+		END_IF
+		
+
+	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_ENABLED:
+	
+		IF 	axis_move_condition
+			AND NOT jog_manager_is_jog_axis_active(SMTR61720_SMTR61730_TRANSFER_ACCUMULATOR_DEPTH_AND_CONVEYOR_DEPTH, csp_main_jogManager.jog_manager_accuchange)
+		THEN
+			fsm_next_status	:= CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_ABS_MOVE_REQUEST;	
+		END_IF
+		
+		
+	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_ABS_MOVE_REQUEST:
+
+		IF	axis_is_position_redefined(axis)
+		THEN
+			 axis_move_absolute(
+				position 		:= csp_transfer_accumulator_accU_depth.position_req,
+				velocity 		:= csp_transfer_accumulator_accU_depth.move_velocity_req,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= csp_main_accuChange.CONSTANTS.MAX_ACCELERATION_MMpSEC2 * 0.5,
+				deceleration 	:= csp_main_accuChange.CONSTANTS.MAX_DECELERATION_MMpSEC2 * 0.5,
+				jerk 			:= csp_main_accuChange.CONSTANTS.MAX_JERK_MMpSEC3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := axis
+				); 
+				
+			fsm_next_status	:=	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_ABS_MOVING;
+
+		END_IF
+		
+
+	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_ABS_MOVING:
+
+		IF axis_is_standstill(axis)
+			OR (ABS(axis_get_following_error(csp_transfer_accumulator_accu_convDepth.axis)) > slave_follow_limit)
+			OR (ABS(axis_get_following_error(csp_transfer_accumulator_accu_Depth.axis)) > slave_follow_limit)
+			OR
+			(
+				axis_is_moving(axis)
+			AND 
+				(
+				NOT axis_is_moving(csp_transfer_accumulator_accu_convDepth.axis)
+				OR NOT axis_is_moving(csp_transfer_accumulator_accu_depth.axis)
+				)
+			)
+		THEN
+			fsm_next_status := CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_STOP_REQUEST;//CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_DISABLE_REQUEST;
+		END_IF
+		
+		
+	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_STOP_REQUEST:
+
+		axis_stop(
+		    deceleration 	:= csp_main_accuChange.CONSTANTS.MAX_DECELERATION_MMpSEC2 * 0.5,
+		    jerk 			:= csp_main_accuChange.CONSTANTS.MAX_JERK_MMpSEC3,
+		    CONVERSION_this 			:= axis);
+
+		IF 	axis_is_standstill(axis)
+			OR
+			NOT axis_is_ok(FALSE, axis)
+			OR
+			axis_is_disabled(axis)
+		THEN
+			fsm_next_status := CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_DISABLE_REQUEST;
+		END_IF
+
+		
+	CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_DISABLE_REQUEST:
+	
+   		axis_disable(axis);
+        IF	axis_is_disabled(axis)
+        THEN
+            fsm_next_status := CSP_TRANSFER_ACCUMULATOR_ACCU_VIRTUAL_MASTER_STATUS_DISABLED;
+        END_IF;
+
+END_CASE;
+
+IF NOT debug_state_machine
+	OR
+	debug_state_machine_one_step
+THEN
+	fsm_status := fsm_next_status;
+	debug_state_machine_one_step := FALSE;
+END_IF
+
+(* Axes engaged for jog management *)
+jog_manager_set_all_slave_axis_engaged(
+	index					:= SMTR61720_SMTR61730_TRANSFER_ACCUMULATOR_DEPTH_AND_CONVEYOR_DEPTH, 
+	all_slave_axis_engaged	:= axis_is_gear_engaged(csp_transfer_accumulator_accU_depth.axis) AND axis_is_gear_engaged(csp_transfer_accumulator_accU_convDepth.axis),							   								 	
+	CONVERSION_this			:= csp_main_jogManager.jog_manager_accuchange);
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{86871350-c824-4c4e-81e7-38a9abfce1b3}">
+      <Implementation>
+        <ST><![CDATA[IF (ABS(csp_transfer_accumulator_accU_depth.actual_position - csp_transfer_accumulator_accU_convDepth.actual_position) + dif_depth_and_convDepth) < 0.5
+THEN
+	process_message_reset(geared_group_dif_exceeded);
+ELSE
+	process_message_set(errorID_1:= 1, errorID_2:= 0, errorID_3:= 0, CONVERSION_this:= geared_group_dif_exceeded);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{bd0a874a-28e0-4cc6-8b6d-a0dcb440b083}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{6d741299-54c5-4991-8415-ec4dcb370509}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{2401b9af-f74d-4a0a-b139-6fda3267f2ba}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_transfer_accumulator_accU_virtualMaster.prc', 
+		process									:= csp_transfer_accumulator_accU.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+	
+	axis_init(
+		object_name 							:= CONCAT(prc_path, '_axis'),
+		axis_type 								:= AXIS_TYPE_VIRTUAL,
+		encoder_scaling_factor 					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo 									:= 1024,
+		process 								:= prc,
+		CONVERSION_this 						:= axis);
+		
+	axis_set_rotation_direction(
+		invert_encoder_counting					:= FALSE,
+		invert_motor_polarity					:= FALSE,
+		CONVERSION_this							:= axis);
+	
+	axis_set_max_dynamic(
+		reference_velocity						:=	csp_main_accuChange.CONSTANTS.MAX_VELOCITY_MMpSEC,
+		velocity								:=	csp_main_accuChange.CONSTANTS.MAX_VELOCITY_MMpSEC,
+		acceleration							:=	csp_main_accuChange.CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+		deceleration							:=	csp_main_accuChange.CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		jerk									:=	csp_main_accuChange.CONSTANTS.MAX_JERK_MMpSEC3,
+		following_error							:=	csp_main_accuChange.CONSTANTS.MAX_FOLLOWING_ERROR_MM,
+		CONVERSION_this							:=	axis);
+	
+	jog_manager_add_axis(
+		list_index								:= SMTR61720_SMTR61730_TRANSFER_ACCUMULATOR_DEPTH_AND_CONVEYOR_DEPTH,
+		axis									:= axis,
+		master_axis								:= TRUE,
+		jog_type								:= JOG_TYPE_LINEAR,
+		sw_limit_positive						:= 500,
+		sw_limit_negative						:= 0,
+		CONVERSION_this							:= csp_main_jogManager.jog_manager_accuchange);
+		
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_geared_group_dif_exceeded'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_NO_STOP, //MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:=  MESSAGE_TYPOLOGY_NOT_VISIBLE, //MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= geared_group_dif_exceeded);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{c45e1dae-8795-4a2a-9af7-28480bc18a53}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{7f3cf93d-3f8e-4db3-be28-009931d8fa10}">
+      <Implementation>
+        <ST><![CDATA[disable_req := csp_transfer.disable_req;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{3f058a9b-2856-4da1-ab97-c74b7bcd354e}">
+      <Implementation>
+        <ST><![CDATA[
+axis_status := axis_get_status(axis);
+actual_position_mm :=axis_get_actual_incremental_position(axis); (* axis_get_actual_modulo_position(axis); only with modulo*)
+
+IF 	ABS(position_req_mm - actual_position_mm)< position_req_tolerance_mm
+	OR process_get_mode(prc)= MODE_ABSENT
+	OR process_get_mode(csp_main_accuChange.prc) = MODE_ABSENT
+THEN
+	in_position := TRUE;
+ELSE
+	in_position := FALSE;	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{0c50cc4b-cdca-40b7-86bc-d0f1d5286617}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

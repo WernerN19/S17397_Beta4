@@ -1,0 +1,358 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_jogManager" Id="{4ce2774a-a11a-4127-83e7-ad263dfc38f0}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/05/18 	0000.00	 	Infomotion srl	Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_jogManager
+VAR
+	prc:						process;
+	prc_path:					STRING;
+	AccDec_divider:				INT:=10;
+	
+	jog_activation_condition:	BOOL;
+	jog_manager_real:			jog_manager;	
+	jog_list_real:				csp_jog_list_real;			(*$P desc := jog real axis selection list; $*)
+	jog_list_real_pow:			parameter_overwrite;
+	jog_manager_virtual:		jog_manager;
+	jog_list_virtual:			csp_jog_list_virtual;		(*$P desc := jog virtual axis selection list; $*)
+	jog_list_virtual_pow:		parameter_overwrite;
+	jog_manager_accuchange:		jog_manager;	
+	jog_list_accuchange:		csp_jog_list_AccUChange;	(*$P desc := jog Acc-U-Change axis selection list; $*)
+	jog_list_accuchange_pow:	parameter_overwrite;		
+	
+	jog_is_active:				BOOL;
+	jog_is_active_wem:	 		message;
+	
+	di_pendant_positive:		digital_input;
+	pendant_positive_cmd:		BOOL;
+	di_pendant_negative:		digital_input;
+	pendant_negative_cmd:		BOOL;
+	
+	first_loop:					BOOL := TRUE;
+		
+	debug_active:				BOOL := FALSE;
+	debug_pendant_positive:		BOOL := FALSE;
+	debug_pendant_negative:		BOOL := FALSE;
+	
+	accu_speeds:				csp_jog_accu_suggested_speeds;
+	accu_axis_suggested_speed:	LREAL;	(*$M $*)
+	prev_accu_axis_selected:	UINT := 0;
+	
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_objects_manager();
+
+IF 	NOT objects_running()
+THEN
+	RETURN;
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode (CONVERSION_this := prc) OF
+
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+	
+IF 	first_loop
+THEN
+	parameter_overwrite_set_enum_value(JOG_LIST_NO_RAXIS_SELECT_TO_JOG, jog_list_real_pow);
+	parameter_overwrite_set_enum_value(JOG_LIST_NO_VAXIS_SELECT_TO_JOG, jog_list_virtual_pow);
+	parameter_overwrite_set_enum_value(JOG_LIST_NO_UAXIS_SELECT_TO_JOG, jog_list_accuchange_pow);			
+END_IF
+first_loop := FALSE;
+
+jog_activation_condition :=
+					NOT
+					(
+						motorization_manager_is_starting(csp_main_motorization_manager.motm)
+						OR
+						motorization_manager_is_execute(csp_main_motorization_manager.motm)
+						OR
+						motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+					);
+					
+jog_manager_set_jog_activation_condition(
+	jog_activation_condition	:= jog_activation_condition,								
+	CONVERSION_this				:= jog_manager_real);
+jog_manager_set_jog_activation_condition(
+	jog_activation_condition	:= jog_activation_condition,								
+	CONVERSION_this				:= jog_manager_virtual);
+jog_manager_set_jog_activation_condition(
+	jog_activation_condition	:= jog_activation_condition,								
+	CONVERSION_this				:= jog_manager_accuchange);
+
+IF jog_list_real <> JOG_LIST_NO_RAXIS_SELECT_TO_JOG
+THEN
+	jog_manager_set_list_selected(
+		list_selected		:= jog_list_real,
+		CONVERSION_this		:= jog_manager_real);
+END_IF
+
+IF jog_list_virtual <> JOG_LIST_NO_VAXIS_SELECT_TO_JOG
+THEN
+	jog_manager_set_list_selected(
+		list_selected		:= jog_list_virtual,
+		CONVERSION_this		:= jog_manager_virtual);
+END_IF
+
+IF jog_list_accuchange <> JOG_LIST_NO_UAXIS_SELECT_TO_JOG
+THEN
+	jog_manager_set_list_selected(
+		list_selected		:= jog_list_accuchange,
+		CONVERSION_this		:= jog_manager_accuchange);
+END_IF
+	
+jog_is_active :=
+	(jog_manager_is_jog_active(jog_manager_real) AND jog_list_real <> JOG_LIST_NO_RAXIS_SELECT_TO_JOG)
+	OR
+	(jog_manager_is_jog_active(jog_manager_virtual) AND jog_list_virtual <> JOG_LIST_NO_VAXIS_SELECT_TO_JOG)
+	OR
+	(jog_manager_is_jog_active(jog_manager_accuchange) AND jog_list_accuchange <> JOG_LIST_NO_UAXIS_SELECT_TO_JOG); 
+	
+
+accu_axis_suggested_speed := accu_speeds.Suggested_Speeds[jog_manager_accuchange.CONVERSION_private.list_selected];	
+
+IF jog_manager_accuchange.CONVERSION_private.list_selected <> prev_accu_axis_selected
+THEN
+	jog_manager_accuchange.axis_speed_linear := accu_axis_suggested_speed;
+END_IF
+prev_accu_axis_selected := jog_manager_accuchange.CONVERSION_private.list_selected;
+
+IF	csp_main.o_reset_button
+THEN
+	jog_manager_stop_jog_absolute_movement(jog_manager_real);
+	jog_manager_stop_jog_absolute_movement(jog_manager_virtual);
+	jog_manager_stop_jog_absolute_movement(jog_manager_accuchange);	
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{203eca12-e699-4d45-b372-4f678a472067}">
+      <Implementation>
+        <ST><![CDATA[IF	jog_is_active
+THEN
+	process_message_set(0, 0, 0, jog_is_active_wem);
+ELSE	
+	process_message_reset(jog_is_active_wem);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{66af0a57-204f-46f3-bd5c-2a3c2a064784}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{de7d5695-9a98-4e87-bc3f-04db56d12ac7}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(CONVERSION_this := prc)
+THEN
+    process_apply_mode_req_first_step(CONVERSION_this := prc);
+    CASE process_get_mode(CONVERSION_this := prc) OF
+        MODE_TO_ABSENT:
+            ;
+        MODE_TO_INACTIVE:
+            ;
+        MODE_TO_TEST:
+            ;
+        MODE_TO_OPERATIONAL:
+            ;
+    END_CASE
+    process_apply_mode_req_second_step(CONVERSION_this := prc);
+END_IF;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{12f96323-5433-4d2e-ad83-4e70f46d09f9}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+    sub_process_init(
+	    object_name 		:= 'csp_main_jogManager.prc',
+        process				:= csp_main.prc,
+        CONVERSION_this		:= prc);
+
+	prc_path 				:= process_get_path(prc);
+	
+	(*Jog manager initialization*)
+	jog_manager_init(
+		object_name 		:= CONCAT(prc_path, '_jog_manager_real'),
+		process				:= prc,
+		CONVERSION_this		:= jog_manager_real);
+		
+	jog_manager_add_parent(
+		parent				:= jog_manager_virtual,
+		CONVERSION_this		:= jog_manager_real);
+	
+	jog_manager_add_parent(
+		parent				:= jog_manager_accuchange,
+		CONVERSION_this		:= jog_manager_real);
+	
+		
+	jog_manager_init(
+		object_name 		:= CONCAT(prc_path, '_jog_manager_virtual'),
+		process				:= prc,
+		CONVERSION_this		:= jog_manager_virtual);
+		
+	jog_manager_add_parent(
+		parent				:= jog_manager_real,
+		CONVERSION_this		:= jog_manager_virtual);
+	
+	jog_manager_add_parent(
+		parent				:= jog_manager_accuchange,
+		CONVERSION_this		:= jog_manager_virtual);
+	
+		
+	jog_manager_init(
+		object_name 		:= CONCAT(prc_path, '_jog_manager_accuchange'),
+		process				:= prc,
+		CONVERSION_this		:= jog_manager_accuchange);
+	
+	jog_manager_add_parent(
+		parent				:= jog_manager_real,
+		CONVERSION_this		:= jog_manager_accuchange);
+	
+	jog_manager_add_parent(
+		parent				:= jog_manager_virtual,
+		CONVERSION_this		:= jog_manager_accuchange);
+		
+	(*Pendant initialization*)
+	digital_input_init(
+		object_name 		:= CONCAT(prc_path, '_di_pendant_positive'),
+		polarity_direct		:= TRUE,
+		process				:= prc,
+		CONVERSION_this		:= di_pendant_positive);
+
+	digital_input_init(
+		object_name 		:= CONCAT(prc_path, '_di_pendant_negative'),
+		polarity_direct		:= TRUE,
+		process				:= prc,
+		CONVERSION_this		:= di_pendant_negative);
+	
+	jog_manager_add_pendant(
+		di_pendant_positive	:= di_pendant_positive,
+		di_pendant_negative	:= di_pendant_negative,
+		CONVERSION_this		:= jog_manager_real);
+	
+	jog_manager_add_shared_pendant(
+		parent				:= jog_manager_real,
+		CONVERSION_this		:= jog_manager_virtual);
+	
+	jog_manager_add_shared_pendant(
+		parent				:= jog_manager_real,
+		CONVERSION_this		:= jog_manager_accuchange);
+		
+	(*Parameter overwrite and alarm initialization*)	
+	parameter_overwrite_enum_init(
+		object_name 		:= CONCAT(prc_path, '_jog_list_real_pow'),
+		adr_of_parameter	:= ADR(jog_list_real),
+		process				:= prc,
+		CONVERSION_this		:= jog_list_real_pow);
+	
+	parameter_overwrite_enum_init(
+		object_name 		:= CONCAT(prc_path, '_jog_list_virtual_pow'),
+		adr_of_parameter	:= ADR(jog_list_virtual),
+		process				:= prc,
+		CONVERSION_this		:= jog_list_virtual_pow);
+		
+	parameter_overwrite_enum_init(
+		object_name 		:= CONCAT(prc_path, '_jog_list_accuchange_pow'),
+		adr_of_parameter	:= ADR(jog_list_accuchange),
+		process				:= prc,
+		CONVERSION_this		:= jog_list_accuchange_pow);
+	
+	process_message_init(
+		object_name			:=	CONCAT(prc_path, '_jog_is_active_wem'), 
+		behaviour			:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout		:=	0,
+		disableable			:=	TRUE,
+		individual_reset	:=	FALSE,
+		machine_reaction	:=	MACHINE_REACTION_NO_STOP,
+		typology			:=	MESSAGE_TYPOLOGY_OBLIGATION,
+		process				:=	prc,
+		CONVERSION_this		:=	jog_is_active_wem);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);	
+	
+	jog_manager_cycle(jog_manager_real);
+	jog_manager_cycle(jog_manager_virtual);
+	jog_manager_cycle(jog_manager_accuchange);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{8f708e69-e0d8-4173-b647-3df4ceea94f5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{84423ea1-9a59-4a5b-8e2c-e3f2aeb90734}">
+      <Implementation>
+        <ST><![CDATA[IF	debug_active
+THEN
+	IF	debug_pendant_positive
+		AND
+		pendant_negative_cmd
+	THEN
+		debug_pendant_negative := FALSE;		
+	END_IF
+	
+	IF	debug_pendant_negative
+		AND
+		pendant_positive_cmd
+	THEN
+		debug_pendant_positive := FALSE;		
+	END_IF
+	
+	di_pendant_positive.field.status := debug_pendant_positive;
+	di_pendant_negative.field.status := debug_pendant_negative;
+END_IF
+
+digital_input_read(pendant_positive_cmd, di_pendant_positive);
+digital_input_read(pendant_negative_cmd, di_pendant_negative);]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{30585604-999c-4fa1-b97f-8fd385b9b422}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{7c02bf6d-d481-4cb7-ab69-6399b8e6aa36}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,400 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_shuttle_horizontal" Id="{f2d919bc-5f25-4c62-a47e-4e0ef998b091}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_shuttle_horizontal
+VAR
+	
+	prc:												process;
+	prc_path:											STRING;
+	
+	axis:												axis;
+	servo_on_condition:								    BOOL;
+	axis_actual_position:								LREAL;
+	
+	torque_limit:										INT := 2000;    (*$P $*)
+	torque_limit_old:									INT;
+	
+	fsm_enable_condition:								BOOL := FALSE;
+	fsm_next_status:									csp_case_feed_status_enum;
+	fsm_status:											csp_case_feed_status_enum;
+	debug_state_machine:								BOOL := FALSE;
+	debug_state_machine_one_step:						BOOL := FALSE;	
+	
+    in_accu_safe_pos:                                   BOOL := FALSE;
+    accu_tolerance:                                     LREAL := 5;
+    accu_safe_pos:                                     	LREAL := -430;
+	
+		
+	
+	cam_id:												INT := 32;
+	
+	enable_delay: TON;
+	Torque_force_constant: 								LREAL := 1.2;
+END_VAR
+
+VAR CONSTANT
+	MOTOR_PHASE_VELOCITY_MMPS:							LREAL := 40;	
+	MOTOR_MAX_VELOCITY_MMPS:							LREAL := 1000;
+	MOTOR_MAX_ACCELLERATION_MMPS2:						LREAL := 10000;
+	MOTOR_MAX_DECELLERATION_MMPS2:						LREAL := 10000;
+	MOTOR_MAX_JERK_MMPS3:								LREAL := 100000; 
+	MOTOR_MAX_FOLLOWING_ERROR_MM:						LREAL := 5;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF 	NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT:
+		IF axis_get_mode(axis) = MODE_TEST
+		THEN
+			safety_integrated_series_close(csp_case_main_safety_drives_SD8000.chA_smes_sis);
+		END_IF
+		RETURN;
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+axis.actual_torque := (axis.actual_current * Torque_force_constant)/1000;
+
+IF ABS(axis.actual_position - accu_safe_pos)  < accu_tolerance
+	OR (360 - axis.actual_position) < accu_tolerance
+THEN
+	in_accu_safe_pos := TRUE;
+ELSE
+	in_accu_safe_pos := FALSE;   
+END_IF
+
+// Sets the torque limit for the case shuttle horizontal
+IF 	torque_limit <> torque_limit_old
+THEN
+	IF	soe_drive_channel_write_parameter(
+			channel				:= csp_case_feed_shuttle_horizontal.axis.soe_drive_channel, 
+			idn					:= S_0_IDN + 92, 
+			data_element		:= soe_drive_element_value, 
+			data_source			:= ADR(torque_limit), 
+			data_lenght			:= SIZEOF(torque_limit), 
+			CONVERSION_this		:= csp_case_feed_shuttle_horizontal.axis.soe_drive^) = SOE_DRIVE_RETURN_VALUE_DONE
+	THEN
+		torque_limit_old := Torque_limit;
+	END_IF
+END_IF	
+
+// Manage the accu change safe position
+fsm_enable_condition := axis_is_ok(FALSE, axis)																
+						AND
+						servo_on_condition
+						AND
+						NOT jog_manager_is_jog_axis_active(SMTR8003_CASE_FEED_SHUTTLE_HORIZONTAL, csp_main_jogManager.jog_manager_real)
+						AND
+						csp_main_accuChange.Brand_Change_Occurred;
+				
+//NOTE: for me is better to have a variable like machine_size_running: TRUE if accu chahnge in progress false anyway.
+//The variable actually used (csp_main_accuChange.machine_size_complete	) is FALSE also if you restart the machine and don't need a change!
+//It is also a problem using the variable csp_main_accuChange.Motion_Motors_New_Size_Req. I mean you are in accu change (running) or in normal 
+//machine operation (not running). The request to phasing again is made at the beginning of the start cycle while in normal mode!
+//I replaced this logic because the accu_change_active was only a spare variable to replaced by the right one coming from accuChange logic.
+			
+//IF NOT csp_main_accuChange.machine_size_complete AND csp_main_accuChange.Brand_Change_Occurred
+//	THEN
+//		accu_change_active := TRUE;
+//		ELSIF NOT csp_main_accuChange.machine_size_complete AND csp_main_accuChange.Motion_Motors_New_Size_Req
+//			THEN
+//			accu_change_active := FALSE;
+//END_IF 
+				
+IF	NOT fsm_enable_condition
+	AND
+	fsm_status <> CSP_CASE_FEED_STATUS_DISABLED
+	AND
+	fsm_status < CSP_CASE_FEED_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_CASE_FEED_STATUS_DISABLE_REQUEST;
+END_IF
+					
+CASE fsm_status OF
+	
+	CSP_CASE_FEED_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_next_status := CSP_CASE_FEED_STATUS_DISABLED;
+        END_IF
+
+		
+	CSP_CASE_FEED_STATUS_DISABLED:
+	
+		IF	fsm_enable_condition
+			AND
+			motorization_conditioner_is_execute(csp_main_services_towerLamp.buzzer_motcond) 							
+		THEN	
+			IF	in_accu_safe_pos
+			THEN
+				fsm_next_status := CSP_CASE_FEED_STATUS_CHANGE_OVER_MODE_DONE;
+			ELSE								
+				fsm_next_status := CSP_CASE_FEED_STATUS_ENABLE_REQUEST;
+			END_IF
+		END_IF;
+
+		
+	CSP_CASE_FEED_STATUS_ENABLE_REQUEST:
+	
+		axis_enable(axis);
+		IF 	axis_is_standstill(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_FEED_STATUS_ENABLED;
+		END_IF;		
+
+		
+	CSP_CASE_FEED_STATUS_ENABLED:	
+	
+		axis_move_absolute(
+			position 		:= accu_safe_pos,
+			velocity 		:= MOTOR_PHASE_VELOCITY_MMPS,
+			direction		:= AXIS_CURRENT_DIRECTION,
+			acceleration 	:= MOTOR_MAX_ACCELLERATION_MMPS2,
+			deceleration 	:= MOTOR_MAX_DECELLERATION_MMPS2,
+			jerk 			:= MOTOR_MAX_JERK_MMPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := axis);
+			
+		IF 	axis_is_absolute_moving(axis)
+		THEN
+			fsm_next_status	:= CSP_CASE_FEED_STATUS_CHANGE_OVER_MODE;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_CHANGE_OVER_MODE:	
+	
+		IF 	axis_is_standstill(axis)
+		THEN	
+			axis_disable(axis);					
+			fsm_next_status := CSP_CASE_FEED_STATUS_CHANGE_OVER_MODE_DONE;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_CHANGE_OVER_MODE_DONE:
+	
+		;
+	
+		
+	CSP_CASE_FEED_STATUS_STOP_REQUEST:
+	
+		axis_stop(
+		    deceleration 		:= MOTOR_MAX_DECELLERATION_MMPS2,
+		    jerk 				:= MOTOR_MAX_JERK_MMPS3,
+		    CONVERSION_this 	:= axis);
+
+		IF 	axis_is_standstill(axis)
+			OR
+			NOT axis_is_ok(FALSE, axis)
+			OR
+			axis_is_disabled(axis)
+		THEN
+			fsm_next_status := CSP_CASE_FEED_STATUS_DISABLE_REQUEST;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_DISABLE_REQUEST:
+	
+   		axis_disable(axis);
+   		fsm_next_status := CSP_CASE_FEED_STATUS_DISABLING;
+
+		
+	CSP_CASE_FEED_STATUS_DISABLING:
+	
+        IF	axis_is_disabled(axis)
+        THEN
+            fsm_next_status := CSP_CASE_FEED_STATUS_DISABLED;
+        END_IF;
+		
+END_CASE
+
+IF 	NOT debug_state_machine
+	OR
+	debug_state_machine_one_step
+THEN
+	fsm_status := fsm_next_status;
+	debug_state_machine_one_step := FALSE;
+END_IF
+
+(* TEMPORARY CAM CHANGE *)
+IF csp_main_brand.count = '24Count'
+	THEN
+		cam_id := 332;
+ELSIF csp_main_brand.count = '10Count'
+	THEN
+		cam_id := 570;
+ELSIF csp_main_brand.count = '32Count'
+	THEN
+		cam_id := 32;
+ELSIF csp_main_brand.count = '48Count'
+	THEN
+		cam_id := 48;
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{bc2cc6f0-edb5-4bad-b0c4-700453b35b30}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{616fbbcc-6f7e-4b13-b4a5-2c346dff9908}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{51a50215-1ec7-46e1-8f50-cc5604baed4d}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{8395c9d1-94cf-42d9-8f9d-04f3e32f84ca}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name									:= 'csp_case_feed_shuttle_horizontal.prc', 
+		process										:= csp_case_feed_shuttle.prc, 
+		CONVERSION_this								:= prc);
+		
+	prc_path 										:= process_get_path(prc);
+	
+	(* axis smes *)
+	IF csp_main_configurator.Physical_hw
+	THEN	
+		axis_init(
+			object_name								:= CONCAT(prc_path, '_axis'), 
+			axis_type								:= AXIS_TYPE_SERVO, 
+			encoder_scaling_factor					:= G_SERVO_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo									:= G_NO_MODULO_DEG, 
+			process									:= prc, 
+			CONVERSION_this							:= axis);
+			
+		axis_add_safety_integrated_series(
+			safety_integrated_series 				:= csp_case_main_safety_drives_SD8000.chA_smes_sis,
+			CONVERSION_this							:= axis);
+			
+		axis_init_absolute_encoder_preset(
+			position                                := 0.0,
+			CONVERSION_this                         := axis);	
+			
+			
+			
+			
+	ELSE
+		axis_init(
+			object_name								:= CONCAT(prc_path, '_axis'), 
+			axis_type								:= AXIS_TYPE_VIRTUAL, 
+			encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo									:= G_NO_MODULO_DEG, 
+			process									:= prc, 
+			CONVERSION_this							:= axis);		
+				
+	END_IF
+	
+	axis_set_max_dynamic(
+		reference_velocity							:=	MOTOR_MAX_VELOCITY_MMPS,
+		velocity									:=	MOTOR_MAX_VELOCITY_MMPS,
+		acceleration								:=	MOTOR_MAX_ACCELLERATION_MMPS2,
+		deceleration								:=	MOTOR_MAX_DECELLERATION_MMPS2,
+		jerk										:=	MOTOR_MAX_JERK_MMPS3,
+		following_error								:=	MOTOR_MAX_FOLLOWING_ERROR_MM,
+		CONVERSION_this								:=	axis);
+	
+
+	jog_manager_add_axis(
+		list_index									:= SMTR8003_CASE_FEED_SHUTTLE_HORIZONTAL,
+		axis										:= axis,
+		master_axis									:= FALSE,
+		jog_type									:= JOG_TYPE_LINEAR,
+		sw_limit_positive							:= 800,
+		sw_limit_negative							:= 0,
+		CONVERSION_this								:= csp_main_jogManager.jog_manager_real);
+	
+	axis_add_soe_drive(
+		channel										:=	SOE_DRIVE_CHANNEL_A,
+		soe_drive									:=	csp_case_main_drives.SD8000_drv,
+		CONVERSION_this								:=	axis);
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{1ca66d14-5f4f-49b9-97fd-f1117b8f568f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{141f324b-6dd2-47da-997f-5854a7682f0f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{fc0e2625-c052-495a-b728-35796c841f61}">
+      <Implementation>
+        <ST><![CDATA[axis_actual_position := axis_get_actual_modulo_position(axis);
+enable_delay(IN:=axis_is_ready_to_enable(axis) , PT:=T#2S , Q=> servo_on_condition , ET=> );]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{90b4eb9c-c74a-4070-af9e-5256f750aaff}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

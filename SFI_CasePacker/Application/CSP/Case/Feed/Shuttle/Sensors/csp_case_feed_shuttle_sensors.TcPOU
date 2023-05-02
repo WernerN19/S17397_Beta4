@@ -1,0 +1,407 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_shuttle_sensors" Id="{dcbfde9d-6a7c-4830-ae86-16523cd46082}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_shuttle_sensors
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	vacuum1_do:										digital_output; //Loader side cups 1 & 2
+	vacuum2_do:										digital_output; //Operator side cups 1 & 2
+	vacuum3_do:										digital_output; //LS AND OS Cup 3
+	vacuum4_do:										digital_output; //LS AND OS Cup 4
+	vacuum5_do:										digital_output; //Change Part Cup 1 & 2
+	vacuum6_do:										digital_output; //Change Part Cup 3
+	vacuum7_do: 									digital_output; //Change Part Cup 4
+	vacuum8_do: 									digital_output; //unused
+	vacuum1_sact: 									digital_actuator;
+	vacuum2_sact: 									digital_actuator;
+	vacuum3_sact: 									digital_actuator;
+	vacuum4_sact: 									digital_actuator;
+	vacuum5_sact: 									digital_actuator;
+	vacuum6_sact: 									digital_actuator;
+	vacuum7_sact: 									digital_actuator;
+	vacuum8_sact: 									digital_actuator;
+	
+	shuttle_extra_fork_required:					BOOL;
+	
+	part_present_os_di:								digital_input;
+	part_present_ls_di:								digital_input;
+	enable_reject_vacuum: 							BOOL := false;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF 	csp_main_brand.choice = 2
+		OR csp_main_brand.choice = 7
+		OR csp_main_brand.choice = 8
+		OR csp_main_brand.choice = 9
+		OR csp_main_brand.choice = 10
+		OR csp_main_brand.choice = 11
+		OR csp_main_brand.choice = 12
+		OR csp_main_brand.choice = 13
+		OR csp_main_brand.choice = 14
+		OR csp_main_brand.choice = 17
+		OR csp_main_brand.choice = 18
+	THEN
+		shuttle_extra_fork_required := TRUE;
+	ELSE
+		shuttle_extra_fork_required := FALSE;
+END_IF	
+
+(********************************* BODY *********************************)
+
+IF (csp_case_feed_virtualMaster.fsm_status = CSP_CASE_FEED_STATUS_REJECT_WAIT_NEW_CARTON OR csp_case_feed_virtualMaster.fsm_status = CSP_CASE_FEED_STATUS_CHECK_CARTON)
+	THEN
+		enable_reject_vacuum := TRUE;
+ELSE
+	enable_reject_vacuum := FALSE;
+END_IF
+
+
+(* VACUUM 1 LOGIC - OS + LS FIRST 2 *)
+IF (
+		phase_window_position_is_in_window(csp_case_feed_virtualMaster.axis.actual_position, csp_case_feed_virtualMaster.shuttle_vaccum_1_phwin) 
+		AND csp_case_feed_arm_sensors.Case_Requested 
+		AND NOT csp_case_main_services.dry_cycle_mode
+		AND NOT jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+	)
+	AND NOT (csp_main_motorization.empty_command AND csp_transfer_upstacker_sensors.dwell_transfer_empty)
+	AND (
+		( (* ALLOWS VACUUM TO COME ON IF AXIS IS MOVING OR AXIS IS NOT AT PLACE POSITION *)
+			axis_is_moving(csp_case_virtualMaster.axis) 
+			OR NOT (csp_case_virtualMaster.axis.actual_position > 358)
+		)
+		//OR csp_case_transport_virtualmaster.stop_for_reject
+		OR enable_reject_vacuum
+	)
+	OR enable_reject_vacuum
+	OR ( (* JOG MODE WITH CASE FEED *)
+		jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+		AND csp_case_feed_arm_sensors.jog_feed_latch
+		AND phase_window_position_is_in_window(csp_case_feed_virtualMaster.axis.actual_position, csp_case_feed_virtualMaster.shuttle_vaccum_1_phwin)
+	)
+THEN
+	digital_actuator_activate(CONVERSION_this:=vacuum1_sact);//Loader side cups 1 & 2
+	digital_actuator_activate(CONVERSION_this:=vacuum2_sact);//Operator side cups 1 & 2
+	IF shuttle_extra_fork_required THEN
+		digital_actuator_activate(CONVERSION_this:=vacuum5_sact);//Change Part Cup 1 & 2
+	ELSE
+		digital_actuator_deactivate(CONVERSION_this:=vacuum5_sact);//Change Part Cup 1 & 2
+	END_IF
+ELSE
+	digital_actuator_deactivate(CONVERSION_this:= vacuum1_sact);//Loader side cups 1 & 2
+	digital_actuator_deactivate(CONVERSION_this:=vacuum2_sact);//Operator side cups 1 & 2
+END_IF
+
+(* VACUUM 2 LOGIC  - OS + LS 3RD CUP *)
+IF (
+		phase_window_position_is_in_window(csp_case_feed_virtualMaster.axis.actual_position, csp_case_feed_virtualMaster.shuttle_vaccum_2_phwin)  
+		AND csp_case_feed_arm_sensors.Case_Requested
+		AND NOT csp_case_main_services.dry_cycle_mode
+		AND NOT jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+	)
+	AND NOT (csp_main_motorization.empty_command AND csp_transfer_upstacker_sensors.dwell_transfer_empty)
+	AND (
+		( (* ALLOWS VACUUM TO COME ON IF AXIS IS MOVING OR AXIS IS NOT AT PLACE POSITION *)
+			axis_is_moving(csp_case_virtualMaster.axis) 
+			OR NOT (csp_case_virtualMaster.axis.actual_position > 358)
+		)
+		//OR csp_case_transport_virtualmaster.stop_for_reject
+		OR (enable_reject_vacuum AND csp_case_feed_shuttle_horizontal.axis.actual_position> -205)
+	)
+	OR (enable_reject_vacuum AND csp_case_feed_shuttle_horizontal.axis.actual_position> -205)
+	OR ( (* JOG MODE WITH CASE FEED *)
+		jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+		AND csp_case_feed_arm_sensors.jog_feed_latch
+		AND phase_window_position_is_in_window(csp_case_feed_virtualMaster.axis.actual_position, csp_case_feed_virtualMaster.shuttle_vaccum_2_phwin)
+	)
+THEN
+	digital_actuator_activate(CONVERSION_this:=vacuum3_sact);//LS AND OS Cup 3
+	IF shuttle_extra_fork_required THEN
+		digital_actuator_activate(CONVERSION_this:=vacuum6_sact);//Change Part Cup 3
+	ELSE
+		digital_actuator_deactivate(CONVERSION_this:=vacuum6_sact);//Change Part Cup 3
+	END_IF
+ELSE
+	digital_actuator_deactivate(CONVERSION_this:= vacuum3_sact);//LS AND OS Cup 3
+END_IF	
+
+(* VACUUM 3 LOGIC - OS AND LS 4TH CUP*)
+IF (
+		phase_window_position_is_in_window(csp_case_feed_virtualMaster.axis.actual_position, csp_case_feed_virtualMaster.shuttle_vaccum_3_phwin) 
+		AND csp_case_feed_arm_sensors.Case_Requested
+		AND NOT csp_case_main_services.dry_cycle_mode
+		AND NOT jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+	)
+	AND NOT (csp_main_motorization.empty_command AND csp_transfer_upstacker_sensors.dwell_transfer_empty)
+	AND (
+		( (* ALLOWS VACUUM TO COME ON IF AXIS IS MOVING OR AXIS IS NOT AT PLACE POSITION *)
+			axis_is_moving(csp_case_virtualMaster.axis) 
+			OR NOT (csp_case_virtualMaster.axis.actual_position > 358)
+		) 
+		)
+	OR ( (* JOG MODE WITH CASE FEED *)
+		jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+		AND csp_case_feed_arm_sensors.jog_feed_latch
+		AND phase_window_position_is_in_window(csp_case_feed_virtualMaster.axis.actual_position, csp_case_feed_virtualMaster.shuttle_vaccum_3_phwin)
+	)
+	 AND (csp_case_feed_shuttle_horizontal.axis.actual_position > -205)
+THEN
+	digital_actuator_activate(CONVERSION_this:=vacuum4_sact);//LS AND OS Cup 4
+	IF shuttle_extra_fork_required THEN
+		digital_actuator_activate(CONVERSION_this:=vacuum7_sact);//Change Part Cup 4
+	ELSE
+		digital_actuator_deactivate(CONVERSION_this:=vacuum7_sact);//Change Part Cup 4
+	END_IF
+ELSE
+	digital_actuator_deactivate(CONVERSION_this:= vacuum4_sact);//LS AND OS Cup 4
+END_IF	
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{dbf57118-5858-4709-a8d1-e4a2cc4ed279}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{7a7e3130-2db5-4509-86f1-a0763c9e2ed7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{74448f68-cac6-4abc-bc82-d69edd2b5ce4}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{2f3a2581-5ff1-489f-a4a1-9c86bd239d08}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name				:= 'csp_case_feed_shuttle_sensors.prc', 
+		process					:= csp_case_feed_shuttle.prc, 
+		CONVERSION_this			:= prc);
+		
+	prc_path 					:= process_get_path(prc);
+	
+	digital_input_init(
+		object_name				:= CONCAT(prc_path, '_part_present_di'), 
+		polarity_direct			:= TRUE, 
+		process					:= prc, 
+		CONVERSION_this			:= part_present_os_di);
+	
+	
+	digital_input_init(
+		object_name				:= CONCAT(prc_path, '_part_present_di'), 
+		polarity_direct			:= TRUE, 
+		process					:= prc, 
+		CONVERSION_this			:= part_present_ls_di);	
+	
+	//Loader side cups 1 & 2
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_vacuum1_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 					:= vacuum1_do);
+		
+	//Operator side cups 1 & 2
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_vacuum2_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 					:= vacuum2_do);
+	
+	//LS AND OS Cup 3	
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_vacuum3_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 					:= vacuum3_do);
+	
+	//LS AND OS Cup 4	
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_vacuum4_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 					:= vacuum4_do);
+	
+	//Change Part Cup 1 & 2	
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_vacuum5_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 					:= vacuum5_do);
+	
+	//Change Part Cup 3
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_vacuum6_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 					:= vacuum6_do);
+	
+	//Change Part Cup 4	
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_vacuum7_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 					:= vacuum7_do);
+		
+		
+	digital_actuator_init(
+		object_name := CONCAT(prc_path, '_vacuum1_sact'),
+		_type := DIGITAL_ACTUATOR_TYPE_IN_xx,
+		fault_reaction := DIGITAL_ACTUATOR_FAULT_REACTION_IGNORE,
+		active_time := 1000,
+		inactive_time := 2000,
+		dout := vacuum1_do,
+		process := prc,
+		CONVERSION_this:= vacuum1_sact);
+		
+	digital_actuator_init(
+		object_name := CONCAT(prc_path, '_vacuum2_sact'),
+		_type := DIGITAL_ACTUATOR_TYPE_IN_xx,
+		fault_reaction := DIGITAL_ACTUATOR_FAULT_REACTION_IGNORE,
+		active_time := 1000,
+		inactive_time := 2000,
+		dout := vacuum2_do,
+		process := prc,
+		CONVERSION_this:= vacuum2_sact);
+		
+	digital_actuator_init(
+		object_name := CONCAT(prc_path, '_vacuum3_sact'),
+		_type := DIGITAL_ACTUATOR_TYPE_IN_xx,
+		fault_reaction := DIGITAL_ACTUATOR_FAULT_REACTION_IGNORE,
+		active_time := 1000,
+		inactive_time := 2000,
+		dout := vacuum3_do,
+		process := prc,
+		CONVERSION_this:= vacuum3_sact);
+		
+	digital_actuator_init(
+		object_name := CONCAT(prc_path, '_vacuum4_sact'),
+		_type := DIGITAL_ACTUATOR_TYPE_IN_xx,
+		fault_reaction := DIGITAL_ACTUATOR_FAULT_REACTION_IGNORE,
+		active_time := 1000,
+		inactive_time := 2000,
+		dout := vacuum4_do,
+		process := prc,
+		CONVERSION_this:= vacuum4_sact);
+		
+	digital_actuator_init(
+		object_name := CONCAT(prc_path, '_vacuum5_sact'),
+		_type := DIGITAL_ACTUATOR_TYPE_IN_xx,
+		fault_reaction := DIGITAL_ACTUATOR_FAULT_REACTION_IGNORE,
+		active_time := 1000,
+		inactive_time := 2000,
+		dout := vacuum5_do,
+		process := prc,
+		CONVERSION_this:= vacuum5_sact);
+		
+	digital_actuator_init(
+		object_name := CONCAT(prc_path, '_vacuum6_sact'),
+		_type := DIGITAL_ACTUATOR_TYPE_IN_xx,
+		fault_reaction := DIGITAL_ACTUATOR_FAULT_REACTION_IGNORE,
+		active_time := 1000,
+		inactive_time := 2000,
+		dout := vacuum6_do,
+		process := prc,
+		CONVERSION_this:= vacuum6_sact);
+		
+	digital_actuator_init(
+		object_name := CONCAT(prc_path, '_vacuum7_sact'),
+		_type := DIGITAL_ACTUATOR_TYPE_IN_xx,
+		fault_reaction := DIGITAL_ACTUATOR_FAULT_REACTION_IGNORE,
+		active_time := 1000,
+		inactive_time := 2000,
+		dout := vacuum7_do,
+		process := prc,
+		CONVERSION_this:= vacuum7_sact);
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	digital_actuator_cycle(vacuum1_sact);
+	digital_actuator_cycle(vacuum2_sact);
+	digital_actuator_cycle(vacuum3_sact);
+	digital_actuator_cycle(vacuum4_sact);
+	digital_actuator_cycle(vacuum5_sact);
+	digital_actuator_cycle(vacuum6_sact);
+	digital_actuator_cycle(vacuum7_sact);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{f3409571-9c4a-4bd3-9a69-5935b0cf135d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{bda99742-75fc-422d-ada7-ab8aaf4abbc1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{bc670f97-56fb-43c5-abbd-6aac313eb190}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{27a09aea-447d-45d2-a62c-a6ac7b73f701}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

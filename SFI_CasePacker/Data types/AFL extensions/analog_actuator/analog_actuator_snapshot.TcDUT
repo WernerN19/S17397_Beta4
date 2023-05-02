@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="analog_actuator_snapshot" Id="{6418e461-4e8c-4cb5-8ce2-83aa5f533c24}">
+    <Declaration><![CDATA[(*$S desc := Snapshot; $*)
+TYPE
+	analog_actuator_snapshot:	STRUCT
+	message:        message;
+
+	status:			analog_actuator_status_enum;
+	(*$
+	Value of the analog_actuator <a href="#analog_actuator_status_enum"><i>status</i></a> field
+	when the message is set 
+	$*)
+	command:		analog_actuator_command_enum;
+	(*$
+	Value of the analog_actuator <a href="#analog_actuator_command_enum"><i>command</i></a> field
+	when the message is set 
+	$*)
+	is_active:		BOOL;
+	(*$
+		Value of the active <a href="#digital_input_object"><i>digital_input</i></a>
+		when the message is set 
+	$*)
+	is_inactive:	BOOL;
+	(*$
+		Value of the inactive <a href="#digital_input_object"><i>digital_input</i></a>
+		when the message is set 
+	$*)
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

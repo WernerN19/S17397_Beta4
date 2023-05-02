@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_case_closing_highest" Id="{ed97c893-b4e3-415e-bfb7-a001ce3a9962}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_case_closing_highest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[csp_case_closing();
+
+(* CASE *)
+	(* CLOSING *)
+		(* OS *)
+		csp_case_closing_os_horizontal();
+		csp_case_closing_os_upper();
+		csp_case_closing_os_lower();
+	
+		(* LS *)
+		csp_case_closing_ls_horizontal();
+		csp_case_closing_ls_upper();
+		csp_case_closing_ls_lower();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

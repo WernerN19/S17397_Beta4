@@ -1,0 +1,219 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_main_safety" Id="{c2cd7c36-e3d2-4c46-8c68-a48330eb2e6a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/24 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_case_main_safety
+VAR
+	prc:					process;
+	prc_path:				STRING;
+	
+	series_closed_dvr:		BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{c2191c6d-4341-4509-a004-2bb698a47810}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{f0468049-dbf9-42a5-844f-bf039293354e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{248a69c7-2d5c-4c03-8dc3-4d0c00e738c8}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{b2559e98-b4f8-458a-a708-fedc0cb56a59}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_main_safety.prc', 
+		process						:= csp_case_main.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{dff533e1-55bf-4aff-9bfa-d1da27fcc11c}">
+      <Implementation>
+        <ST><![CDATA[series_closed_dvr := 
+						(* LIST ALL CASE SIS *)
+						csp_case_main_safety_drives_PS2000.safety_integrated_series_close_dvr
+					(*	AND
+						csp_case_main_safety_drives_sd10000.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd10000.safety_integrated_series_close_dvr_chB
+						AND
+						csp_case_main_safety_drives_sd10100.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd10100.safety_integrated_series_close_dvr_chB
+						AND
+						csp_case_main_safety_drives_sd10200.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd10200.safety_integrated_series_close_dvr_chB
+						AND
+						csp_case_main_safety_drives_sd10300.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd10300.safety_integrated_series_close_dvr_chB
+						AND
+						csp_case_main_safety_drives_sd10400.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd10400.safety_integrated_series_close_dvr_chB						
+						AND
+						csp_case_main_safety_drives_sd11000.safety_integrated_series_close_dvr_chA
+						//AND
+						//safety_integrated_series_is_safely_closed(csp_case_main_safety_drives_sd11000.chB_smes_sis)						
+						AND
+						csp_case_main_safety_drives_sd12000.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd12000.safety_integrated_series_close_dvr_chB	
+						AND
+						csp_case_main_safety_drives_sd15000.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd15000.safety_integrated_series_close_dvr_chB*)
+						AND
+						csp_case_main_safety_drives_sd2100.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd2100.safety_integrated_series_close_dvr_chB
+						AND
+						csp_case_main_safety_drives_sd2200.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd2200.safety_integrated_series_close_dvr_chB
+						(*AND
+						csp_case_main_safety_drives_sd2300.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd2300.safety_integrated_series_close_dvr_chB
+						AND
+						csp_case_main_safety_drives_sd2400.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd2400.safety_integrated_series_close_dvr_chB						
+						AND
+						csp_case_main_safety_drives_sd2500.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd2500.safety_integrated_series_close_dvr_chB
+						AND
+						csp_case_main_safety_drives_sd26000.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd26000.safety_integrated_series_close_dvr_chB					
+						AND
+						csp_case_main_safety_drives_sd26100.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd26100.safety_integrated_series_close_dvr_chB
+						AND
+						csp_case_main_safety_drives_sd8000.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd8000.safety_integrated_series_close_dvr_chB					
+						AND
+						csp_case_main_safety_drives_sd8100.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd8100.safety_integrated_series_close_dvr_chB		
+						AND
+						csp_case_main_safety_drives_sd8200.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd8200.safety_integrated_series_close_dvr_chB		
+						AND
+						csp_case_main_safety_drives_sd8300.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd8300.safety_integrated_series_close_dvr_chB		
+						AND
+						csp_case_main_safety_drives_sd8400.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd8400.safety_integrated_series_close_dvr_chB		
+						AND
+						csp_case_main_safety_drives_sd8500.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd8500.safety_integrated_series_close_dvr_chB	
+						AND
+						csp_case_main_safety_drives_sd8600.safety_integrated_series_close_dvr_chA
+						AND
+						csp_case_main_safety_drives_sd8600.safety_integrated_series_close_dvr_chB	*)			
+;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{4db15d6b-9e62-47bf-97e2-cdf03a5574c4}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{4404eab4-2467-4402-93a9-b5ee073c7c04}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{4246c0a9-9ee3-4363-a837-af10dbbf94b0}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_casePackerCtCall" Id="{b595a80f-f5a1-450e-bc24-c291cf728767}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_casePackerCtCall :
+STRUCT
+	
+	LowCaseSupply:			BOOL;				(*$H_R desc := Connected Technician call - Low Case blank supply; $*)
+	LowGlueSupply:			BOOL;				(*$H_R desc := Connected Technician call - Low glue supply; $*)
+	LowLabelSupply:			BOOL;				(*$H_R desc := Connected Technician call - Low label supply; $*)
+	FullScrapBin:			BOOL;				(*$H_R desc := Connected Technician call - Full machine scrap/waste bin; $*)
+	FaultedMain:			BOOL;				(*$H_R desc := Connected Technician call - Main machine is faulted; $*)
+	FaultedCaseSupply:		BOOL;				(*$H_R desc := Connected Technician call - Local case blank supply system is faulted; $*)
+	TBD1:					BOOL;				(*$H_R desc := Connected Technician call - TBD; $*)
+	TBD2:					BOOL;				(*$H_R desc := Connected Technician call - TBD; $*)
+	TBD3:					BOOL;				(*$H_R desc := Connected Technician call - TBD; $*)
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

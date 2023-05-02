@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_main_jogmanager" Id="{93cca34a-39e7-4928-8cf0-aa30b3e1085c}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_main_jogmanager
+VAR
+  di_pendant_negative_shd : digital_input_shadow;
+  di_pendant_positive_shd : digital_input_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{483b8056-721b-40fd-80b6-76e1c0955346}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_main_jogmanager.di_pendant_negative, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= di_pendant_negative_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_main_jogmanager.di_pendant_positive, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= di_pendant_positive_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	digital_input_shadow_cycle(di_pendant_negative_shd);
+	digital_input_shadow_cycle(di_pendant_positive_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

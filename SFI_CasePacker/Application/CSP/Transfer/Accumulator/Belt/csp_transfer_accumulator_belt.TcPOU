@@ -1,0 +1,863 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_accumulator_belt" Id="{524dc9c0-342a-4a6c-b49f-28849dde67fb}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_accumulator_belt
+VAR
+	
+	prc:												process;
+	prc_path:											STRING;
+	
+	axis:												axis;
+	phase_position_deg:									LREAL := 0;
+	phase_velocity_degps:								LREAL := 100.0;
+		
+	home_position_master_offset_deg:					LREAL := 0.0;
+	axis_calculate_cam_slave_master_position_deg:		LREAL := 0.0;
+	axis_calculated_cam_slave_position_deg:				LREAL := 0.0;	
+	slave_position_has_been_calculated:					BOOL  := FALSE;
+	
+	phase_enable:										BOOL := TRUE;
+	slave_position_request:								BOOL := TRUE;
+	engage_enable:										BOOL := TRUE;
+	debug_state_machine_one_step:						BOOL := FALSE;
+	
+	cam_id:												DINT  := FORWARD_CAM;
+	master_position:									LREAL := 30;
+	master_cam:											LREAL := 30;
+	
+	slave_offset:										LREAL := 0;
+	
+	axis_actual_position:								LREAL;
+	
+	disable_req:										BOOL;
+	debug_state_machine:								BOOL := FALSE;
+	debug_phase_machine_one_step:						BOOL := FALSE;
+	debug_connection_machine_one_step:					BOOL := FALSE;
+	
+	phase_status: 										csp_transfer_accumulator_belt_phase_status_enum;
+	phase_status_next: 									csp_transfer_accumulator_belt_phase_status_enum;
+	phase_done: 										BOOL;
+	phase_running: 										BOOL;
+	phase_error:										BOOL;
+	phase_time_out_tmr:									timer;
+	phase_faulted_aem:	 								message;
+	phase_conditions:									BOOL;
+	phase_master_is_engaged:							BOOL;
+	
+	cam_change_check_ph:								phase;
+	
+	connection_status: 									csp_transfer_accumulator_connection_status_enum;
+	connection_status_next: 							csp_transfer_accumulator_connection_status_enum;
+	connection_done: 									BOOL;
+	connection_running: 								BOOL;
+	connection_error:									BOOL;
+	connection_time_out_tmr:							timer;
+	connection_faulted_aem:	 							message;
+	connection_conditions:								BOOL;
+	connection_done_motcond:							motorization_conditioner;
+	connection_motorization_moving:						BOOL;
+	
+	run:												BOOL;
+	dwell:												BOOL;
+	
+	run_test:											BOOL;
+	dwell_test:											BOOL := TRUE;
+		
+	active_cam:											DINT := DWELL_CAM;
+	next_cam:											DINT := DWELL_CAM;	
+	master_offset:										LREAL := 0;
+	master_scaling:										LREAL := 1.0;
+	slave_scaling:										LREAL := 200;
+
+	torque_limit:										INT := 500; (*$P $*)
+	torque_limit_old:									INT;
+	overrun_percentage:									LREAL := 10; (*$P $*)
+	
+	activation_mode:									axis_cam_activation_mode_enum;
+	
+	CAM_CHANGE_CHECK_DEG:								LREAL := 80; (*$P $*)
+	
+	servo_on_condition: 								BOOL;
+	
+	Startup_run_bost: 									LREAL := 1;
+	Startup_run_bost_ton:                               TON;
+	startup_bost_condition: 							BOOL;
+	enable_delay: 										TON;
+	Torque_force_constant: 								LREAL := 1.33;
+	motor_backup: 										LREAL :=-6;	(*$P $*)
+	motor_backed_up: 									BOOL := FALSE;
+END_VAR
+
+VAR CONSTANT
+	(*Just in case you prefer having constants instead of numbers*)	
+	G_MODULO_MM:										LREAL := 360;
+	
+	MOTOR_MAX_VELOCITY_DEGPS:							LREAL := 9600;
+	MOTOR_MAX_ACCELLERATION_DEGPS2:						LREAL := 4800;
+	MOTOR_MAX_DECELLERATION_DEGPS2:						LREAL := 4800;
+	MOTOR_MAX_JERK_DEGPS3:								LREAL := 100000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:						LREAL := 2;
+	
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF 	NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT:
+		IF axis_get_mode(axis) = MODE_TEST
+		THEN
+			safety_integrated_series_close(csp_transfer_main_safety_drives_SD41300.chB_smes_sis);
+		END_IF
+		RETURN;
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+(********************************* BODY *********************************)
+axis.actual_torque := (axis.actual_current * Torque_force_constant)/1000;
+
+(* SET TORQUE LIMIT *)
+IF torque_limit <> torque_limit_old
+THEN
+	IF soe_drive_channel_write_parameter(
+		channel:= csp_transfer_accumulator_belt.axis.soe_drive_channel, 
+		idn:= S_0_IDN + 92, 
+		data_element:= soe_drive_element_value, 
+		data_source:= ADR(torque_limit), 
+		data_lenght:= SIZEOF(torque_limit),
+		CONVERSION_this:= csp_transfer_accumulator_belt.axis.soe_drive^) = SOE_DRIVE_RETURN_VALUE_DONE
+	THEN
+		torque_limit_old := torque_limit;
+	END_IF
+END_IF
+
+(* Connection Done Test - RMH *)
+IF connection_done
+THEN 
+	motorization_conditioner_start_done(connection_done_motcond);
+END_IF
+
+(* SET CAM CHANGE FOR WHEN TO INDEX *)
+phase_set_data(
+	phase				:= CAM_CHANGE_CHECK_DEG,
+	delay				:= 0,			
+	max_compensation	:= 0,			
+	CONVERSION_this		:= cam_change_check_ph);
+	
+IF phase_edge(cam_change_check_ph)
+THEN		
+	(* TO RUN *)
+	IF run_test
+		OR 
+		(* LEVEL IS APPROPRIATE *)
+		(
+			csp_transfer_infeed_accumulation_level.level_status > CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_UNDER_MIN
+			OR
+			csp_main_motorization.empty_command
+		)
+		(* CLAMPS ARE OPEN *)
+		AND csp_transfer_infeed_clamp.clamp_open_bool
+		(* CARTONS NOT AT BACKSTOP *)
+		AND NOT csp_transfer_upstacker_sensors.carton_backstop_bool // BLOCKED BY FINGERS AT 80
+		(* NOT IN REJECT *)
+		AND NOT csp_transfer_crosspusher_sensors.reject_stack
+		AND NOT csp_transfer_upstacker_sensors.dwell_transfer_empty
+	THEN
+		run := TRUE;
+	ELSE
+		dwell := TRUE;
+	END_IF	
+END_IF
+
+(* Created startup timer to give the accumulator belt an additional scaling during start up to help drive product into the upstacker*)
+Startup_run_bost_ton(IN:=csp.o_machine_is_running , PT:=T#3S , Q=> startup_bost_condition , ET=> );
+
+IF NOT startup_bost_condition
+THEN
+	startup_run_bost := 1.5;
+ELSE
+	startup_run_bost := 1.0;	
+END_IF
+
+(* SET INDEX DISTANCE DYNAMICALLY BY SIZE OF CARTONS + DIMENSIONS + OVERRUN PERCENTAGE *)
+slave_scaling := 	SEL(csp_main_brand.Rollover_Carton,
+						csp_main_brand.carton_dimension.carton_size_W_mm, 
+						csp_main_brand.carton_dimension.carton_size_L_mm) 
+					* 
+					csp_main_brand.case_pattern.case_pattern_L
+					* 
+					(1 + (overrun_percentage / 100))
+					*
+					Startup_run_bost; //At startup this is a multiplier to run the accumulator belt further to help get cases into the accumulator
+
+
+(* ERROR HANDLING LOGIC TO CATCH CAM ERROR *)
+IF active_cam = 0
+THEN 
+	active_cam := DWELL_CAM;
+END_IF
+
+(* RESETS AXES IF PHASE DONE AND CONNECTION DONE AND DISABLED *)
+IF 	phase_done
+	AND connection_done
+	AND axis_is_disabled(axis)
+THEN
+	phase_done := FALSE;
+	connection_done := FALSE;
+END_IF
+
+(* CLEARS CONNECTION AND PHASE ERRORS *)
+IF	machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+	OR machine_is_ready(csp.mch)
+	OR csp_main_services_pushbuttons.i_reset_button
+THEN
+	phase_error := FALSE;
+	connection_error := FALSE;	
+END_IF
+
+//Temp test on move back
+IF	axis.actual_velocity <1 //axis_is_standstill(axis)
+	AND NOT motor_backed_up
+	AND	(next_cam = DWELL_CAM)
+	AND NOT csp_main_motorization.empty_command
+THEN
+	axis_move_relative(
+		distance:= motor_backup,
+		velocity 		:= phase_velocity_degps,
+		acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+		buffer_mode 	:= AXIS_BUFFER_MODE_ABORTING,
+		CONVERSION_this := axis);
+		
+	motor_backed_up := TRUE;
+END_IF
+
+IF 	axis.actual_velocity >1//NOT axis_is_standstill(axis)
+	AND motor_backed_up
+	AND (active_cam = TRANSFER_ACCUMULATOR_BELT_RUN)
+THEN
+	motor_backed_up := FALSE;
+END_IF
+
+(* MAIN POU ACTIONS *)
+phase();
+connection();
+_set_runtime_properties();
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{fd15dd80-a373-4296-bd1c-5e8429e7edd7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{d90ca865-f2ca-4836-8bd9-7555a8792c41}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{e1ad67f0-8612-462c-b568-f4ad31807ccd}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{e0337a73-5fd7-4631-8e02-2f063de88bda}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_accumulator_belt.prc', 
+		process						:= csp_transfer_accumulator.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	axis_init(
+		object_name					:= CONCAT(prc_path, '_axis'), 
+		axis_type					:= AXIS_TYPE_SERVO, 
+		encoder_scaling_factor		:= G_SERVO_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo						:= G_MODULO_MM, 
+		process						:= prc, 
+		CONVERSION_this				:= axis);
+		
+	axis_init_absolute_encoder_preset(	
+		position					:=	0,
+		CONVERSION_this				:=	axis);	
+	
+	axis_set_max_dynamic(
+		reference_velocity			:=	MOTOR_MAX_VELOCITY_DEGPS,
+		velocity					:=	MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration				:=	MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration				:=	MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk						:=	MOTOR_MAX_JERK_DEGPS3,
+		following_error				:=	MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this				:=	axis);
+
+	jog_manager_add_axis(
+		list_index					:= SMTR41323_TRANSFER_ACCUMULATOR_BELT,
+		axis						:= axis,
+		master_axis					:= FALSE,
+		jog_type					:= JOG_TYPE_LINEAR_PLUS,
+		sw_limit_positive			:= 0.0,
+		sw_limit_negative			:= 0.0,
+		CONVERSION_this				:= csp_main_jogManager.jog_manager_real);
+		
+	IF 	csp_main_configurator.Physical_hw
+	THEN
+		axis_add_safety_integrated_series(
+			safety_integrated_series := csp_transfer_main_safety_drives_SD41300.chB_smes_sis,
+			CONVERSION_this			:= axis);
+	END_IF
+		
+	axis_add_soe_drive(
+		channel						:=	SOE_DRIVE_CHANNEL_B,
+		soe_drive					:=	csp_transfer_main_drives.SD41300_drv,
+		CONVERSION_this				:=	axis);
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_phase_faulted_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NORMAL_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	phase_faulted_aem);
+	
+	timer_init(
+		object_name					:= CONCAT(prc_path, 'phase_time_out_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= phase_time_out_tmr);
+	
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_connection_faulted_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NORMAL_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	connection_faulted_aem);
+	
+	timer_init(
+		object_name					:= CONCAT(prc_path, 'connection_time_out_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= connection_time_out_tmr);
+		
+	phase_init(
+        object_name 				:= CONCAT(prc_path, '_cam_change_check_ph'),
+        phase 						:= 0,	//Set at runtime!
+        delay 						:= 0,
+        max_compensation 			:= 0,
+        generator 					:= csp_transfer_accumulator_virtualMaster.phgen,
+        process 					:= prc,
+        CONVERSION_this 			:= cam_change_check_ph);
+		
+	motorization_conditioner_init(
+		object_name					:=	CONCAT(prc_path, 'connection_done_motcond'),
+		velocity_limit				:=	0.0,
+		velocity_limit_active		:=	FALSE,
+		idle_handshake_active		:=	FALSE,
+		execute_handshake_active	:=	TRUE,
+		hold_handshake_active		:=	FALSE,
+		suspend_handshake_active	:=	FALSE,
+		complete_handshake_active	:=	FALSE,
+		abort_handshake_active		:=	FALSE,
+		stop_handshake_active		:=	FALSE,
+		origin						:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:=	csp_main_motorization_manager.motm,
+		process						:=	prc,
+		CONVERSION_this				:=	connection_done_motcond);
+	
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	axis_cycle(axis);
+	
+	phase_cycle(cam_change_check_ph);
+	
+	motorization_conditioner_cycle(connection_done_motcond);
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{0818d5ef-5d1e-4552-a2fb-ea9de4161c8e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{47ea8bc8-b855-4f70-8516-447bbab9074a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{484a5e94-d3a7-4e4f-94a7-287e2b52f133}">
+      <Implementation>
+        <ST><![CDATA[axis_actual_position := axis_get_actual_modulo_position(axis);
+enable_delay(IN:=axis_is_ready_to_enable(axis) , PT:=T#2S , Q=> servo_on_condition , ET=> );
+(* Cam management *)
+IF 	connection_done
+THEN
+	active_cam := axis.engaged_cam.cam_id;
+END_IF
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{33b1004c-9d5d-41ab-a754-4f9d761b4104}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="connection" Id="{e41024db-5d75-4655-8051-8b27a741dd88}">
+      <Implementation>
+        <ST><![CDATA[connection_conditions :=	
+	axis_is_ok(FALSE, axis)
+	AND
+	servo_on_condition
+	AND
+	NOT process_message_is_on(connection_faulted_aem)
+	AND
+	phase_done;
+
+(* connection_done reset *)
+IF	connection_done
+	AND	
+	NOT connection_conditions
+	AND
+	NOT csp.o_machine_is_running
+THEN
+	connection_done := FALSE;
+END_IF
+
+(* Exit conditions *)
+IF	NOT connection_conditions
+THEN	
+	connection_status_next := CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_ERROR;
+	connection_status := connection_status_next;	
+END_IF
+
+(*************** MACHINE STATUS ***************)
+CASE connection_status OF
+
+	CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_START:	(* Start connection *)
+	
+		IF	motorization_manager_is_starting(csp_main_motorization_manager.motm) //TODOPZ: da decidere a che livello usare le variabili di i e o: wn_feeding.i_motorization_is_starting?					
+		THEN
+			connection_running := TRUE;
+			connection_status_next := CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_ENGAGE;
+		END_IF
+		
+		
+	CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_ENGAGE:	
+	
+		master_offset := axis_get_actual_modulo_position(csp_transfer_accumulator_virtualMaster.axis);			
+
+		axis_engage_cam(
+			cam_id							:=	active_cam,	
+			master_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+			slave_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+			activation_mode					:=	AXIS_CAM_ACTIVATION_IMMEDIATELY,
+			activation_position				:=	0.0,
+			master_scaling_mode				:=	AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode				:=	AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+			master_offset					:=	0, 
+			slave_offset					:=	0.0,
+			master_scaling					:=	master_scaling,
+			slave_scaling					:=	slave_scaling,
+			interpolation_type				:=	AXIS_CAM_INTERPOLATION_SPLINE,	 
+			master							:=	csp_transfer_accumulator_virtualMaster.axis,
+			CONVERSION_this					:=	axis);
+		
+		connection_status_next:= CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_ENGAGED;
+	
+		
+	CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_ENGAGED:
+	
+		IF active_cam = 0
+		THEN
+			active_cam := next_cam;
+		END_IF	
+	
+		IF 	axis_is_cam_engaged(axis) 
+		THEN				
+			IF	active_cam <> next_cam
+			THEN							
+				connection_status_next := CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_CHANGE_CAM;
+			ELSE
+				connection_status_next:= CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_DONE;
+			END_IF
+		END_IF
+		
+		
+	CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_CHECK_CHANGE_CAM:	
+		
+		(* CARTONS AT BACKSTOP - NO NEED TO INDEX *)
+	 	IF run
+		THEN		
+			CASE active_cam OF
+			
+				DWELL_CAM: 
+					next_cam := TRANSFER_ACCUMULATOR_BELT_RUN;	
+					run := FALSE;
+					
+				TRANSFER_ACCUMULATOR_BELT_RUN:
+					run := FALSE;
+					
+			END_CASE			
+		END_IF
+	
+		IF 	dwell
+		THEN	
+			
+			CASE active_cam OF
+				
+				DWELL_CAM: 
+					dwell := FALSE;				
+					
+				TRANSFER_ACCUMULATOR_BELT_RUN:
+					next_cam := DWELL_CAM;
+					dwell := FALSE;			
+			END_CASE				
+		END_IF		
+		
+		IF active_cam = TRANSFER_ACCUMULATOR_BELT_RUN
+		THEN 
+			next_cam := DWELL_CAM;
+		END_IF		
+		
+		IF	active_cam <> next_cam
+		THEN
+			connection_status_next := CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_CHANGE_CAM;
+		END_IF
+		
+		IF	NOT connection_motorization_moving
+		THEN
+			connection_status_next := CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_DONE;
+		END_IF
+	
+		
+	CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_CHANGE_CAM:	
+	
+		IF next_cam = TRANSFER_ACCUMULATOR_BELT_RUN
+		THEN
+			activation_mode := AXIS_CAM_ACTIVATION_IMMEDIATELY;
+		ELSE
+			activation_mode := AXIS_CAM_ACTIVATION_NEXT_CYCLE;
+		END_IF
+	
+		axis_engage_cam(
+				cam_id							:=	next_cam,	
+				master_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+				slave_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+				activation_mode					:=	activation_mode,
+				activation_position				:=	0,
+				master_scaling_mode				:=	AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				slave_scaling_mode				:=	AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+				master_offset					:=	0, 
+				slave_offset					:=	0.0,
+				master_scaling					:=	master_scaling,
+				slave_scaling					:=	slave_scaling,
+				interpolation_type				:=	AXIS_CAM_INTERPOLATION_SPLINE,	 
+				master							:=	csp_transfer_accumulator_virtualMaster.axis,
+				CONVERSION_this					:=	axis);		
+			
+		IF	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+		THEN
+			connection_status_next := CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_DONE;
+		ELSE
+			connection_status_next := CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_WAIT_NEW_CAM;
+		END_IF
+	
+		
+	CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_WAIT_NEW_CAM:
+	
+		IF	active_cam = next_cam
+		THEN
+			connection_status_next := CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_CHECK_CHANGE_CAM;
+		END_IF
+		
+		IF	NOT connection_motorization_moving
+		THEN
+			connection_status_next := CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_DONE;
+		END_IF
+		
+		
+	CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_DONE:	(* Connection done *)	
+	
+		connection_running := FALSE;
+		connection_done := TRUE;
+		
+		IF	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+		THEN
+			motorization_conditioner_start_done(connection_done_motcond);
+		END_IF
+		connection_status_next := CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_CHECK_CHANGE_CAM;
+	
+		
+	CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_ERROR:	(* Connection error *)	
+	
+		IF 	connection_running
+			OR NOT axis_is_ok(FALSE, axis)
+		THEN
+			axis_disable(axis);	
+			connection_error := TRUE;						
+		END_IF
+		connection_running	:= FALSE;
+		connection_done 	:= FALSE;	
+		
+		IF	connection_conditions
+		THEN		
+			connection_status_next := CSP_TRANSFER_ACCUMULATOR_STATUS_CONNECTION_START;
+		END_IF		
+END_CASE
+
+IF 	NOT debug_state_machine
+	OR
+	debug_connection_machine_one_step	
+THEN
+	connection_status := connection_status_next;
+	debug_connection_machine_one_step := FALSE;
+END_IF
+
+connection_motorization_moving	:= 
+	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_execute(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_suspended(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_suspending(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_unsuspending(csp_main_motorization_manager.motm)
+	OR 
+	motorization_manager_is_holding(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_held(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_unholding(csp_main_motorization_manager.motm);
+	
+(* Connection timeout *)
+IF	(connection_running
+	AND NOT debug_state_machine)	
+	OR connection_error
+THEN
+	IF	timer_is_expired(connection_time_out_tmr)
+	THEN
+		process_message_set(1, connection_status, 0, connection_faulted_aem);
+	END_IF
+ELSE
+	timer_restart(10000, connection_time_out_tmr);
+END_IF
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="phase" Id="{752cd675-98d7-4362-a8bf-91ad277af804}">
+      <Implementation>
+        <ST><![CDATA[phase_conditions :=
+	axis_is_ok(FALSE, axis)
+	AND
+	process_is_ready(prc)
+	AND
+	process_subtree_is_ready(prc)
+	AND
+	servo_on_condition
+	AND				
+	NOT csp_transfer_main_brand.cam_data_changed
+	AND
+	NOT jog_manager_is_jog_axis_active(SMTR41323_TRANSFER_ACCUMULATOR_BELT, csp_main_jogManager.jog_manager_real)
+	AND
+	NOT disable_req;		
+	
+(* phase_done reset *)
+IF	phase_done
+	AND
+	NOT phase_conditions
+	AND 
+	NOT csp.o_machine_is_running
+THEN
+	axis_disable(axis);
+	
+	phase_done:= FALSE;
+END_IF
+
+(* Exit condition *)
+IF NOT phase_conditions
+THEN
+	phase_status_next := CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_ERROR;
+	phase_status := phase_status_next;	
+END_IF
+
+(*************** MACHINE STATUS ***************)
+CASE phase_status OF
+
+	CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_START:	(* Start phasing *)
+	
+		IF	motorization_manager_is_starting(csp_main_motorization_manager.motm) 					
+			AND axis_is_cam_engaged(csp_transfer_accumulator_virtualMaster.axis) (* Verifies the master is engaged before calculating position *)
+		THEN
+			phase_running := TRUE;
+			phase_master_is_engaged := axis_is_cam_engaged(csp_transfer_accumulator_virtualMaster.axis);
+			phase_status_next := CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_DISABLE;
+		END_IF
+						
+	CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_DISABLE:
+	
+		axis_disable(axis);		
+		
+		IF 	axis_is_disabled(axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_ENABLE;
+		END_IF
+		
+		
+	CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_ENABLE:
+	
+		axis_enable(axis);
+		
+		IF 	axis_is_enabled(axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_ENABLED;
+		END_IF
+		
+		
+	CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_ENABLED:
+	
+		IF 	axis_is_standstill(axis) 
+		THEN
+			IF	phase_master_is_engaged
+			THEN
+				phase_status_next := CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_DONE;
+			ELSE
+				phase_status_next := CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_REDEFINE;
+			END_IF					
+		END_IF
+		
+		
+	CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_REDEFINE:
+	
+		IF	axis_is_cam_engaged(csp_transfer_accumulator_virtualMaster.axis)
+		THEN
+			IF	axis_redefine_position(
+					position			:= 0.0,
+					mode				:= AXIS_REDEFINE_POSITION_MODE_ABSOLUTE,
+					CONVERSION_this		:= axis)
+			THEN
+				phase_status_next := CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_REDEFINED;
+			ELSE
+				phase_status_next := CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_ERROR;
+			END_IF
+		END_IF
+		
+		
+	CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_REDEFINED:
+	
+		IF 	axis_is_position_redefined(axis)
+		THEN
+			phase_status_next := CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_DONE;
+		END_IF
+		
+		
+	CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_DONE:	(* Phase done *)	
+		
+		phase_running := FALSE;
+		phase_done := TRUE;				
+	
+		
+	CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_ERROR:	(* Phase error *)
+	
+		IF	phase_running
+		THEN
+			phase_error := TRUE;
+			axis_disable(axis);									
+		END_IF
+		phase_running := FALSE;
+		
+		IF	phase_conditions 	
+		THEN
+			phase_status_next := CSP_TRANSFER_ACCUMULATOR_BELT_STATUS_PHASE_START;
+		END_IF
+		
+END_CASE
+
+IF 	NOT debug_state_machine
+	OR
+	debug_phase_machine_one_step	
+THEN
+	phase_status := phase_status_next;
+	debug_phase_machine_one_step := FALSE;
+END_IF
+
+(* Phasing timeout *)
+IF	(phase_running
+	AND NOT debug_state_machine)	
+	OR phase_error
+THEN
+	IF	timer_is_expired(phase_time_out_tmr)
+	THEN
+		process_message_set(1, phase_status, 0, phase_faulted_aem);
+	END_IF
+ELSE
+	timer_restart(10000, phase_time_out_tmr);
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

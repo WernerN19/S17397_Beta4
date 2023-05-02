@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_main_low" Id="{f6b04779-8d3d-4c22-b039-1c81c67b7409}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_main_low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*MAIN*)
+csp_main();
+
+	(*Brand*)
+	csp_main_brand();
+	(*Drives*)
+	
+	(*Motorization*)
+	csp_main_motorization();
+	(*Cam Manager*)
+	
+	(*Services*)
+	csp_main_productionData();
+	(*Interface*)
+	csp_main_interface_cabinet();
+	(*Safety*)
+	csp_main_safety();
+	csp_main_safety_interface();
+	csp_main_safety_connectionShutDown();
+	csp_main_safety_drives();
+		//csp_main_safety_drives_powerSupply();
+	(*Jog Manager*)
+	csp_main_jogManager();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,93 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_add_shared_pendant" Id="{0a6bcbbb-e87c-4da2-aa66-2a1727bcbfbe}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Adds the reference to <i><b>jog_manager</i></b> that performs 
+	the jog plus and jog minus pendant command to the instance specified by the 
+	parameter <i><b>this</i></b>.	
+	This function should be called at startup only.<br/>	
+	Against errors on the input parameters the cpu is stopped, in this case the cause <br/>
+	can be inspected in the global struct <i>framework.abort_error</i>: <br/>
+	<br/>
+    <li> <b>ERRORID_1 = 10</b>: <b><i>this</i></b> instance parent itself  </li>
+    <li> <b>ERRORID_1 = 11</b>: <b><i>this</i></b> parent without pendant </li>		
+	</p>
+$*)
+FUNCTION jog_manager_add_shared_pendant : BOOL
+VAR_IN_OUT
+	parent:				jog_manager;	
+	CONVERSION_this:	jog_manager;				(*$ Instance to which the method applies $*)
+END_VAR
+VAR
+	i:					UINT;
+	found:				BOOL := FALSE;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF 	jog_manager_is_not_initialized(CONVERSION_this)
+   	OR
+   	jog_manager_is_not_initialized(parent)
+THEN
+	IF framework_initialization()
+	THEN
+		RETURN;
+	END_IF
+END_IF
+
+IF 	jog_manager_is_not_initialized(CONVERSION_this)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(CONVERSION_this),
+		object_size := SIZEOF(CONVERSION_this),
+		abort := TRUE,
+		error_str_1 := 'object not initialized', 
+		error_str_2 := CONCAT('Please check jog_manager_init of ', CONVERSION_this.object_name)				
+	);
+    RETURN;
+END_IF
+
+IF 	jog_manager_is_not_initialized(parent)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(parent),
+		object_size := SIZEOF(parent),
+		abort := TRUE,
+		error_str_1 := 'object not initialized', 
+		error_str_2 := CONCAT('Please check cam_engage_manager_init of ', CONVERSION_this.object_name)				
+	);
+    RETURN;
+END_IF
+
+IF	CONVERSION_this.CONVERSION_private.my_address = ADR(parent)
+THEN 
+	abort(
+		object_name := CONVERSION_this.object_name,
+		errorID_1 := 10,
+		errorID_2 := 0,
+		errorID_3 := 0,
+		error_str_1 := CONCAT(CONVERSION_this.object_name, ' jog_manager and parent are equal'),
+		error_str_2 := 'jog_manager_add_shared_pendant'
+		);
+	RETURN;
+END_IF
+
+IF	NOT parent.has_pendant
+THEN 
+	abort(
+		object_name := CONVERSION_this.object_name,
+		errorID_1 := 11,
+		errorID_2 := 0,
+		errorID_3 := 0,
+		error_str_1 := CONCAT(CONVERSION_this.object_name, ' jog_manager parent without pendant'),
+		error_str_2 := 'jog_manager_add_shared_pendant'
+		);
+	RETURN;
+END_IF
+
+CONVERSION_this.has_shared_pendant := ADR(parent);
+jog_manager_add_shared_pendant := TRUE;
+
+
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

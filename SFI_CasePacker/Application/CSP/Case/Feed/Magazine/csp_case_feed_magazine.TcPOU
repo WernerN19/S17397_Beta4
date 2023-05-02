@@ -1,0 +1,600 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_magazine" Id="{e6be2065-f275-49dc-a4b7-e1a5211269ca}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_magazine
+VAR
+		
+	prc:											process;
+	prc_path:										STRING;
+	
+	
+	
+	
+	AML_on_machine:									BOOL := true;
+	Product_SKU:									DINT;
+	Magazine_level_1:								DINT;
+	AML_Load_Request:								BOOL;
+	AML_loaded_holding_position:					BOOL;
+	pusher_time_to_retract_timeout:					UDINT:= 20000; (* 20 seconds for rectract*)
+	
+	(* Signals From FLEXLINK *)
+	AML_request_to_engage_pusher: 					BOOL := FALSE; //update _read_var_input
+	AML_request_to_release_pusher:					BOOL := FALSE; ///update _read_var_input
+	AML_Robot_Placing_Active:						BOOL := FALSE; //update _read_var_input with signal
+	AML_Robot_Waiting_To_Place:						BOOL := FALSE; //update _read_var_input with signal
+	AML_Robot_Out_Of_Cases:							BOOL := FALSE;//update _read_var_input with signal
+	AML_Stop_Magazine_Conveyor:						BOOL := FALSE;//update _read_var_input with signal
+	AML_Running:									BOOL := FALSE;//update _read_var_input with signal
+	AML_Faulted:									BOOL := FALSE;//update _read_var_input with signal
+	//Dock 1
+	Flexlink_to_AMR_DropAvailable_1:				BOOL := FALSE;
+	Flexlink_to_AMR_PickAvailable_1:				BOOL := FALSE;
+	Flexlink_to_AMR_Active_1:						BOOL := FALSE;
+	Flexlink_to_AMR_EntryAck_1:						BOOL := FALSE;
+	Flexlink_to_AMR_EntryOK_1:						BOOL := FALSE;
+	
+	AMR_to_Flexlink_EntryReq_1:						BOOL := FALSE;
+	AMR_to_Flexlink_AmrExited_1:					BOOL := FALSE;
+	
+	//Dock 2
+	Flexlink_to_AMR_DropAvailable_2:				BOOL := FALSE;
+	Flexlink_to_AMR_PickAvailable_2:				BOOL := FALSE;
+	Flexlink_to_AMR_Active_2:						BOOL := FALSE;
+	Flexlink_to_AMR_EntryAck_2:						BOOL := FALSE;
+	Flexlink_to_AMR_EntryOK_2:						BOOL := FALSE;
+	
+	AMR_to_Flexlink_EntryReq_2:						BOOL := FALSE;
+	AMR_to_Flexlink_AmrExited_2:					BOOL := FALSE;
+	
+	
+	//Dock 3
+	Flexlink_to_AMR_DropAvailable_3:				BOOL := FALSE;
+	Flexlink_to_AMR_PickAvailable_3:				BOOL := FALSE;
+	Flexlink_to_AMR_Active_3:						BOOL := FALSE;
+	Flexlink_to_AMR_EntryAck_3:						BOOL := FALSE;
+	Flexlink_to_AMR_EntryOK_3:						BOOL := FALSE;
+	
+	AMR_to_Flexlink_EntryReq_3:						BOOL := FALSE;
+	AMR_to_Flexlink_AmrExited_3:					BOOL := FALSE;
+	
+	(* AML Messages For HMI *)
+	AML_Robot_Faulted: 								message; 
+	AML_Robot_Cases_Empty: 							message;
+	AML_Robot_Loading_Cases_Active: 				message;
+	AML_Request_To_Stop_Magazine_Conveyor: 			message;
+	
+	(* Signals TO FLEXLINK *)
+	Pusher_Released: 								BOOL := FALSE;
+	Ready_For_AML_Placement: 						BOOL := TRUE;
+	Pusher_Engaged: 								BOOL := FALSE;
+	Magazine_Level: 								BYTE;	(* Passed in from csp_case_feed_magazine_level, _read_var_input *)
+	AML_Robot_Stop_Request:							BOOL := FALSE; //add logic to pass on stop request from CSP
+	Case_Packer_Running:							BOOL := FALSE; //add logic to pass on running signal
+	Case_Packer_Faulted:							BOOL := FALSE; //add logic to pass on faulted signal
+	E_Stop_Channel_1_Open: 							BOOL := FALSE;
+	E_Stop_Channel_2_Open: 							BOOL := FALSE;
+	Guard_Zone_Channel_1_Open: 						BOOL := FALSE;
+	Guard_Zone_Channel_2_Open: 						BOOL := FALSE;
+	
+	magazine_not_primed_motcond:					motorization_conditioner;
+	
+	
+	toggle_button_input_di:							digital_input;
+	toggle_button_led_do:							digital_output; (* 0 = OFF, 1 = ON *)
+	toggle_button_color_do:							digital_output; (* 0 = GREEN, 1 = RED *)
+	
+	toggle_button_f_trig:							F_TRIG;
+	toggle_button_input:							BOOL;
+	
+	toggle_button_ON:								BOOL;
+	
+	heart_beat: 									BOOL;
+	test_pusher: 									BOOL;
+	engage_delay: 									TON;
+	Pusher_Engaged_Delayed: 						BOOL;
+	
+	magazine_disengage_enable:						BOOL:=FALSE;(*$P $*)
+	AML_bypass_enable:								BOOL:=FALSE;(*$P $*)
+
+	OS_mag_belt_ton: 								TON;
+	OS_mag_belt_run_limit: 							BOOL;
+	lS_mag_belt_ton: 								TON;
+	lS_mag_belt_run_limit: 							BOOL;
+	os_magazine_run_limit_aem: 						message;
+	ls_magazine_run_limit_aem:						message;
+	
+	hold_request_aml_zone:							BOOL := FALSE;
+	aml_zone_hold_motcond:							motorization_conditioner;
+	aml_hold_bypass:								BOOL := FALSE;	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(* DETERMINES CONTROL OF MACHINE BASED ON AML PRESENCE OR MANUAL 8 BALL CONTROL *)
+RAJ_to_Flexlink[0]:= Product_SKU;
+RAJ_to_Flexlink[1] := Magazine_level;
+RAJ_to_Flexlink[2].0:= Case_Packer_Running;
+RAJ_to_Flexlink[2].1:= Case_Packer_Faulted;
+
+RAJ_to_Flexlink[2].3:= Pusher_Released; 
+RAJ_to_Flexlink[2].4:= Pusher_Engaged_Delayed;                                
+RAJ_to_Flexlink[2].5:= Ready_For_AML_Placement;                         
+RAJ_to_Flexlink[2].6:= csp_main_interface.Cartoner_RunOutRequest;                                  
+
+RAJ_to_Flexlink[2].10 := heart_beat;
+heart_beat := Flexlink_to_RAJ[2].10;
+ 
+AML_request_to_engage_pusher:=Flexlink_to_RAJ[2].6;
+AML_request_to_release_pusher:=Flexlink_to_RAJ[2].5;
+AML_Robot_Placing_Active:=Flexlink_to_RAJ[2].7;
+AML_Robot_Waiting_To_Place:=Flexlink_to_RAJ[2].2;
+AML_Robot_Out_Of_Cases:=Flexlink_to_RAJ[2].3;
+AML_Stop_Magazine_Conveyor:=Flexlink_to_RAJ[2].4;
+AML_Running:=Flexlink_to_RAJ[2].0;
+AML_Faulted:=Flexlink_to_RAJ[2].1;
+
+//Flexlink to AMR bits dock 1
+Flexlink_to_AMR_DropAvailable_1 := Flexlink_to_RAJ[3].0;
+Flexlink_to_AMR_PickAvailable_1 := Flexlink_to_RAJ[3].1;					
+Flexlink_to_AMR_Active_1 := Flexlink_to_RAJ[3].2;			
+Flexlink_to_AMR_EntryAck_1 := Flexlink_to_RAJ[3].3;						
+Flexlink_to_AMR_EntryOK_1 := Flexlink_to_RAJ[3].4;						
+
+//RAJ_to_Flexlink[3].0 := AMR_to_Flexlink_EntryReq_1 ;	
+//RAJ_to_Flexlink[3].1 := AMR_to_Flexlink_AmrExited_1;	
+
+//Flexlink to AMR bits dock 2
+Flexlink_to_AMR_DropAvailable_2 := Flexlink_to_RAJ[3].5;
+Flexlink_to_AMR_PickAvailable_2 := Flexlink_to_RAJ[3].6;					
+Flexlink_to_AMR_Active_2 := Flexlink_to_RAJ[3].7;			
+Flexlink_to_AMR_EntryAck_2 := Flexlink_to_RAJ[3].8;						
+Flexlink_to_AMR_EntryOK_2 := Flexlink_to_RAJ[3].9;						
+
+//RAJ_to_Flexlink[3].2 := AMR_to_Flexlink_EntryReq_2 ;	
+//RAJ_to_Flexlink[3].3 := AMR_to_Flexlink_AmrExited_2;
+
+//Flexlink to AMR bits dock 3
+Flexlink_to_AMR_DropAvailable_3 := Flexlink_to_RAJ[3].10;
+Flexlink_to_AMR_PickAvailable_3 := Flexlink_to_RAJ[3].11;					
+Flexlink_to_AMR_Active_3 := Flexlink_to_RAJ[3].12;			
+Flexlink_to_AMR_EntryAck_3 := Flexlink_to_RAJ[3].13;						
+Flexlink_to_AMR_EntryOK_3 := Flexlink_to_RAJ[3].14;						
+
+//RAJ_to_Flexlink[3].4 := AMR_to_Flexlink_EntryReq_3 ;	
+//RAJ_to_Flexlink[3].5 := AMR_to_Flexlink_AmrExited_3;
+
+	
+(*RAJ_to_Flexlink[0]:= Product_SKU;
+		
+RAJ_to_Flexlink[1] := Magazine_level_1;
+
+Case_Packer_Running :=RAJ_to_Flexlink[2].1;*)
+
+
+(* AML ACTIVE *)
+IF AML_on_machine
+THEN
+
+	IF (
+			csp_case_feed_magazine_level.level_status > CSP_CASE_FEED_MAGAZINE_LEVEL_STATUS_ZONE4 //Once we lose ZONE 4 PE, AML can request to load
+			AND csp_main_services.pressure_switch_value > csp_main_services.pressure_value_limit //check pressure
+			AND AML_request_to_release_pusher //input signal from FLEXLINK requesting to load
+			AND NOT AML_request_to_engage_pusher
+			AND NOT AML_bypass_enable //Links to button on main page that allows the the AML to be bypassed
+		)	//input signal from Flexlink requesting to re-engage pushers
+		OR csp_main_accuchange.Brand_Change_Occurred
+	THEN
+		AML_Load_Request := TRUE;
+	ELSE
+		AML_Load_Request := FALSE;
+	END_IF
+	
+	hold_request_aml_zone := (AML_Stop_Magazine_Conveyor 
+		OR digital_actuator_is_faulted(csp_case_feed_magazine_os_pusherTilt.sact)
+		OR digital_actuator_is_faulted(csp_case_feed_magazine_ls_pusherTilt.sact))
+		AND NOT aml_hold_bypass;
+		
+		
+(* USING 8 BALL FOR CONTROL - AML NOT ACTIVE *)
+ELSE
+		
+	toggle_button_f_trig(CLK := digital_input_is_active(toggle_button_input_di));
+	toggle_button_input := toggle_button_f_trig.Q;
+
+	IF csp_main_services.pressure_switch_value > csp_main_services.pressure_value_limit
+	THEN
+		digital_output_set(toggle_button_led_do);
+		
+		(* IF THE BUTTON IS PRESSED *)
+		IF toggle_button_input
+		THEN
+			IF NOT toggle_button_ON
+			THEN
+				toggle_button_ON := TRUE;
+			ELSE
+				toggle_button_ON := FALSE;	
+			END_IF
+		END_IF		
+	(* TURNS ON LED TEMPORARILY IF ACCU MAGAZINE AXIS IS MOVING *)
+	ELSIF (axis_is_moving(csp_case_feed_magazine_accu_lsdepth.axis) OR axis_is_moving(csp_case_feed_magazine_accu_osdepth.axis))
+	THEN
+		digital_output_set(toggle_button_led_do);
+ 	ELSE
+		digital_output_reset(toggle_button_led_do);
+	END_IF
+	
+	
+	(* CONTROLS LOAD REQUEST AND LED - INCLUDES ACCU AXIS MOVING *)
+	IF toggle_button_ON
+		OR (axis_is_moving(csp_case_feed_magazine_accu_lsdepth.axis) OR axis_is_moving(csp_case_feed_magazine_accu_osdepth.axis))
+	THEN
+		digital_output_set(toggle_button_color_do);
+	ELSE
+		digital_output_reset(toggle_button_color_do);
+	END_IF
+	
+	IF toggle_button_ON
+	THEN
+		AML_Load_Request := TRUE;
+	ELSE
+		AML_Load_Request := FALSE;
+	END_IF
+END_IF
+
+IF csp_main_services.pressure_switch_value > csp_main_services.pressure_value_limit //check pressure
+	AND (digital_actuator_is_active(csp_case_feed_magazine_ls_pusher.sact)
+	AND digital_actuator_is_active(csp_case_feed_magazine_os_pusher.sact)
+	AND digital_actuator_is_active(csp_case_feed_magazine_ls_pusherTilt.sact)
+	AND digital_actuator_is_active(csp_case_feed_magazine_os_pusherTilt.sact)
+	AND csp_case_feed_magazine_ls_sensors.pusher_clear
+	AND csp_case_feed_magazine_Os_sensors.pusher_clear)
+	OR test_pusher
+THEN
+	Pusher_Released := TRUE; //AML in fully retracted position for LOAD
+	Ready_For_AML_Placement := TRUE;
+	Pusher_Engaged := FALSE;
+ELSE
+	Pusher_Engaged := TRUE;
+	Ready_For_AML_Placement := TRUE;
+	Pusher_Released := FALSE;
+END_IF
+	
+engage_delay(IN:= Pusher_Engaged , PT:=T#5S , Q=> Pusher_Engaged_Delayed , ET=> );	
+
+(* MAKES SURE THAT THE MAGAZINE THROAT PROXES ARE MET MEANING OK BACK PRESSURE FOR CASES *)
+IF motorization_manager_is_starting(csp_main_motorization_manager.motm)
+	AND filter_is_on(csp_case_feed_magazine_ls_sensors.feed_di_flt)
+	AND filter_is_on(csp_case_feed_magazine_os_sensors.feed_di_flt)
+	OR csp_case_main_services.dry_cycle_mode
+THEN
+	motorization_conditioner_start_done(magazine_not_primed_motcond);
+END_IF
+
+IF csp_main_services.pressure_switch_value > csp_main_services.pressure_value_limit //check pressure
+THEN
+	digital_actuator_message_enable(csp_case_feed_magazine_ls_pusher.sact);
+	digital_actuator_message_enable(csp_case_feed_magazine_os_pusher.sact);
+	digital_actuator_message_enable(csp_case_feed_magazine_ls_pushertilt.sact);
+	digital_actuator_message_enable(csp_case_feed_magazine_os_pusherTilt.sact);
+ELSE
+	digital_actuator_message_disable(csp_case_feed_magazine_ls_pusher.sact);
+	digital_actuator_message_disable(csp_case_feed_magazine_os_pusher.sact);
+	digital_actuator_message_disable(csp_case_feed_magazine_ls_pushertilt.sact);
+	digital_actuator_message_disable(csp_case_feed_magazine_os_pusherTilt.sact);
+END_IF
+
+OS_mag_belt_ton(IN:= axis_is_moving(csp_case_feed_magazine_os_belt.axis) , PT:=T#5S , Q=> OS_mag_belt_run_limit , ET=> );		
+lS_mag_belt_ton(IN:= axis_is_moving(csp_case_feed_magazine_ls_belt.axis) , PT:=T#5S , Q=> lS_mag_belt_run_limit , ET=> );
+
+IF	OS_mag_belt_run_limit
+THEN
+	process_message_set(0, 0, 0, os_magazine_run_limit_aem);
+ELSE
+	process_message_reset(os_magazine_run_limit_aem);	
+END_IF
+
+IF	LS_mag_belt_run_limit
+THEN
+	process_message_set(0, 0, 0, ls_magazine_run_limit_aem);
+ELSE
+		process_message_reset(ls_magazine_run_limit_aem);	
+END_IF
+
+IF	hold_request_aml_zone
+	AND NOT aml_hold_bypass
+	AND csp_main_motorization_manager.debug_Enable_new_conditioners (* Selector on HMI while still being tested *)
+THEN
+	motorization_conditioner_hold(aml_zone_hold_motcond);
+	motorization_conditioner_velocity_limit_activate(aml_zone_hold_motcond);
+ELSE
+	motorization_conditioner_unhold(aml_zone_hold_motcond);
+	motorization_conditioner_velocity_limit_deactivate(aml_zone_hold_motcond);
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{20cfe3e8-d8b7-4479-ad17-f91899adb2a8}">
+      <Implementation>
+        <ST><![CDATA[IF AML_Faulted 
+THEN
+	process_message_set(0,0,0,AML_Robot_Faulted);
+ELSE
+	Process_message_reset(AML_Robot_Faulted);
+END_IF
+
+
+IF AML_Robot_Out_Of_Cases
+THEN
+	process_message_set(0,0,0,AML_Robot_Cases_Empty);
+ELSE
+	process_message_reset(AML_Robot_Cases_Empty);
+END_IF
+
+IF AML_Robot_Placing_Active
+THEN
+	process_message_set(0,0,0, AML_Robot_Loading_Cases_Active);
+ELSE
+	process_message_reset(AML_Robot_Loading_Cases_Active);
+END_IF
+
+IF AML_Stop_Magazine_Conveyor
+THEN
+	process_message_set(0,0,0, AML_Request_To_Stop_Magazine_Conveyor);
+ELSE
+	process_message_reset(AML_Request_To_Stop_Magazine_Conveyor);
+END_IF
+
+
+
+;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{23564902-4473-4643-ae89-d0e885adfc68}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{a8d8339f-a73d-475b-8620-bdc333c15d5b}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{990bd264-a68c-408b-84a9-51ed5bc07425}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_feed_magazine.prc', 
+		process						:= csp_case_feed.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	process_message_init(
+        object_name:= CONCAT(prc_path, 'AML_Robot_Faulted'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_OBLIGATION,
+        process:= prc,
+        CONVERSION_this:= AML_Robot_Faulted);
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, 'AML_Robot_Cases_Empty'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_OBLIGATION,
+        process:= prc,
+        CONVERSION_this:= AML_Robot_Cases_Empty);
+
+	process_message_init(
+        object_name:= CONCAT(prc_path, 'AML_Robot_Loading_Cases_Active'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP,
+        typology:=  MESSAGE_TYPOLOGY_NORMAL,
+        process:= prc,
+        CONVERSION_this:= AML_Robot_Loading_Cases_Active);
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, 'AML_Request_To_Stop_Magazine_Conveyor'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP,
+        typology:=  MESSAGE_TYPOLOGY_OBLIGATION, 
+        process:= prc,
+        CONVERSION_this:= AML_Request_To_Stop_Magazine_Conveyor);
+	
+	motorization_conditioner_init(
+		object_name					:=	CONCAT(prc_path, '_magazine_not_primed_motcond'),
+		velocity_limit				:=	0.0,
+		velocity_limit_active		:=	FALSE,
+		idle_handshake_active		:=	FALSE,
+		execute_handshake_active	:=	TRUE,
+		hold_handshake_active		:=	FALSE,
+		suspend_handshake_active	:=	FALSE,
+		complete_handshake_active	:=	FALSE,
+		abort_handshake_active		:=	FALSE,
+		stop_handshake_active		:=	FALSE,
+		origin						:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:=	csp_main_motorization_manager.motm,
+		process						:=	prc,
+		CONVERSION_this				:=	magazine_not_primed_motcond);
+	
+	
+	(* OUTPUTS *)
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_toggle_button_led_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= toggle_button_led_do);
+		
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_toggle_button_color_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= toggle_button_color_do);
+		
+	(* INPUTS *) 
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_toggle_button_input_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= toggle_button_input_di);
+		
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_os_magazine_run_limit_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_EVENT, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= os_magazine_run_limit_aem);	
+		
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_ls_magazine_run_limit_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_EVENT, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= ls_magazine_run_limit_aem);	
+	
+	motorization_conditioner_init(
+		object_name := CONCAT(prc_path, '_aml_zone_hold_motcond'),
+		velocity_limit := 0,
+		velocity_limit_active := FALSE,
+		idle_handshake_active := FALSE,
+		execute_handshake_active := FALSE,
+		hold_handshake_active := FALSE,
+		suspend_handshake_active := FALSE,
+		complete_handshake_active := FALSE,
+		abort_handshake_active := FALSE,
+		stop_handshake_active := FALSE,
+		origin := MOTORIZATION_CONDITIONER_ORIGIN_EXTERNAL_UP,
+		manager := csp_main_motorization_manager.motm,
+		process := prc,
+		CONVERSION_this := aml_zone_hold_motcond);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	motorization_conditioner_cycle(magazine_not_primed_motcond);
+	motorization_conditioner_cycle(aml_zone_hold_motcond);
+
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{0564b623-a8b2-400e-96fb-e655c78069f8}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{58b1af2e-d85f-4ba3-afbc-4bfc912dce9e}">
+      <Implementation>
+        <ST><![CDATA[//AML_request_to_engage_pusher 		:= input FROM flexlink;
+//AML_request_to_release_pusher 	:= input FROM flexlink;
+//AML_Robot_Placing_Active 			:= input from Flexlink;
+//AML_Robot_Waiting_To_Place 		:= input from flexlink;
+//AML_Robot_Out_Of_Cases 			:= input from flexlink;				
+//AML_Stop_Magazine_Conveyor 		:= input from flexlink;					
+//AML_Running 						:= input from flexlink;					
+//AML_Faulted 						:= input from flexlink;
+//AML_E_Stop_Channel_1_Open			:= input FROM flexlink;
+//AML_E_Stop_Channel_2_Open			:= input FROM flexlink;
+//AML_Guard_Zone_Channel_1_Open		:= input from flexlink;
+//AML_Guard_Zone_Channel_2_Open		:= input from flexlink;
+
+Magazine_Level := csp_case_feed_magazine_level.level;
+
+
+(* Add Logic to get this information AMR *)
+
+//AML_Robot_Stop_Request := //add logic to pass on stop request from CSP
+Case_Packer_Running := machine_is_execute(csp.mch);	//add logic to pass on running signal
+Case_Packer_Faulted := machine_is_stopped(csp.mch); //add logic to pass on faulted signal	
+E_Stop_Channel_1_Open := safety_integrated_object_protection_is_open(csp_case_main_safety_emergency.HMI_button_sio);
+E_Stop_Channel_2_Open := safety_integrated_object_protection_is_open(csp_transfer_main_safety_emergency.HMI_button_sio);
+Guard_Zone_Channel_1_Open := NOT safety_integrated_series_is_safely_closed(csp_case_main_safety_guards.sis);		
+Guard_Zone_Channel_2_Open := NOT safety_integrated_series_is_safely_closed(csp_transfer_main_safety_guards.sis);	
+
+						
+;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{cf0596d1-b8ac-4a4d-b570-56641f186ae6}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{a12b5241-d2be-46dc-9535-b9f28fe169ff}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

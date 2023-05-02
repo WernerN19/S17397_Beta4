@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_set_jog_activation_condition" Id="{4ba39170-dcc5-491a-a6e8-291d8b1f4c27}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Set the jog activation condition in <b><i>this</i></b>.
+	The method returns <i>TRUE</i> if the command is accepted, otherwise it returns <i>FALSE</i>.
+$*)
+FUNCTION jog_manager_set_jog_activation_condition : BOOL
+VAR_INPUT
+	jog_activation_condition:	BOOL;
+END_VAR
+VAR_IN_OUT
+    CONVERSION_this:		jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	NOT (descriptor_mode_is_operational(CONVERSION_this.descriptor)
+		(*OR
+		descriptor_mode_is_test(CONVERSION_this.descriptor)*))	
+THEN
+	jog_manager_set_jog_activation_condition := FALSE;					(* command rejected *)
+ 	RETURN;
+END_IF
+
+CONVERSION_this.jog_activation_condition := jog_activation_condition;
+CONVERSION_this.operational_command := SEL(CONVERSION_this.jog_activation_condition, JOG_MANAGER_RESET_ACTIVATION_CONDITION, JOG_MANAGER_SET_ACTIVATION_CONDITION);
+jog_manager_set_jog_activation_condition := TRUE;						(* command accepted *)]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,615 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_crosspusher_sensors" Id="{e5e3d289-9816-46eb-ba40-9e0b4a8a70c1}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_crosspusher_sensors
+VAR
+	
+	prc:												process;
+	prc_path:											STRING;
+	
+	calculated_stack_height:							LREAL;
+	reject_shift_bool:									BOOL;
+	reject_shift_boolean:								boolean;
+	
+	reject_low_offset:									LREAL := 10; (*$P $*)
+	reject_high_offset:									LREAL := 10; (*$P $*)
+	
+	reject_tolerance:									LREAL := 10; (*$P $*)
+	crosspusher_high_stack_generator:					phase_generator;
+	crosspusher_high_stack_window:						phase_window;
+	crosspusher_high_stack_low_limit:					LREAL := 100; (*$P $*)
+	crosspusher_high_stack_high_limit:					LREAL := 150; (*$P $*)
+	
+	reject_stack:										BOOL := FALSE;
+	reject_complete:									BOOL := FALSE;
+	
+	Variable_2bytes AT %I*: 							UINT;
+	output_status_1 AT %I*:    							UINT; (* total amount being blocked *)
+	output_status_2 AT %I*:								UINT; (* heighest level of sensor being blocked *)
+	
+	read_height_mm:										LREAL; (*$M $*)
+	SetupHeightMM:										LREAL; (*$M $*) (* Live reading of height in MM from light curtain for setup *)
+
+	light_curtain_reading:								BOOL := FALSE; (*$M $*)
+	
+	light_curtain_height_offset:						LREAL := 30; (*$P $*)
+	
+	stack_fail:											BOOL;
+	
+	load_check_phgen:									phase_generator;
+	load_check_phwin:									phase_window;
+	
+	load_check_low_limit:								LREAL := 60; (*$P $*)
+	load_check_high_limit:								LREAL := 220; (*$P $*)
+	no_load_dchk:										digital_check;
+	no_load_bool:										boolean;
+	
+	load_check_tmr:										timer;
+	load_check_timer_delay:								LREAL; 
+	load_check_timer_running:							BOOL := FALSE;
+	
+	(* RFID *)
+	rfid_input_buffer:									iol_slave_bis00lh_pdo_input;
+	rfid_input_bitheader_1:								iol_slave_bis00lh_bitheader_input;
+	rfid_input_bitheader_2:								iol_slave_bis00lh_bitheader_input;
+			
+	rfid_output_buffer:									iol_slave_bis00lh_pdo_output;
+	rfid_output_bitheader_1:							iol_slave_bis00lh_bitheader_output;
+	rfid_output_bitheader_2:							iol_slave_bis00lh_bitheader_output;
+	
+	
+	rfid_start_toggle:									BOOL := FALSE;
+	rfid_shutdown_toggle:								BOOL := FALSE;
+	rfid_write_toggle:									BOOL := FALSE;
+	rfid_read_toggle:									BOOL := FALSE;
+	reject_chksect:										check_section;
+	
+	rfid_value:											BYTE;
+	rfid_value_to_write:								BYTE;
+	calculated_height_dif:								LREAL;
+	high_load_dchk:										digital_check;
+	low_load_dchk:										digital_check;
+	high_load_bool:										boolean;
+	low_load_bool:										boolean;
+	HORIZONTAL_RUNTIME_DEG:								LREAL := 90;
+	CARTON_WIDTH_PERCENTAGE:							LREAL := 0.25;
+	light_curtain_window: 								BOOL;
+	stack_fail_duration:								ULINT;
+	stack_fail_TOF:										TOF;
+	Leading_Edge:										ULINT;
+	Trailing_Edge:										ULINT;
+	Rising:												R_Trig;
+	Trailing:											F_TRIG;
+	high_load_sensor_misaligned_aem: 					message;
+END_VAR
+
+VAR_INPUT
+	i_rfid_read_from_hmi:								BOOL;
+	i_rfid_write_from_hmi:								BOOL;
+END_VAR
+VAR_OUTPUT
+	o_rfid_value:										BYTE;
+END_VAR
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(* HOLDS REJECT STACK UNTIL REJECT DONE *)
+IF 	reject_stack
+	AND csp_transfer_crosspusher.reject_done (* Verifies reject is completed and sets variables back to FALSE *)
+THEN
+	reject_stack := FALSE;
+	reject_complete := FALSE;
+END_IF
+
+reject_shift_bool := reject_stack;
+
+IF reject_shift_bool
+THEN
+	boolean_set(reject_shift_boolean);
+ELSE
+	boolean_reset(reject_shift_boolean);
+END_IF
+
+(* SETS PHASE WINDOW FOR LOAD CHECK + HIGH LOAD REJECT CHECK *)
+phase_window_set_phases_data(
+	begin_phase:= load_check_low_limit, 
+	end_phase:= load_check_high_limit, 
+	begin_delay:= 0, 
+	end_delay:= 0, 
+	begin_max_compensation:= 0, 
+	end_max_compensation:= 0, 
+	CONVERSION_this:= load_check_phwin);
+	
+(* CREATES HIGH STACK LIMIT TOLERANCE BASED OFF CARTON DIMENSION AND PATTERN *)
+calculated_stack_height := csp_main_brand.carton_dimension.carton_size_W_mm * csp_main_brand.case_pattern.case_pattern_W;
+
+(* Live reading of height in MM from light curtain for setup *)
+SetupHeightMM := output_status_1 * 5 + light_curtain_height_offset;
+
+IF machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	boolean_reset(no_load_bool);
+	boolean_reset(low_load_bool);
+	boolean_reset(high_load_bool);
+END_IF
+
+load_check_timer_delay := ((60000/ (MAX(csp_main_motorization_manager.motm.actual_velocity_setpoint, csp_main_motorization_manager.MACHINE_MIN_VELOCITY_PPM)) //seconds per case 
+							* (HORIZONTAL_RUNTIME_DEG/ 360)) //horizontal move per cycle
+							/ csp_transfer_crosspusher_horizontal.slave_scaling)
+							* (csp_main_brand.carton_dimension.carton_size_L_mm * CARTON_WIDTH_PERCENTAGE);
+
+(* CHECKS IF IN PHASE WINDOW AND CROSSPUSHER HORIZONTAL IS RUNNING TO LOAD *)
+IF phase_window_position_is_in_window(csp_transfer_crosspusher_horizontal.axis.actual_position, load_check_phwin)  
+	AND csp_transfer_crosspusher_horizontal.active_cam = TRANSFER_CROSSPUSHER_HORIZONTAL_TO_LOAD
+	AND csp_main_motorization_virtualManager.axis.actual_velocity > 0
+	AND NOT csp_transfer_upstacker_sensors.debug_active
+THEN	
+	(* VALUE IS BEING READ IN - Data being received by MLG2 Prime *)
+	light_curtain_reading := Variable_2bytes.0 AND Variable_2bytes.1 AND Variable_2bytes.2;
+	(* IF READING DATA *)
+	IF light_curtain_reading
+		THEN		
+			(* CONVERTS SEGMENTS TO TOTAL MM *)
+			read_height_mm := output_status_1 * 5 + light_curtain_height_offset;
+			
+			(* CHECKS IF READ HEIGHT VS CALCULATED HEIGHT IS OUTSIDE REJECT TOLERANCE *)
+			IF ABS(read_height_mm - calculated_stack_height) > reject_tolerance
+			THEN
+				stack_fail := TRUE;
+				calculated_height_dif := read_height_mm - calculated_stack_height;
+			ELSE
+				stack_fail := FALSE;
+			END_IF
+	(* IF STACK FAILS - REJECT_STACK *)
+	ELSE
+		IF 	NOT csp_transfer_upstacker_sensors.debug_active
+			AND NOT csp_transfer_upstacker.First_cycle_after_dry
+		THEN
+			stack_fail := TRUE;
+		END_IF
+	END_IF
+END_IF
+
+Rising(CLK := stack_fail); 
+Trailing(CLK := stack_fail); 
+
+IF Rising.Q 
+THEN 
+	Leading_Edge := F_GetSystemTime(); 
+END_IF 
+
+IF Trailing.Q 
+THEN
+	Trailing_Edge := F_GetSystemTime();
+	IF boolean_get_status(low_load_bool)
+	THEN
+		log_section_inc_auxiliary_counter(CROSSPUSHER_REJECT_LOW_LOAD,1,csp_case_main_statistics.logsect);
+	END_IF
+	IF boolean_get_status(high_load_bool)
+	THEN
+		log_section_inc_auxiliary_counter(CROSSPUSHER_REJECT_HIGH_LOAD,1,csp_case_main_statistics.logsect);
+	END_IF
+END_IF
+
+stack_fail_duration := (((Trailing_Edge - Leading_Edge) * 100) / 1000000);
+IF stack_fail
+	THEN			
+		IF timer_is_expired(load_check_tmr)
+			THEN
+				reject_stack := TRUE;
+				stack_fail := FALSE;
+
+				IF calculated_height_dif < 0
+					THEN
+						boolean_set(low_load_bool);
+					ELSE
+						boolean_set(high_load_bool);
+				END_IF
+		END_IF
+ELSE
+	timer_stop(load_check_tmr);
+	timer_restart(LREAL_TO_UDINT(load_check_timer_delay), load_check_tmr);
+END_IF
+
+IF reject_stack
+	AND csp_transfer_crosspusher.reject_done 
+THEN
+	boolean_reset(low_load_bool);
+	boolean_reset(high_load_bool);
+END_IF
+
+(* RFID READ/WRITE LOGIC *)
+IF i_rfid_read_from_hmi 
+THEN
+	rfid_start_toggle := TRUE;
+	rfid_read_toggle := TRUE;
+	i_rfid_read_from_hmi := FALSE;
+END_IF
+
+IF i_rfid_write_from_hmi
+THEN
+	rfid_start_toggle := TRUE;
+	rfid_write_toggle := TRUE;
+	i_rfid_write_from_hmi := FALSE;
+END_IF
+
+(* Sync Error Digital Check *)
+IF	Variable_2bytes.15
+	AND NOT csp.o_machine_is_running
+	AND 
+		( //don't check in the window below, due to the pusher blocking the light curtain. 0-30
+		csp_transfer_crosspusher_horizontal.axis.actual_position > 400
+		AND csp_transfer_crosspusher_follower.axis.actual_position > 20
+		)
+THEN
+	process_message_set(0, 0, 0, high_load_sensor_misaligned_aem);
+ELSE
+	process_message_reset(high_load_sensor_misaligned_aem);	
+END_IF
+
+RFID();
+light_curtain_window := phase_window_position_is_in_window(csp_transfer_crosspusher_horizontal.axis.actual_position, load_check_phwin);
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{9f21ff4c-5486-4fff-8537-11f3afa08e04}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{47cf4fb4-1b2a-4e2e-a4bb-1453f9557e65}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{a7c941b2-11b3-41bf-90a8-cc367e85ba42}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{f96467c0-9187-4616-9518-8a7122c7b568}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_crosspusher_sensors.prc', 
+		process						:= csp_transfer_crosspusher.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* PHASE  *)
+	phase_generator_init(
+		object_name:= CONCAT(prc_path, '_load_check_phgen'), 
+		modulo:= 0, 
+		resolution:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis:= csp_transfer_crosspusher_horizontal.axis, 
+		process:= prc, 
+		CONVERSION_this:= load_check_phgen);
+		
+	phase_window_init(
+		object_name:= CONCAT(prc_path, '_load_check_phwin'), 
+			begin_phase:= load_check_low_limit, 
+			end_phase:= load_check_high_limit, 
+			begin_delay:= 0, 
+			end_delay:= 0, 
+			begin_max_compensation:= 0, 
+			end_max_compensation:= 0, 
+			generator:= load_check_phgen, 
+			process:= prc, 
+			CONVERSION_this:= load_check_phwin);
+			
+			
+	(* DIGITAL CHECKS *)
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_no_load_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 2000, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= no_load_dchk);
+		
+	digital_check_add_boolean(
+		boolean:= no_load_bool, 
+		CONVERSION_this:= no_load_dchk);
+		
+	boolean_init(CONCAT(prc_path, '_no_load_bool'),prc,no_load_bool);
+	boolean_init(CONCAT(prc_path, '_high_load_bool'),prc,high_load_bool);
+	boolean_init(CONCAT(prc_path, '_low_load_bool'),prc,low_load_bool);
+	
+	(* DIGITAL CHECKS *)
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_high_load_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 0, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= TRUE, 
+		machine_reaction:= MACHINE_REACTION_NO_STOP, 
+		typology:= MESSAGE_TYPOLOGY_NORMAL, 
+		process:= prc, 
+		CONVERSION_this:= high_load_dchk);
+		
+	digital_check_add_boolean(
+		boolean:= high_load_bool, 
+		CONVERSION_this:= high_load_dchk);
+		
+	(* DIGITAL CHECKS *)
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_low_load_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 0, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= TRUE, 
+		machine_reaction:= MACHINE_REACTION_NO_STOP, 
+		typology:= MESSAGE_TYPOLOGY_NORMAL, 
+		process:= prc, 
+		CONVERSION_this:= low_load_dchk);
+		
+	digital_check_add_boolean(
+		boolean:= low_load_bool, 
+		CONVERSION_this:= low_load_dchk);
+		
+	timer_init(
+		object_name:= CONCAT(prc_path, '_load_check_tmr'), 
+		process:= prc, 
+		CONVERSION_this:= load_check_tmr);
+	
+
+	check_section_window_mode_init(
+		object_name									:= CONCAT(prc_path, '_reject_chksect'),
+		check_enable								:= TRUE, 
+		event_to_check								:= CHECK_SECTION_EVENT_INPUT_ON, 
+		execution_mode								:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable							:= FALSE, 
+		status_bits_to_be_true						:= ITEM_HAS_CARTON + ITEM_CASE_FEED, 
+		status_bits_to_be_false						:= common_global_variables.NONE, 
+		_step_status_conditioning_execution			:= FALSE, 
+		status_bits_to_set							:= common_global_variables.NONE, 
+		status_bits_to_reset						:= common_global_variables.NONE, 
+		reject_bit_to_set							:= TRANSFER_CARTONS_HIGH_LOAD, 
+		_step										:= 24, 
+		first_step_to_write_offset					:= 0, 
+		number_of_steps_to_write					:= 1, 
+		begin_phase									:= 120, (*19062020 just after the case loader fill check_section*)
+		end_phase									:= 122, (*19062020 small window*)
+		max_consecutive_failed_checks				:= 10, 
+		max_failed_checks_percentage				:= 100, 
+		products_for_failed_checks_percentage		:= 10, 
+		shift_register								:= csp_transfer_main_statistics.crosspusher_sr , 
+		process										:= prc, 
+		CONVERSION_this								:= reject_chksect );
+	
+	boolean_init(
+		object_name 								:= CONCAT(prc_path, '_reject_shift_boolean'),
+		process 									:= prc,
+		CONVERSION_this								:= reject_shift_boolean);
+		
+	check_section_add_boolean_input(
+		boolean_input								:= reject_shift_boolean,
+		CONVERSION_this								:= reject_chksect);
+	
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_high_load_sensor_misaligned_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= high_load_sensor_misaligned_aem);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	digital_check_cycle(no_load_dchk);
+	digital_check_cycle(low_load_dchk);
+	digital_check_cycle(high_load_dchk);
+	phase_generator_cycle(load_check_phgen);
+	
+	phase_window_cycle(load_check_phwin);
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{3cbcebed-fe9c-4a93-b104-3a71bcb09a22}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{f078d640-6d41-4cae-b699-556e98274113}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{e4465a0f-0b5d-45d3-90a5-807a72287c94}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{afccc5dc-12ab-4299-9cae-32af43e7f490}">
+      <Implementation>
+        <ST><![CDATA[o_rfid_value := rfid_value;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="RFID" Id="{634260ae-eb79-00cf-378b-d92a03dc562d}">
+      <Implementation>
+        <ST><![CDATA[	(* RMH RFID TEST *)
+rfid_input_bitheader_1.CP := rfid_input_buffer.ByteArr[0].0;
+rfid_input_bitheader_1.AA := rfid_input_buffer.ByteArr[0].1;
+rfid_input_bitheader_1.AE := rfid_input_buffer.ByteArr[0].2;
+rfid_input_bitheader_1.AF := rfid_input_buffer.ByteArr[0].3;
+rfid_input_bitheader_1.Bit4 := rfid_input_buffer.ByteArr[0].4;
+rfid_input_bitheader_1._TO := rfid_input_buffer.ByteArr[0].5;
+rfid_input_bitheader_1.HF := rfid_input_buffer.ByteArr[0].6;
+rfid_input_bitheader_1.BB := rfid_input_buffer.ByteArr[0].7;
+
+rfid_input_bitheader_2.CP := rfid_input_buffer.ByteArr[0].0;
+rfid_input_bitheader_2.AA := rfid_input_buffer.ByteArr[0].1;
+rfid_input_bitheader_2.AE := rfid_input_buffer.ByteArr[0].2;
+rfid_input_bitheader_2.AF := rfid_input_buffer.ByteArr[0].3;
+rfid_input_bitheader_2.Bit4 := rfid_input_buffer.ByteArr[0].4;
+rfid_input_bitheader_2._TO := rfid_input_buffer.ByteArr[0].5;
+rfid_input_bitheader_2.HF := rfid_input_buffer.ByteArr[0].6;
+rfid_input_bitheader_2.BB := rfid_input_buffer.ByteArr[0].7;
+
+rfid_output_buffer.ByteArr[0].0 := rfid_output_bitheader_1.AV ;
+rfid_output_buffer.ByteArr[0].1 := rfid_output_bitheader_1.Bit1;
+rfid_output_buffer.ByteArr[0].2 := rfid_output_bitheader_1.GR;
+rfid_output_buffer.ByteArr[0].3 := rfid_output_bitheader_1.Bit3;
+rfid_output_buffer.ByteArr[0].4 := rfid_output_bitheader_1.Bit4;
+rfid_output_buffer.ByteArr[0].5 := rfid_output_bitheader_1.KA;
+rfid_output_buffer.ByteArr[0].6 := rfid_output_bitheader_1.TI;
+rfid_output_buffer.ByteArr[0].7 := rfid_output_bitheader_1.Bit7;
+
+rfid_output_buffer.ByteArr[9].0 := rfid_output_bitheader_2.AV ;
+rfid_output_buffer.ByteArr[9].1 := rfid_output_bitheader_2.Bit1;
+rfid_output_buffer.ByteArr[9].2 := rfid_output_bitheader_2.GR;
+rfid_output_buffer.ByteArr[9].3 := rfid_output_bitheader_2.Bit3;
+rfid_output_buffer.ByteArr[9].4 := rfid_output_bitheader_2.Bit4;
+rfid_output_buffer.ByteArr[9].5 := rfid_output_bitheader_2.KA;
+rfid_output_buffer.ByteArr[9].6 := rfid_output_bitheader_2.TI;
+rfid_output_buffer.ByteArr[9].7 := rfid_output_bitheader_2.Bit7;
+
+IF rfid_start_toggle
+THEN
+	rfid_output_bitheader_1.GR := FALSE;
+	rfid_output_bitheader_1.KA := FALSE;
+	rfid_output_bitheader_1.AV := FALSE;
+	rfid_output_bitheader_2.GR := FALSE;
+	rfid_output_bitheader_2.KA := FALSE;
+	rfid_output_bitheader_2.AV := FALSE;
+	rfid_start_toggle := FALSE;
+END_IF
+
+IF rfid_shutdown_toggle
+THEN
+	rfid_output_bitheader_1.KA := TRUE;
+	rfid_output_bitheader_2.KA := TRUE;
+	
+	IF rfid_input_bitheader_1.HF
+		AND rfid_input_bitheader_2.HF
+		AND NOT rfid_input_bitheader_1.CP
+		AND NOT rfid_input_bitheader_2.CP
+	THEN
+		rfid_output_bitheader_1.KA := FALSE;
+		rfid_output_bitheader_2.KA := FALSE;
+		rfid_shutdown_toggle := FALSE;
+	END_IF	
+END_IF
+
+IF 	rfid_write_toggle 
+	OR i_rfid_write_from_hmi
+THEN	
+	rfid_output_buffer.ByteArr[1] := 16#0032;
+	rfid_output_buffer.ByteArr[2] := 16#00;
+	rfid_output_buffer.ByteArr[3] := 16#00;
+	rfid_output_buffer.ByteArr[4] := 16#0001;
+	rfid_output_buffer.ByteArr[5] := 16#00;
+	rfid_output_buffer.ByteArr[6] := rfid_value_to_write;
+	
+	rfid_output_bitheader_1.AV := TRUE;
+	rfid_output_bitheader_2.AV := TRUE;
+	
+	IF rfid_input_bitheader_1.AA 
+		AND rfid_input_bitheader_2.AA 
+		AND rfid_input_bitheader_1.AE
+		AND rfid_input_bitheader_2.AE
+	THEN
+		rfid_output_bitheader_1.AV := FALSE;
+		rfid_output_bitheader_2.AV := FALSE;
+		rfid_write_toggle := FALSE;
+	END_IF		
+END_IF
+
+IF rfid_read_toggle 
+THEN	
+	rfid_output_buffer.ByteArr[1] := 16#0001;
+	rfid_output_buffer.ByteArr[2] := 16#00;
+	rfid_output_buffer.ByteArr[3] := 16#00;
+	rfid_output_buffer.ByteArr[4] := 16#0001;
+	rfid_output_buffer.ByteArr[5] := 16#00;
+	
+	rfid_output_bitheader_1.AV := TRUE;
+	rfid_output_bitheader_2.AV := TRUE;
+	
+	
+	IF rfid_input_bitheader_1.AA 
+		AND rfid_input_bitheader_2.AA 
+		AND rfid_input_bitheader_1.AE
+		AND rfid_input_bitheader_2.AE
+	THEN
+		// SAVE VALUES IN INPUT BUFFER [1...8] - CHECK WITH BRAND FOR WHAT VALUE SHOULD BE PRESENT
+		rfid_value := rfid_input_buffer.ByteArr[1];
+		rfid_output_bitheader_1.AV := FALSE;
+		rfid_output_bitheader_2.AV := FALSE;
+		rfid_read_toggle := FALSE;
+	END_IF		
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

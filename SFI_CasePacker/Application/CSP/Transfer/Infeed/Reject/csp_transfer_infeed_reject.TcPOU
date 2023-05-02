@@ -1,0 +1,224 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_infeed_reject" Id="{0a89ddc5-7327-4f4f-8e58-2a018a072b86}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_infeed_reject
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+
+	
+	bin_present:									digital_input;
+	bin_not_present_dchk:							digital_check;
+	
+	bin_full:										digital_input;
+	bin_full_dchk:									digital_check;
+	
+	os_chute_backup:								digital_input;
+	os_chute_backup_dchk:							digital_check;
+	
+END_VAR
+
+VAR CONSTANT
+	
+	CONSTANTS:										csp_transfer_infeed_constant_struct;
+
+END_VAR
+
+
+
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(************************************************************************)
+
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{069c5c64-c0dc-40d8-b2f7-30c1f93da0a1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{fea74605-164f-4a21-bc58-dc30fea89c9e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{6604391c-26c9-4002-ac0a-7ff8a858798a}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{4a5f07bb-c9d3-4e6d-a5e7-47b19ccdca87}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_infeed_reject.prc', 
+		process						:= csp_transfer_infeed.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_bin_present'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= bin_present);
+		
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_bin_not_present_dchk'), 
+		alarm_if_input_off:= TRUE, 
+		alarm_delay:= 0, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_NO_STOP, 
+		typology:= MESSAGE_TYPOLOGY_OBLIGATION, 
+		process:= prc, 
+		CONVERSION_this:= bin_not_present_dchk);	
+
+	digital_check_add_di(
+		di:= bin_present, 
+		CONVERSION_this:= bin_not_present_dchk);
+		
+		
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_bin_full'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= bin_full);
+		
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_bin_full_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 5000, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= bin_full_dchk);
+		
+	digital_check_add_di(
+		di:= bin_full, 
+		CONVERSION_this:= bin_full_dchk);
+		
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_os_chute_backup'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= os_chute_backup);
+		
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_os_chute_backup_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 5000, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= os_chute_backup_dchk);
+		
+	digital_check_add_di(
+		di:= os_chute_backup, 
+		CONVERSION_this:= os_chute_backup_dchk);
+			
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	digital_check_cycle(bin_not_present_dchk);
+	digital_check_cycle(bin_full_dchk);
+	digital_check_cycle(os_chute_backup_dchk);
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{196587b6-3a79-4749-b117-0cd1f149dbf2}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{78f67c67-d1b0-4e39-9a4f-1874c4f823d1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{fff60d3a-209d-48e8-acc3-49d8da50b4d4}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{d028a9ca-33f6-41d2-b379-690209797aaa}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

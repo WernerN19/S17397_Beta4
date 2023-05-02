@@ -1,0 +1,330 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_infeed_reject_highLoad" Id="{87618707-86ef-4c9e-84fb-cb022c20a098}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_infeed_reject_highLoad
+VAR
+	
+	prc:												process;
+	prc_path:											STRING;
+	
+	Variable_2bytes AT %I*: 							UINT;
+	output_status_1 AT %I*:     						UINT; (* total amount being blocked *)
+	output_status_2 AT %I*:								UINT; (* heighest level of sensor being blocked *)
+	
+	light_curtain_reading:								BOOL := FALSE; (*$M $*)
+	light_curtain_FTRIG:								F_trig;
+	calculated_stack_height:							LREAL := 50; (*$M $*) (* height to block *)
+	read_height_mm:										LREAL; (*$M $*)
+	light_curtain_height_offset:						LREAL := 30; (*$P $*)
+	SetupHeightMM:										LREAL; (*$M $*) (* Live reading of height in MM from light curtain for setup *)
+	
+	high_load_fail:										BOOL;
+	barcode_fail:										BOOL;
+	any_fail:											BOOL;
+	
+	high_load_tolerance:								REAL:= 10; (*$P $*)
+	
+	reject_trailing_edge:								BOOL;
+	reject_delay:										UDINT := 500;
+	reject_delay_var:									LREAL := 50; (*$P $*)
+	reject_delay_tmr:									timer;					
+	reject_run:											BOOL := FALSE;
+	reject_timer_running:								BOOL := FALSE;
+	waterfall_belt_PE_check_delay: 						Ton;
+	waterfall_in_velocity: 								BOOL;
+	waterfall_velocity_ramp_complete: 					BOOL;
+	jam_delay: 											DINT;
+	jam_delay_scaling_factor: 							LREAL := 2.5; (*$P $*)
+	high_load_sensor_misaligned_aem:					message;
+	
+	long_carton_aem:									message;
+	long_carton_flt:									filter;
+	long_carton_check:									BOOL;
+	d_on_off: 											DINT := 100;
+	long_carton_tmr:									timer;
+	long_carton_stop:									BOOL;
+	reject_reason:										DINT;
+	long_carton_aem_enable:								BOOL; (*$P $*)
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(************************************************************************)
+
+(* LIGHT CURTAIN *)
+waterfall_belt_PE_check_delay(IN:= waterfall_in_velocity, PT:=T#1.25S , Q=> waterfall_velocity_ramp_complete , ET=> );
+waterfall_in_velocity := csp_transfer_infeed_metering_belt.axis.status = AXIS_STATUS_IN_VELOCITY;
+
+long_carton_check := light_curtain_reading;
+
+jam_delay := LREAL_TO_DINT((csp_transfer_infeed_metering_jam.active_carton_dim / (MAX(0.01, (csp_transfer_infeed.waterfall_accum_running_velocity_mmpm * ( 1 + csp_transfer_infeed_waterfall_belt.override_percentage_par / 100 )) / 60000))  ) * jam_delay_scaling_factor);
+
+filter_set_delays(
+	delay_off_on:= 0,
+	delay_on_off:= d_on_off,
+	CONVERSION_this := long_carton_flt);
+	
+	
+IF filter_is_on(long_carton_flt) 
+THEN	
+	long_carton_stop := timer_is_expired(long_carton_tmr) AND (any_fail OR reject_timer_running);
+
+ELSE
+	timer_restart(jam_delay,long_carton_tmr);
+	long_carton_stop := FALSE;
+END_IF
+
+(* Data being received by MLG2 Prime *)
+light_curtain_reading := Variable_2bytes.0 AND Variable_2bytes.1 AND Variable_2bytes.2;
+light_curtain_FTRIG(CLK := light_curtain_reading);
+
+(* CREATES HIGH STACK LIMIT TOLERANCE BASED OFF CARTON DIMENSION AND PATTERN *)
+calculated_stack_height := csp_main_brand.carton_dimension.carton_size_W_mm;
+
+(* Live reading of height in MM from light curtain for setup *)
+SetupHeightMM := output_status_1 * 5 + light_curtain_height_offset;
+
+
+(* ONLY CHECK FOR HIGH LOAD IF BELTS MOVING AND ROLLOVER CARTON *) 
+IF (machine_is_running(csp.mch)OR csp_transfer_infeed_waterfall_belt.axis.actual_velocity> 0)
+	AND csp_transfer_infeed_accumulation_belt.axis.actual_velocity > 0
+	AND csp_transfer_infeed_waterfall_belt.axis.actual_velocity > 0
+	AND light_curtain_reading
+THEN	
+	read_height_mm := output_status_1 * 5 + light_curtain_height_offset;
+	high_load_fail := read_height_mm > (calculated_stack_height + high_load_tolerance);
+	barcode_fail := (csp_transfer_infeed_barcode_reader.Barcode_Reject_Status = 1 (* FIFO BIT for reject holding register *)
+						AND NOT csp_transfer_infeed_barcode_reader.barcode_reject_bypass);
+	any_fail := high_load_fail OR barcode_fail;
+	
+	IF any_fail
+	THEN
+		reject_trailing_edge := TRUE;
+		IF high_load_fail
+		THEN
+			reject_reason := auxiliary_counters_code_enum.INFEED_REJECT_HIGH_LOAD;
+		ELSE
+			reject_reason := auxiliary_counters_code_enum.INFEED_REJECT_BARCODE;
+		END_IF		
+	END_IF
+END_IF
+	
+reject_delay := LREAL_TO_UDINT(	
+								MAX( 0, 
+									reject_delay_var  (* mm of trailing edge of sensor to trailing edge of carton at reject centered *)
+									/ 
+									(
+										MAX(1, csp_transfer_infeed.waterfall_accum_running_velocity_mmpm) (* Machine speed at mmpm *)
+										/ 
+										60000 (* ms in minute *)
+									) 
+									- 62)
+								); (* 123ms for paddle to reach carton *)
+	
+IF reject_trailing_edge
+THEN
+	timer_restart(delta_ms:= reject_delay, CONVERSION_this:= reject_delay_tmr);
+	reject_timer_running:= TRUE;
+	reject_trailing_edge := FALSE;
+	
+END_IF
+
+IF timer_is_expired(CONVERSION_this:= reject_delay_tmr) 
+	AND reject_timer_running 
+	AND NOT light_curtain_reading
+THEN
+	IF reject_reason = 	auxiliary_counters_code_enum.INFEED_REJECT_HIGH_LOAD
+	THEN
+		log_section_inc_auxiliary_counter(INFEED_REJECT_HIGH_LOAD,1,csp_case_main_statistics.logsect);
+	ELSIF 	reject_reason = auxiliary_counters_code_enum.INFEED_REJECT_BARCODE
+	THEN
+		log_section_inc_auxiliary_counter(INFEED_REJECT_BARCODE,1,csp_case_main_statistics.logsect);
+	END_IF
+	reject_timer_running := FALSE;
+	IF NOT message_is_on(long_carton_aem)
+		OR NOT long_carton_aem_enable //temp
+	THEN
+	reject_run := TRUE;	
+	
+	END_IF
+END_IF	
+
+IF axis_is_absolute_moving(csp_transfer_infeed_reject_virtualMaster.axis)
+THEN
+	reject_run := FALSE;
+END_IF
+	
+IF axis_get_actual_modulo_position(csp_transfer_infeed_reject_virtualMaster.axis) > 355 
+	AND axis_is_standstill(csp_transfer_infeed_reject_virtualMaster.axis)
+	AND NOT csp_main_brand.infeed_reject_use_both_sides
+THEN
+	reject_run := TRUE;
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{cf7a9663-ecce-402d-8ce3-7464e948bc3f}">
+      <Implementation>
+        <ST><![CDATA[IF long_carton_stop
+	AND long_carton_aem_enable //temp
+THEN
+	process_message_set(1,0,0,long_carton_aem);
+END_IF
+
+IF message_is_on(long_carton_aem) 
+	AND NOT csp_transfer_main_safety_guards.sis.is_safely_closed
+	OR NOT long_carton_aem_enable //temp
+THEN
+	process_message_reset(long_carton_aem);
+END_IF
+
+(* Sync Error Digital Check *)
+IF Variable_2bytes.15
+THEN
+	process_message_set(0, 0, 0, high_load_sensor_misaligned_aem);
+ELSE
+	process_message_reset(high_load_sensor_misaligned_aem);	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{c513dcc2-1852-48d3-9141-6a7e798758c6}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{827e5884-b203-474b-ad40-6de62d25b4ab}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{085b7827-41a9-4518-805f-ac0a8b4f16c2}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_infeed_reject_highLoad.prc', 
+		process						:= csp_transfer_infeed_reject.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+
+process_message_init(
+		object_name:= CONCAT(prc_path, '_high_load_sensor_misaligned_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= high_load_sensor_misaligned_aem);		
+	filter_init(
+		object_name:= CONCAT(prc_path, '_long_carton_filter'),
+		delay_off_on:=0,
+		delay_on_off:=0,
+		process:=prc,
+		CONVERSION_this:=long_carton_flt); 
+		
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_long_carton_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= long_carton_aem);	
+		
+	timer_init(
+		object_name:= CONCAT(prc_path, '_long_carton_tmr'), 
+		process:= prc, 
+		CONVERSION_this:= long_carton_tmr);	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	filter_cycle(long_carton_check,long_carton_flt);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{c33ad711-1bea-483b-9c41-f5ecc1ee4402}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{56779610-0c8e-4947-9f2a-754b366bc8a8}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{70e77af1-780e-40ab-aa41-e2e78b213ba0}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{0905a731-02ab-4eb6-86c0-968153c72989}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

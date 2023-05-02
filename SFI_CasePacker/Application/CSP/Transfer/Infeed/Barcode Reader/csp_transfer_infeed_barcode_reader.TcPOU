@@ -1,0 +1,761 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_infeed_barcode_reader" Id="{c885f5bb-fe87-0ecc-28e6-c1f0c67bfdce}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_infeed_barcode_reader
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	barcode_trigger_di_upstream: 					digital_input; (* Eye that is more upstream *)
+	barcode_trigger_di_downstream:					digital_input; (* Eye that is more downstream *)
+	barcode_reader_tc: 								Tcpip_client;
+	barcode_reader_bv:                  			buffer_validator;
+    barcode_reader_protocol:            			buffer_validator_rule;	
+	barcode_reject_bypass:							BOOL; 			(*$P desc:= DISABLE REJECT FOR BAD READ; $*)
+	Barcode_Bypass_Enabled: 						message;
+	barcode_reject_bypass_enabled: 					message;
+	teach_code_in_process: 							message;
+	Read_Result: 									BOOL;
+	Read_result_Rtrig: 								R_Trig;
+    update_info:                        			BOOL;
+    barcode_readed:                     			BOOL;
+    barcode_readed_is_ok:               			BOOL;
+	_10_CT_IMAGE_RUNNING: 							BOOL;
+	_24_CT_IMAGE_RUNNING: 							BOOL;
+	_32_CT_IMAGE_RUNNING: 							BOOL;
+	_48_CT_IMAGE_RUNNING: 							BOOL;
+	output_pulse: 									BOOL;
+	delay_calc: 									REAL;
+	Carton_Leading_Edge_trig:						R_Trig;
+	ready_to_read_result: 							BOOL;
+	Fragment: 										BOOL := TRUE;
+	trigger_delay: 									Ton;
+	delay_time_ms: 									TIME := T#400MS;
+	output_pulse_timer: 							TP;
+	pulse_time_ms: 									TIME := T#35MS;
+	read_result_delay_TON: 							TON;
+	read_result_delay_MS: 							TIME := T#200MS;
+	communication_status:							csp_transfer_infeed_barcode_connection_status_enum; (*$M desc := Barcode Communication Status; $*)
+	Ready_to_read_result_Rtrig: 					R_Trig;
+	index:											INT := 0;
+    ko_counter:                         			UINT;
+    wait_counter:                       			UINT;
+	string_received:                    			T_MaxString;
+    code_received:                      			T_MaxString;
+    barcode_received:                   			T_MaxString;
+    angle_received:                     			T_MaxString;
+
+    communication_running:             	 			BOOL;
+    communication_fault_check:          			BOOL;
+    communication_fault_check_rtrig:    			R_TRIG;
+    socket_connection_tmr:              			timer;
+	target_code_hmi:                    			STRING;         
+ 
+
+    barcode_reading_abort:              			BOOL;
+    barcode_reversed:                   			BOOL;
+    code_angle_offset:                  			INT:= 70;
+ 
+    label_code:                         			STRING;
+    racking_code_length:                			INT;
+
+    process_disabled_osm:               			message;
+	hold_string: 									T_MaxString;
+	AMR_TEST20: 									BOOL;
+	AMR_TEST21:	 									BOOL;
+	AMR_TEST22: 									BOOL;
+	AMR_TEST23: 									BOOL;
+	data_available: 								BOOL;
+
+	barcode_trigger_di_status: 						BOOL;
+	communication_fault_osm:            			message;
+    code_not_readable_osm:              			message;
+    code_not_allowed_osm:               			message;
+    code_reversed_osm:                 				message;
+	teach_code_complete_F_Trig:						F_Trig;
+	timeout_timer: 									TON;
+	timeout_MS: 									TIME := T#10S;
+	recheck_connection: 							BOOL;
+	send_ready: 									BOOL;
+	resend_brand_string_TON: 						TON;
+	resend_brand_string: 							BOOL;
+	FIFO_FB:										FB_MyQ_REAL_OOP_v2;
+	bytes_to_copy: 									INT := 4;
+	array12: 										ARRAY [0..7] OF INT;
+	a_var: 											REAL;
+	peek:											REAL;
+	debug1:											DINT;
+	UPC_code_received: 								STRING(255);(*$M desc:= UPC CODE; $*)
+	UPC_from_MES: 									T_MaxString;
+	temp_MES_string: 								T_MaxString;
+	_USE_UPSTREAM_TRIGGER: 							BOOL := FALSE;
+	_USE_DOWNSTREAM_TRIGGER: 						BOOL := FALSE;						
+	Carton_Trigger: 								BOOL := FALSE;
+	Reset_stats:									BOOL := FALSE;	(*$P desc:= RESET BARCODE STATISTICS; $*)
+	Read_Success_Rate:								REAL; 			(*$M step := 0.01; unit := %; $*)
+
+END_VAR
+
+VAR_INPUT
+	Good_Read AT %I*: 								BOOL;
+	No_Read AT %I*: 								BOOL;
+    good_code_counter:                  			DINT;			(*$M desc:= GOOD CODES; $*)
+    wrong_code_counter:                 			DINT;			(*$M desc:= WRONG CODES; $*)
+    i_racking_code:                     			STRING;
+    i_barcode_scan_request_enable:      			BOOL; (*$P desc:= DISABLE SCAN OF BARCODE READER; $*)
+	Read_trigger AT %Q*: 							BOOL; 
+	teach_code_active AT %Q*:						BOOL; (*$P desc:= TEACH THE SCANNED CODE TO READER; $*)
+
+	
+END_VAR
+
+VAR CONSTANT
+ 
+    COMM_STATUS_020:                    			DINT    :=  20;
+    COMM_STATUS_050:                    			DINT    :=  50;
+    COMM_STATUS_666:                    			DINT    :=  666;
+ 
+END_VAR
+VAR_OUTPUT
+	Barcode_Reject_Status:							REAL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+
+(*  Leading Edge of carton setup for barcode trigger *)
+(* Reset previous read result when new output pulse is sent *)
+IF _USE_UPSTREAM_TRIGGER
+THEN
+	Carton_Leading_Edge_trig(CLK := barcode_trigger_di_upstream.field.status);
+ELSE
+	Carton_Leading_Edge_trig(CLK := barcode_trigger_di_downstream.field.status);
+END_IF
+
+IF Carton_Leading_Edge_trig.q
+THEN
+	Carton_Trigger := TRUE;
+ELSE
+	Carton_Trigger := FALSE;
+END_IF   
+
+(* Sends output as a pulse for longer than 30ms as advised in manual after the delay is complete*)
+output_pulse_timer(IN:= Carton_Trigger , PT:=pulse_time_ms , Q=> Read_Trigger , ET=> );
+
+(* Detect new leading carton  *)
+barcode_trigger_di_status := digital_input_is_active(barcode_trigger_di_upstream);
+
+(*  Calculates delay for carton to reach barcode read area after leading edge is triggered *)
+IF (csp_main_brand.count = '10Count'
+	OR
+	csp_main_brand.count = '12Count')
+THEN
+	delay_calc := 0;
+	_USE_UPSTREAM_TRIGGER 	:= FALSE;
+	_USE_DOWNSTREAM_TRIGGER := TRUE; //closer to reader
+	_10_CT_IMAGE_RUNNING := TRUE;
+	_24_CT_IMAGE_RUNNING := FALSE;
+	_32_CT_IMAGE_RUNNING := FALSE;
+	_48_CT_IMAGE_RUNNING := FALSE;
+ELSIF csp_main_brand.count = '24Count'
+THEN
+	delay_calc := 0;
+	_USE_UPSTREAM_TRIGGER 	:= TRUE;
+	_USE_DOWNSTREAM_TRIGGER := FALSE; //closer to reader
+	_10_CT_IMAGE_RUNNING := FALSE;
+	_24_CT_IMAGE_RUNNING := TRUE;
+	_32_CT_IMAGE_RUNNING := FALSE;
+	_48_CT_IMAGE_RUNNING := FALSE;
+ELSIF csp_main_brand.count = '32Count'
+THEN
+	delay_calc := 0;
+	_USE_UPSTREAM_TRIGGER 	:= TRUE;
+	_USE_DOWNSTREAM_TRIGGER := FALSE; //closer to reader
+	_10_CT_IMAGE_RUNNING := FALSE;
+	_24_CT_IMAGE_RUNNING := FALSE;
+	_32_CT_IMAGE_RUNNING := TRUE;
+	_48_CT_IMAGE_RUNNING := FALSE;
+ELSIF csp_main_brand.count = '48Count'
+THEN
+	delay_calc := 0;
+	_USE_UPSTREAM_TRIGGER 	:= TRUE;
+	_USE_DOWNSTREAM_TRIGGER := FALSE; //closer to reader
+	_10_CT_IMAGE_RUNNING := FALSE;
+	_24_CT_IMAGE_RUNNING := FALSE;
+	_32_CT_IMAGE_RUNNING := FALSE;
+	_48_CT_IMAGE_RUNNING := TRUE;
+END_IF
+
+(* Gives acknowledge horn when new code is taught *)
+teach_code_complete_F_Trig(CLK := teach_code_active);
+IF teach_code_complete_F_Trig.q
+THEN
+	csp_main_services_towerLamp.buzzer_request_ext := TRUE;
+END_IF
+
+IF teach_code_active
+THEN
+	communication_status := INFEED_BARCODE_CONNECTION_STATUS_TEACH_IN_PROCESS;(* Teach mode *)
+END_IF
+
+(* Keeps statistics on how many cartons have Pass/Fail barcode scan *)
+Read_Result := Good_Read OR No_Read;
+Read_result_Rtrig(CLK := Read_Result);
+
+IF (debug1.10 OR csp_transfer_infeed_reject_highload.light_curtain_FTRIG.q)
+	AND (csp_transfer_infeed_waterfall_belt.o_axis_is_moving OR debug1.10)
+THEN
+	FIFO_FB.M_Remove(); //Shifts FIFO Register on falling edge of light curtain. Reject decisision is made when light curtain is reading.
+	debug1.10 := FALSE;
+END_IF
+
+Barcode_Reject_Status := FIFO_FB.M_peek();
+
+UPC_code_received := hold_string;
+UPC_from_MES := csp_customerinterfaces.Material[5].ID; //UPC Code for Carton Blanks from MES
+ 
+timeout_MS := T#10S;
+
+timeout_timer(IN:= communication_status = INFEED_BARCODE_CONNECTION_STATUS_SOCKET_OPENED , PT:=timeout_MS , Q=> recheck_connection , ET=> );
+resend_brand_string_TON(IN:= (communication_status = INFEED_BARCODE_CONNECTION_STATUS_TEACH_IN_PROCESS AND NOT resend_brand_string) , PT:=timeout_MS , Q=> resend_brand_string , ET=> );
+
+(* IF count is changed, re run through state machine to send new TCP string that correlates to correct brand. *)
+IF csp_main_brand.count_changed
+	AND NOT csp_main_accuChange.machine_size_complete
+	OR NOT i_barcode_scan_request_enable //resets connection state to START when not enabled from HMI. Acts as a reset for connection state machine
+THEN
+	communication_status := INFEED_BARCODE_CONNECTION_STATUS_OPENING_SOCKET;
+END_IF
+
+CASE communication_status OF
+ 
+	INFEED_BARCODE_CONNECTION_STATUS_OPENING_SOCKET:  (* opening socket *)
+	
+        IF  NOT communication_fault_check
+        THEN
+            IF  NOT tcpip_client_is_connected(barcode_reader_tc)
+            THEN
+            	tcpip_client_open(barcode_reader_tc);
+        	END_IF
+        	communication_status:= INFEED_BARCODE_CONNECTION_STATUS_SOCKET_OPENED;
+        	communication_running:= TRUE;
+    	END_IF
+ 
+		
+	INFEED_BARCODE_CONNECTION_STATUS_SOCKET_OPENED: (* socket open *)
+	
+		IF  tcpip_client_is_connected(barcode_reader_tc)
+		THEN
+			communication_status:= INFEED_BARCODE_CONNECTION_STATUS_ENABLE_REQUEST;
+		END_IF
+		
+		IF recheck_connection
+		THEN
+			communication_status:= INFEED_BARCODE_CONNECTION_STATUS_OPENING_SOCKET;
+		END_IF
+ 
+		
+	INFEED_BARCODE_CONNECTION_STATUS_ENABLE_REQUEST: (* cleaning of the data buffer *)
+	
+		IF  i_barcode_scan_request_enable
+			AND
+			NOT process_message_is_on(code_not_allowed_osm)
+			AND
+			NOT process_message_is_on(code_not_readable_osm)
+			AND
+			NOT process_message_is_on(code_reversed_osm)
+		THEN
+			barcode_readed:=        FALSE;
+			barcode_readed_is_ok:=  FALSE;
+			barcode_reading_abort:= FALSE;
+			barcode_reversed:= FALSE;
+	
+			tcpip_client_set_receive_enable(FALSE, barcode_reader_tc);
+			code_received:= '';
+			communication_status:= INFEED_BARCODE_CONNECTION_STATUS_SEND_BRAND_CONFIG;
+		END_IF
+	
+		
+	INFEED_BARCODE_CONNECTION_STATUS_SEND_BRAND_CONFIG: (* Send Brand string *) 
+	
+		send_ready := tcpip_client_is_ready_to_send(barcode_reader_tc);
+		IF  tcpip_client_is_ready_to_send(barcode_reader_tc)
+		THEN
+			IF AMR_TEST20 OR _10_CT_IMAGE_RUNNING
+			THEN
+				tcpip_client_send_string_data(
+						data    :=  'T',
+						conversion_THIS    :=  barcode_reader_tc);
+			ELSIF AMR_TEST21 OR _24_CT_IMAGE_RUNNING
+				THEN
+					tcpip_client_send_string_data(
+						data    :=  'S',
+						conversion_THIS    :=  barcode_reader_tc);
+			ELSIF AMR_TEST22 OR _32_CT_IMAGE_RUNNING
+				THEN
+					tcpip_client_send_string_data(
+						data    :=  'Q',
+						conversion_THIS    :=  barcode_reader_tc);
+			ELSIF AMR_TEST23 OR _48_CT_IMAGE_RUNNING
+				THEN
+					tcpip_client_send_string_data(
+						data    :=  'R',
+						conversion_THIS    :=  barcode_reader_tc);
+			END_IF
+
+ 
+			tcpip_client_set_receive_enable(TRUE, barcode_reader_tc);
+		
+			ko_counter:= tcpip_client_get_validation_ko_counter(barcode_reader_tc);
+		
+			wait_counter:= tcpip_client_get_validation_wait_counter(barcode_reader_tc);	
+			communication_status:= INFEED_BARCODE_CONNECTION_STATUS_CLEAR_PREVIOUS_READ;
+		END_IF
+
+		
+	INFEED_BARCODE_CONNECTION_STATUS_CLEAR_PREVIOUS_READ:(* JUMP TO THIS TO RESET FOR NEXT READ *)
+	
+		IF  i_barcode_scan_request_enable
+			AND
+			NOT process_message_is_on(code_not_allowed_osm)
+			AND
+			NOT process_message_is_on(code_not_readable_osm)
+			AND
+			NOT process_message_is_on(code_reversed_osm)
+		THEN
+			barcode_readed:=        FALSE;
+			barcode_readed_is_ok:=  FALSE;
+			barcode_reading_abort:= FALSE;
+			barcode_reversed:= FALSE;
+	
+			tcpip_client_set_receive_enable(TRUE, barcode_reader_tc);//set this to TRUE so that it can receive data
+			code_received:= '';
+			communication_status:= INFEED_BARCODE_CONNECTION_STATUS_ENABLED;
+		END_IF
+	
+		
+	INFEED_BARCODE_CONNECTION_STATUS_ENABLED: (* send data: phase on command to start trigger *)
+
+		IF NOT teach_code_active
+		THEN
+			communication_status := INFEED_BARCODE_CONNECTION_STATUS_RUN_MODE_WAITING_FOR_TRIGGER;(* Normal Read mode *)
+		ELSE
+			communication_status := INFEED_BARCODE_CONNECTION_STATUS_TEACH_IN_PROCESS;(* Teach mode *)
+		END_IF
+ 
+		
+	INFEED_BARCODE_CONNECTION_STATUS_TEACH_IN_PROCESS: (* Teach mode *)	
+
+		data_available := tcpip_client_is_receive_data_available(barcode_reader_tc);
+
+		IF Read_result_Rtrig.q
+		THEN
+			tcpip_client_get_received_string_data(
+				manual_buffer_clean :=  FALSE,
+				data                :=  string_received,
+				conversion_THIS     :=  barcode_reader_tc);
+				
+			hold_string := string_received;
+			UPC_code_received := hold_string;
+			IF 	Good_Read 
+				AND (UPC_code_received = UPC_from_MES) (*Checks UPC from MES System *)
+			THEN
+				good_code_counter   :=  good_code_counter + 1;
+				barcode_readed_is_ok:=  TRUE;
+				barcode_readed:= TRUE;
+				update_info:= TRUE;
+				teach_code_active := FALSE;
+				
+				FIFO_FB.M_Insert(0); //Loads FIFO with a 0 indicating a good carton
+				
+				communication_status:= INFEED_BARCODE_CONNECTION_STATUS_CLEAN_PREVIOUS_READ_DATA;
+			ELSE
+				wrong_code_counter:= wrong_code_counter + 1;
+
+				FIFO_FB.M_Insert(1); //Loads FIFO with a 1 indicating a bad carton read
+
+			END_IF
+			barcode_readed:= TRUE;
+			update_info:= TRUE;
+			communication_status:= INFEED_BARCODE_CONNECTION_STATUS_CLEAN_PREVIOUS_READ_DATA;
+		END_IF
+	 
+		IF  tcpip_client_get_validation_ko_counter(barcode_reader_tc)   <>    ko_counter
+			OR
+			tcpip_client_get_validation_wait_counter(barcode_reader_tc) <>    wait_counter
+		THEN
+			barcode_readed:= TRUE;
+			communication_status:= INFEED_BARCODE_CONNECTION_STATUS_CLEAN_PREVIOUS_READ_DATA;
+		END_IF
+	
+		IF  NOT i_barcode_scan_request_enable
+			AND
+			NOT tcpip_client_is_receive_data_available(barcode_reader_tc)
+		THEN
+			communication_status:= INFEED_BARCODE_CONNECTION_STATUS_CLEAN_PREVIOUS_READ_DATA;
+		END_IF
+		
+		IF resend_brand_string
+		THEN
+			communication_status:= INFEED_BARCODE_CONNECTION_STATUS_SEND_BRAND_CONFIG;
+		END_IF
+
+		
+	INFEED_BARCODE_CONNECTION_STATUS_RUN_MODE_WAITING_FOR_TRIGGER: (* wait data -> good data, wrong data, bad read, no data *)
+	
+		data_available := tcpip_client_is_receive_data_available(barcode_reader_tc);
+
+		IF Read_result_Rtrig.q
+			//and (tcpip_client_is_receive_data_available(barcode_reader_tc) TCP IP Setup
+		THEN
+			tcpip_client_get_received_string_data(
+				manual_buffer_clean :=  FALSE,
+				data                :=  string_received,
+				conversion_THIS                :=  barcode_reader_tc);
+				
+			hold_string := string_received;
+
+			IF Good_Read
+			THEN
+				IF  NOT barcode_reversed
+				THEN
+					good_code_counter   :=  good_code_counter + 1;
+					FIFO_FB.M_Insert(0); //Loads FIFO with a 0 indicating a good carton
+					barcode_readed_is_ok:=  TRUE;
+				ELSE
+					wrong_code_counter  :=  wrong_code_counter + 1;
+				END_IF
+			ELSE
+				wrong_code_counter:= wrong_code_counter + 1;
+
+				FIFO_FB.M_Insert(1); //Loads FIFO with a 1 indicating a bad carton
+			END_IF
+			barcode_readed:= TRUE;
+			update_info:= TRUE;
+			communication_status:= INFEED_BARCODE_CONNECTION_STATUS_CLEAN_PREVIOUS_READ_DATA;
+		END_IF
+	 
+		IF  tcpip_client_get_validation_ko_counter(barcode_reader_tc)   <>    ko_counter
+			OR
+			tcpip_client_get_validation_wait_counter(barcode_reader_tc) <>    wait_counter
+		THEN
+			barcode_readed:= TRUE;
+			communication_status:= INFEED_BARCODE_CONNECTION_STATUS_CLEAN_PREVIOUS_READ_DATA;
+		END_IF
+	 
+		IF  NOT i_barcode_scan_request_enable
+			AND
+			NOT tcpip_client_is_receive_data_available(barcode_reader_tc)
+		THEN
+			communication_status:= INFEED_BARCODE_CONNECTION_STATUS_CLEAN_PREVIOUS_READ_DATA;
+		END_IF
+		
+ 
+    INFEED_BARCODE_CONNECTION_STATUS_CLEAN_PREVIOUS_READ_DATA: (* clean data anyway *)
+		
+        tcpip_client_get_received_string_data(
+            manual_buffer_clean :=  FALSE,
+            data                :=  string_received,
+            conversion_THIS                :=  barcode_reader_tc);
+ 
+        tcpip_client_set_receive_enable(FALSE, barcode_reader_tc);
+        communication_status:= INFEED_BARCODE_CONNECTION_STATUS_WAIT_FOR_READY;
+ 
+		
+    INFEED_BARCODE_CONNECTION_STATUS_WAIT_FOR_READY: (* send data: phase off command to stop trigger *)
+	
+        IF  tcpip_client_is_ready_to_send(barcode_reader_tc)
+        THEN
+            communication_status:= INFEED_BARCODE_CONNECTION_STATUS_CLEAR_PREVIOUS_READ;
+        END_IF
+ 
+		
+    INFEED_BARCODE_CONNECTION_STATUS_SPARE_1: (* wait answer for the manager to be ready for another cycle *)
+	
+   		IF i_barcode_scan_request_enable
+        THEN
+            communication_status:=  INFEED_BARCODE_CONNECTION_STATUS_CLEAR_PREVIOUS_READ;
+        END_IF
+ 
+		
+    INFEED_BARCODE_CONNECTION_STATUS_ERROR: (* error handling *)
+	
+        communication_running:= FALSE;
+        barcode_readed:= FALSE;
+        barcode_readed_is_ok:=  FALSE;
+        barcode_reading_abort:= FALSE;
+        barcode_reversed:=  FALSE;
+        communication_status:= INFEED_BARCODE_CONNECTION_STATUS_OPENING_SOCKET;
+ 
+END_CASE
+
+IF good_code_counter <> 0
+THEN
+	Read_Success_Rate := (DINT_TO_REAL(good_code_counter) / DINT_TO_REAL((wrong_code_counter + good_code_counter)))*100;
+ELSE
+	Read_Success_Rate := 0;
+END_IF
+
+IF debug1.3
+THEN
+	MEMCPY(ADR(ARRAY12[0]),ADR(ARRAY12[1]),bytes_to_copy);
+	debug1.3 :=FALSE;
+END_IF
+(*Loads FIFO with value *)
+IF debug1.4
+THEN
+	FIFO_FB.M_Insert(a_var);
+	debug1.4 := FALSE;
+END_IF
+(*Removes 1 value from FIFO *)
+IF debug1.6
+THEN
+	FIFO_FB.M_Remove();
+	debug1.6 := FALSE;
+END_IF
+
+IF debug1.7
+THEN
+	FIFO_FB.M_copy();
+	debug1.7 := FALSE;
+END_IF
+(*Sets variable with active value in first spot of FIFO *)
+IF debug1.8
+THEN
+	peek := FIFO_FB.M_peek();
+END_IF
+(* Resets FIFO registers *)
+IF debug1.9
+	OR NOT csp_transfer_main_safety_guards.sis.is_safely_closed
+THEN
+	FIFO_FB.M_Reset();
+	debug1.9 := FALSE;
+END_IF
+
+(* Resets stats counter on HMI*)
+IF	Reset_stats
+THEN
+	wrong_code_counter := 0;
+	good_code_counter := 0;
+	Reset_stats := FALSE;
+END_IF
+
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{cc10c258-eace-0a8f-1072-93e52db6107b}">
+      <Implementation>
+        <ST><![CDATA[IF NOT i_barcode_scan_request_enable
+	THEN
+		process_message_set(0,0,0,Barcode_Bypass_Enabled);
+	ELSE
+		process_message_reset(Barcode_Bypass_Enabled);
+END_IF
+
+IF teach_code_active
+	THEN
+		process_message_set(0,0,0,teach_code_in_process);
+	ELSE
+		process_message_reset(teach_code_in_process);
+END_IF
+
+IF barcode_reject_bypass
+	THEN
+		process_message_set(0,0,0,barcode_reject_bypass_enabled);
+	ELSE
+		process_message_reset(barcode_reject_bypass_enabled);
+END_IF
+;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{06084ecc-1e14-0921-292d-1b968700bffe}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{8b9dd866-49f7-09fb-39e8-4575e9fa6510}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{eec15b67-1964-0ecf-1d93-84ba5ed78784}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_infeed_barcode_reader.prc', 
+		process						:= csp_transfer_infeed.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_barcode_trigger_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= barcode_trigger_di_upstream);
+	
+    tcpip_client_init(
+        object_name         		:=  CONCAT(prc_path, '_barcode_reader_tc'),
+        ip                 			:=  '192.168.4.100',
+        port                		:=  51236,
+        disable_diagnosis   		:=  TRUE,
+        receive_polling_time		:=  100,
+        process             		:=  prc,
+		conversion_THIS     		:=  barcode_reader_tc);
+		
+	buffer_validator_init(
+		object_name         		:=  CONCAT(prc_path, 'barcode_reader_bv'),
+		process             		:=  prc,
+		conversion_THIS     		:=  barcode_reader_bv);
+
+	tcpip_client_add_buffer_validator(
+		validator           		:=  barcode_reader_bv,
+		conversion_THIS             :=  barcode_reader_tc);
+		
+	buffer_validator_configure_pattern(
+		b                   		:=  ASCII_CODE_02_STX,
+		pos                 		:=  0,
+		conversion_THIS             :=  barcode_reader_protocol.begin_pattern);
+ 
+	buffer_validator_configure_pattern(
+		b                   		:=  ASCII_CODE_0D_CR,
+		pos                 		:=  0,
+		conversion_THIS             :=  barcode_reader_protocol.end_pattern);
+ 
+	buffer_validator_configure_pattern(
+		b                   		:=  ASCII_CODE_0A_LF,
+		pos                 		:=  1,
+		conversion_THIS             :=  barcode_reader_protocol.end_pattern);
+		
+	buffer_validator_add_rule(
+        rule                		:=  barcode_reader_protocol,
+        conversion_THIS             :=  barcode_reader_bv);
+ 
+    barcode_reader_protocol.exclude_begin_pattern := TRUE;
+    barcode_reader_protocol.exclude_end_pattern := TRUE;	
+	
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_Barcode_Bypass_Enabled'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= FALSE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NORMAL, 
+        process:= prc,
+        CONVERSION_this:= Barcode_Bypass_Enabled);
+		
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_barcode_reject_bypass_enabled'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= FALSE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NORMAL, 
+        process:= prc,
+        CONVERSION_this:= barcode_reject_bypass_enabled);
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_teach_code_in_process'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= FALSE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NORMAL, 
+        process:= prc,
+        CONVERSION_this:= teach_code_in_process);
+		
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	tcpip_client_cycle(barcode_reader_tc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{12caecbb-d0db-0114-0622-5ebf44a83286}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{8bcadea9-d043-083d-0556-1b82fa0a5170}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{17427d54-d607-097b-3bd4-21b26058a0e8}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{5661358a-6508-0773-205b-a89a4b7ac5c5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

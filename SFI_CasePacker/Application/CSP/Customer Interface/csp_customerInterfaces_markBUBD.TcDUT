@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_markBUBD" Id="{72ff5a74-a362-4450-8f34-cd4db0c18ef8}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_markBUBD :
+STRUCT
+	
+	BestUsedByDate:			STRING;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Best Used BY DATE; $*)													
+	BestUsedByDate_Short:	STRING;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Best Used BY DATE; $*)													
+	Prefix:					STRING;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := BUBD Prefix (abbreviation); $*)	
+	Format:					STRING;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := BUBD localized DATE format; $*)		
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

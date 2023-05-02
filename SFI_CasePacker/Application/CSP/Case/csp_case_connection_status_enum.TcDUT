@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_case_connection_status_enum" Id="{913b2e4e-c5de-0266-38b2-472e27508a08}">
+    <Declaration><![CDATA[TYPE csp_case_connection_status_enum :
+(		
+	CSP_CASE_STATUS_CONNECTION_START							:= 0,
+	CSP_CASE_STATUS_CONNECTION_ENGAGE							:= 10,
+	CSP_CASE_STATUS_CONNECTION_ENGAGED							:= 20,
+	CSP_CASE_STATUS_CONNECTION_CHECK_CHANGE_CAM					:= 30,
+	CSP_CASE_STATUS_CONNECTION_CHANGE_CAM						:= 40,
+	CSP_CASE_STATUS_CONNECTION_WAIT_NEW_CAM						:= 50,
+	CSP_CASE_STATUS_CONNECTION_DONE 							:= 900,
+	CSP_CASE_STATUS_CONNECTION_ERROR 							:= 999
+) := CSP_CASE_STATUS_CONNECTION_START;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

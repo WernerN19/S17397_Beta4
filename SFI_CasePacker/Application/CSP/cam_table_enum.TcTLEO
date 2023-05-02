@@ -1,0 +1,321 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <EnumerationTextList Name="cam_table_enum" Id="{3bb261e2-00ca-4feb-8a0a-d58c24234419}">
+    <Declaration><![CDATA[TYPE cam_table_enum :(
+    NO_SELECTED_CAM 											:= 0,
+	
+	(* GENERIC - PERIODIC*)
+	
+	LINEAR_CAM													:= 1,
+	FORWARD_CAM													:= 4, (*csp_transfer_infeed_reject_pusher_axis, csp_transfer_upstacker_virtualMaster*)
+	BACKWARD_CAM												:= 5, (*csp_case_discharge_speedBelt_os, csp_case_discharge_speedBelt_ls*)
+	DWELL_CAM													:= 6, (*csp_case_loader_guide_length, csp_transfer_upstacker_virtualMaster*)
+	GEAR_CAM													:= 18,
+
+	(*	CASE PACKER CAMS *)
+	CASE_TRANSPORT_RUN_CAM										:= 13, (*csp_case_transport_os_leading,csp_case_transport_os_trailing, csp_case_transport_ls_leading, csp_case_transport_ls_trailing*)
+	CASE_CLOSING_UPPER_RUN_CAM									:= 8,  (*csp_case_closing_os_upper, csp_case_closing_ls_upper,*)
+	CASE_CLOSING_LOWER_RUN_CAM									:= 14, (*csp_case_closing_os_lower, csp_case_closing_ls_lower*) 
+	CASE_CLOSING_HORIZONTAL_RUN_CAM								:= 15, (*csp_case_closing_os_horizontal, csp_case_ls_closing_horizontal*)
+	CASE_FC_LEADINGCLOSER_LS_RUN_CAM							:= 16, (*csp_case_fc_ls_upper_leadingMinorCloser*)
+	CASE_FC_TRAILINGCLOSER_LS_RUN_CAM							:= 22, (*csp_case_fc_ls_lower_trailingCloser*)
+	CASE_LOADER_PUSHER_RUN_CAM									:= 20, (*csp_case_loader_pusher*)
+	CASE_LOADER_GUIDE_RUN_CAM									:= 21, (*csp_case_loader_guide_upstream, csp_case_loader_guide_downstream*)
+	CASE_FC_SPREADER_RUN_CAM									:= 23, (*csp_case_fc_os_upper_spreader, csp_case_fc_ls_upper_spreader, csp_case_fc_ls_lower_spreader*)
+	CASE_FC_FOLLOWER_RUN_CAM									:= 24, (*csp_case_fc_os_upper_follower, csp_case_fc_ls_upper_follower, csp_case_fc_ls_lower_follower*)  
+	CASE_TR_SQUARING_TRAILING_RUN_CAM							:= 25, (*csp_case_tr_squaring_os_trailing, csp_case_tr_squaring_ls_trailing*)
+	CASE_TR_SQUARING_LEADING_RUN_CAM							:= 26, (*csp_case_tr_squaring_os_leading, csp_case_tr_squaring_ls_leading*)
+	CASE_FC_TRAILINGCLOSER_OS_RUN_CAM							:= 31, (*csp_case_fc_os_lower_trailingCloser*)
+	CASE_FEED_SHUTTLE_HORIZONTAL_RUN_CAM						:= 32, (*csp_case_feed_shuttle_virtual_master*)
+	CASE_FEED_SHUTTLE_VERTICAL_RUN_CAM							:= 33, (*csp_case_feed_shuttle_virtual_master*)
+	CASE_DISCHARGE_SPEED_BELTS_RUN_CAM							:= 37, (*csp_case_discharge_speed_belts*)
+	CASE_FEED_KINEMATIC_X_RUN_CAM								:= 2, (*csp_case_feed_shuttle_virtual_master*)
+	CASE_FEED_KINEMATIC_Y_RUN_CAM								:= 3, (*csp_case_feed_shuttle_virtual_master*)
+	CASE_FEED_KINEMATIC_TILT_RUN_CAM							:= 7, (*csp_case_feed_shuttle_virtual_master*)
+	
+	CASE_FC_OS_LOWER_SPREADER_RUN_CAM							:= 901, (* csp_case_fc_os_lower_spreader *)
+	CASE_FC_OS_LOWER_FOLLOWER_RUN_CAM							:= 902, (* csp_case_fc_os_lower_follower *)
+	
+		(* --------------------- TRANSFER CAMS --------------------- *)
+	(*INFEED*)
+	TRANSFER_INFEED_REJECT_RUN_CAM								:= 60,
+
+	(*UPSTACKER*)
+	TRANSFER_UPSTACKER_DOWNSTREAM_RUN_CAM						:= 81, (*OLD 30  csp_transfer_upstacker_downstream*)
+	TRANSFER_UPSTACKER_DOWNSTREAM_PHASING_STEP1_CAM				:= 84, (*OLD 40  csp_transfer_upstacker_downstream CAM_ID TO BE CHANGED->+20*)
+	TRANSFER_UPSTACKER_DOWNSTREAM_PHASING_STEP2_CAM				:= 85, (*OLD 41  csp_transfer_upstacker_downstream CAM_ID TO BE CHANGEDv*)
+	TRANSFER_UPSTACKER_UPSTREAM_RUN_CAM							:= 80, (*OLD 44  csp_transfer_upstacker_upstream CAM_ID TO BE CHANGED->+20*)
+	TRANSFER_UPSTACKER_UPSTREAM_PHASING_STEP1_CAM				:= 82, (*OLD 42  csp_transfer_upstacker_upstream CAM_ID TO BE CHANGED->+20*)
+	TRANSFER_UPSTACKER_UPSTREAM_PHASING_STEP2_CAM				:= 83, (*OLD 43  csp_transfer_upstacker_upstream CAM_ID TO BE CHANGED->+20*)
+	TRANSFER_UPSTACKER_VIRTUAL_STOP_CAM							:= 61, (*OLD 51   csp_transfer_upstacker_virtualMaster CAM_ID TO BE CHANGED->+20*)
+	TRANSFER_UPSTACKER_VIRTUAL_START_CAM						:= 62, (*OLD 52   csp_transfer_upstacker_virtualMaster CAM_ID TO BE CHANGED->+20*)
+
+	(*CROSSPUSHER*)
+	TRANSFER_CROSSPUSHER_HORIZONTAL_TO_UPSTACKER				:= 100,
+	TRANSFER_CROSSPUSHER_HORIZONTAL_TO_LOAD						:= 101,
+	TRANSFER_CROSSPUSHER_FOLLOWER_TO_UPSTACK_TO_LOAD			:= 202, //102,
+	TRANSFER_CROSSPUSHER_VERTICAL_RUN							:= 103,
+	
+	(*ACCUMULATOR*)
+	TRANSFER_UPSTACKER_FINGER_RUN_CAM							:= 34, (*csp_transfer_accumulator_finger_os CAM_ID TO BE CHANGED->+20*)
+	TRANSFER_ACCUMULATOR_LIFT_RUN								:= 104,
+	TRANSFER_ACCUMULATOR_BELT_RUN								:= 105,
+	
+	(* LEADING MINOR CLOSER *)
+	CASE_FC_LEADING_MINOR_RUN_DOWNSTREAM_RUN_CAM				:= 10,
+	CASE_FC_LEADING_MINOR_RUN_UPSTREAM_RUN_CAM					:= 9
+
+    ) := NO_SELECTED_CAM;
+END_TYPE
+]]></Declaration>
+    <XmlArchive>
+      <Data>
+        <o xml:space="preserve" t="TextListEnumerationTextListObject">
+          <l n="TextList" t="ArrayList" cet="TextListRow">
+            <o>
+              <v n="TextID">"NO_SELECTED_CAM"</v>
+              <v n="TextDefault">"0"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"LINEAR_CAM"</v>
+              <v n="TextDefault">"1"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"FORWARD_CAM"</v>
+              <v n="TextDefault">"4"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"BACKWARD_CAM"</v>
+              <v n="TextDefault">"5"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"DWELL_CAM"</v>
+              <v n="TextDefault">"6"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"GEAR_CAM"</v>
+              <v n="TextDefault">"18"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_TRANSPORT_RUN_CAM"</v>
+              <v n="TextDefault">"13"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_CLOSING_UPPER_RUN_CAM"</v>
+              <v n="TextDefault">"8"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_CLOSING_LOWER_RUN_CAM"</v>
+              <v n="TextDefault">"14"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_CLOSING_HORIZONTAL_RUN_CAM"</v>
+              <v n="TextDefault">"15"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FC_LEADINGCLOSER_LS_RUN_CAM"</v>
+              <v n="TextDefault">"16"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FC_TRAILINGCLOSER_LS_RUN_CAM"</v>
+              <v n="TextDefault">"22"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_LOADER_PUSHER_RUN_CAM"</v>
+              <v n="TextDefault">"20"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_LOADER_GUIDE_RUN_CAM"</v>
+              <v n="TextDefault">"21"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FC_SPREADER_RUN_CAM"</v>
+              <v n="TextDefault">"23"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FC_FOLLOWER_RUN_CAM"</v>
+              <v n="TextDefault">"24"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_TR_SQUARING_TRAILING_RUN_CAM"</v>
+              <v n="TextDefault">"25"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_TR_SQUARING_LEADING_RUN_CAM"</v>
+              <v n="TextDefault">"26"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FC_TRAILINGCLOSER_OS_RUN_CAM"</v>
+              <v n="TextDefault">"31"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FEED_SHUTTLE_HORIZONTAL_RUN_CAM"</v>
+              <v n="TextDefault">"32"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FEED_SHUTTLE_VERTICAL_RUN_CAM"</v>
+              <v n="TextDefault">"33"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_DISCHARGE_SPEED_BELTS_RUN_CAM"</v>
+              <v n="TextDefault">"37"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FEED_KINEMATIC_X_RUN_CAM"</v>
+              <v n="TextDefault">"2"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FEED_KINEMATIC_Y_RUN_CAM"</v>
+              <v n="TextDefault">"3"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FEED_KINEMATIC_TILT_RUN_CAM"</v>
+              <v n="TextDefault">"7"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FC_OS_LOWER_SPREADER_RUN_CAM"</v>
+              <v n="TextDefault">"901"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FC_OS_LOWER_FOLLOWER_RUN_CAM"</v>
+              <v n="TextDefault">"902"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_INFEED_REJECT_RUN_CAM"</v>
+              <v n="TextDefault">"60"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_UPSTACKER_DOWNSTREAM_RUN_CAM"</v>
+              <v n="TextDefault">"81"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_UPSTACKER_DOWNSTREAM_PHASING_STEP1_CAM"</v>
+              <v n="TextDefault">"84"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_UPSTACKER_DOWNSTREAM_PHASING_STEP2_CAM"</v>
+              <v n="TextDefault">"85"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_UPSTACKER_UPSTREAM_RUN_CAM"</v>
+              <v n="TextDefault">"80"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_UPSTACKER_UPSTREAM_PHASING_STEP1_CAM"</v>
+              <v n="TextDefault">"82"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_UPSTACKER_UPSTREAM_PHASING_STEP2_CAM"</v>
+              <v n="TextDefault">"83"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_UPSTACKER_VIRTUAL_STOP_CAM"</v>
+              <v n="TextDefault">"61"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_UPSTACKER_VIRTUAL_START_CAM"</v>
+              <v n="TextDefault">"62"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_CROSSPUSHER_HORIZONTAL_TO_UPSTACKER"</v>
+              <v n="TextDefault">"100"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_CROSSPUSHER_HORIZONTAL_TO_LOAD"</v>
+              <v n="TextDefault">"101"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_CROSSPUSHER_FOLLOWER_TO_UPSTACK_TO_LOAD"</v>
+              <v n="TextDefault">"202"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_CROSSPUSHER_VERTICAL_RUN"</v>
+              <v n="TextDefault">"103"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_UPSTACKER_FINGER_RUN_CAM"</v>
+              <v n="TextDefault">"34"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_ACCUMULATOR_LIFT_RUN"</v>
+              <v n="TextDefault">"104"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"TRANSFER_ACCUMULATOR_BELT_RUN"</v>
+              <v n="TextDefault">"105"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FC_LEADING_MINOR_RUN_DOWNSTREAM_RUN_CAM"</v>
+              <v n="TextDefault">"10"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">"CASE_FC_LEADING_MINOR_RUN_UPSTREAM_RUN_CAM"</v>
+              <v n="TextDefault">"9"</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+            <o>
+              <v n="TextID">""</v>
+              <v n="TextDefault">""</v>
+              <l n="LanguageTexts" t="ArrayList" />
+            </o>
+          </l>
+          <l n="Languages" t="ArrayList" />
+          <v n="GuidInit">{10e08bb7-7637-4e6e-ab0d-17b8f5e277b8}</v>
+          <v n="GuidReInit">{c63e853b-f227-4ebb-b7df-80e5926b32d4}</v>
+          <v n="GuidExitX">{3ad6669d-e443-4753-b4ac-a7372a190564}</v>
+        </o>
+      </Data>
+      <TypeList>
+        <Type n="ArrayList">System.Collections.ArrayList</Type>
+        <Type n="Guid">System.Guid</Type>
+        <Type n="String">System.String</Type>
+        <Type n="TextListEnumerationTextListObject">{4b60233c-f940-4beb-b331-82133b520151}</Type>
+        <Type n="TextListRow">{53da1be7-ad25-47c3-b0e8-e26286dad2e0}</Type>
+      </TypeList>
+    </XmlArchive>
+  </EnumerationTextList>
+</TcPlcObject>

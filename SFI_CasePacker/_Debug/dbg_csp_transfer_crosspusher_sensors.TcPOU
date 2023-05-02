@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="dbg_csp_transfer_crosspusher_sensors" Id="{6fd05283-1772-43f7-88f8-b1a736a8c979}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_transfer_crosspusher_sensors
+VAR
+  high_achk_shd : analog_check_shadow;
+  high_ai_shd : analog_input_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{d49dd11f-fd04-49a0-8466-22370fc4df46}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

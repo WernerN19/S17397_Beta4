@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_case_loader_highest" Id="{14c76e5c-f3c2-4c8d-9773-8e8ca780976f}" SpecialFunc="None">
+    <Declaration><![CDATA[ (*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_case_loader_highest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[csp_case_loader();
+
+(* CASE *)
+	(* LOADER *)
+		(* PUSHER *)
+		csp_case_loader_pusher();
+		(* SENSORS *)
+		csp_case_loader_virtualMaster();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

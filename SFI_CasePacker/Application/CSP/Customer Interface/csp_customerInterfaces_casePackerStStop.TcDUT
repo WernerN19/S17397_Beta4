@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_casePackerStStop" Id="{7afaea29-1810-43b3-abd9-6c05970958fd}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_casePackerStStop :
+STRUCT
+	
+	AutoReason:		DINT;				(*$H_R desc := Automatically collected reason FOR current downtime; $*)
+	Estop:			BOOL;				(*$H_R desc := Current downtime a result OF Estop; $*)
+	Guard:			BOOL;				(*$H_R desc := Current downtime a result OF guard trip; $*)
+	Operator:		BOOL;				(*$H_R desc := Current downtime a result OF normal operator stop; $*)
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

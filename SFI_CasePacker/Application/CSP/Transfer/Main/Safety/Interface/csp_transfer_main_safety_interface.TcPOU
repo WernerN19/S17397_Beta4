@@ -1,0 +1,327 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_main_safety_interface" Id="{199fd4e8-ee02-49f5-af7d-69353692802e}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine safety interfaces definition
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/24 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_transfer_main_safety_interface
+VAR
+	prc:						process;
+	prc_path:					STRING;
+	
+	sig_running :				BOOL;
+	
+	SPLC40210_sic: 				safety_integrated_controller; (*TRANSFER*)
+	SPLC40210_sig:				safety_integrated_group;
+	
+	(* SAFETY INTERFACE *)
+	_SPLC40210Slot59:			safety_integrated_controller_connection_interface;
+	_SPLC40210Slot60:			safety_integrated_controller_connection_interface;
+	_SPLC40210Slot61:			safety_integrated_controller_connection_interface;
+	_SPLC40210Slot66:			safety_integrated_controller_connection_interface;
+	_SPLC40210Slot68:			safety_integrated_controller_connection_interface;
+	_SPLC40210Slot70:			safety_integrated_controller_connection_interface;
+	_SPLC40210Slot72:			safety_integrated_controller_connection_interface;
+	
+	_SD41100_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD41100_drv_ChB:			safety_integrated_controller_connection_interface;	
+	_SD41200_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD41200_drv_ChB:			safety_integrated_controller_connection_interface;	
+	_SD41300_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD41300_drv_ChB:			safety_integrated_controller_connection_interface;	
+	_SD41400_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD41400_drv_ChB:			safety_integrated_controller_connection_interface;	
+	_SD41500_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD41500_drv_ChB:			safety_integrated_controller_connection_interface;	
+	_SD41600_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD41600_drv_ChB:			safety_integrated_controller_connection_interface;	
+	_SD41700_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD41700_drv_ChB:			safety_integrated_controller_connection_interface;	
+	
+	
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF  NOT sig_running
+THEN
+    safety_integrated_group_run(SPLC40210_sig);
+END_IF;
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{e03fad04-dc0a-4872-89f4-99fc35cb0d53}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{d57dcded-059b-41bc-afae-5e9251054236}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{e9c5cb5f-4807-4388-937a-2bba4d5ec1a1}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{df32c1d5-0a01-4bd3-b3b8-cf444e1197e1}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_transfer_main_safety_interface.prc', 
+		process									:= csp_transfer_main_safety.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+	
+	 
+	safety_integrated_controller_init(
+        object_name 			:= CONCAT(prc_path, '_SPLC40210_sic'),
+        process     			:= prc,
+        CONVERSION_this        	:=SPLC40210_sic);
+
+	safety_integrated_controller_configure(
+		_type					:= SAFETY_INTEGRATED_CONTROLLER_TYPE_EL,
+		device_name				:= 'SPLC40210',
+		ethercat_master			:= csp_main.cabinet_transfer_ethercat_master,
+		CONVERSION_this			:= SPLC40210_sic);
+		
+	safety_integrated_group_init(
+        object_name 			:= CONCAT(prc_path, '_SPLC40210_sig'),
+    	controller 				:= SPLC40210_sic,
+        process 				:= prc,
+        CONVERSION_this 					:= SPLC40210_sig);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'Slot 59 (EL1918)',
+		connection_interface					:= _SPLC40210Slot59,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+	
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'Slot 60 (EL1918)',
+		connection_interface					:= _SPLC40210Slot60,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+	
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'Slot 61 (EL1918)',
+		connection_interface					:= _SPLC40210Slot61,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'Slot 66 (EL2904)',
+		connection_interface					:= _SPLC40210Slot66,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'Slot 68 (EL2904)',
+		connection_interface					:= _SPLC40210Slot68,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'Slot 70 (EL2904)',
+		connection_interface					:= _SPLC40210Slot70,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'Slot 72 (EL2904)',
+		connection_interface					:= _SPLC40210Slot72,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+	
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41100',
+		connection_interface					:= _SD41100_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41100',
+		connection_interface					:= _SD41100_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41200',
+		connection_interface					:= _SD41200_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41200',
+		connection_interface					:= _SD41200_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41300',
+		connection_interface					:= _SD41300_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41300',
+		connection_interface					:= _SD41300_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+		
+			safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41400',
+		connection_interface					:= _SD41400_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41400',
+		connection_interface					:= _SD41400_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41500',
+		connection_interface					:= _SD41500_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41500',
+		connection_interface					:= _SD41500_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+		
+			safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41600',
+		connection_interface					:= _SD41600_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41600',
+		connection_interface					:= _SD41600_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41700',
+		connection_interface					:= _SD41700_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD41700',
+		connection_interface					:= _SD41700_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_transfer_ethercat_master,
+		group									:= SPLC40210_sig,
+		CONVERSION_this							:= SPLC40210_sic);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	safety_integrated_controller_cycle(SPLC40210_sic);
+	safety_integrated_group_cycle(SPLC40210_sig);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{440b22c3-6d64-4281-83f2-fc6b57cb20fe}">
+      <Implementation>
+        <ST><![CDATA[sig_running := safety_integrated_group_is_running(SPLC40210_sig);]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{1836af00-aa52-462e-99c9-ad3488ab96fc}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{aa2abbba-ceea-4837-b827-acd02338d55c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{6b836fe3-49a7-47d8-b3b7-e1b427f6876e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

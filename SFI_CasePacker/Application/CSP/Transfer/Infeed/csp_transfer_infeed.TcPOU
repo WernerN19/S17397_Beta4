@@ -1,0 +1,414 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_infeed" Id="{65ff9025-e30d-4468-ab29-ff15cb592650}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_infeed
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	temp_belt_run AT %Q*:							BOOL;
+	
+	run_infeed_belts:								BOOL;
+	
+	belt_accumulation_fsm_status:					csp_transfer_infeed_belt_status_enum;	(*$M desc := Conveyor Belt Accumulation FSM Status; $*)
+	belt_metering_fsm_status:						csp_transfer_infeed_belt_status_enum;	(*$M desc := Conveyor Belt Metering Status; $*)
+	belt_waterfall_fsm_status:						csp_transfer_infeed_belt_status_enum;	(*$M desc := Conveyor Belt Waterfall Status; $*)
+	
+	run_do:											digital_output;
+	
+	csp_running_velocity_PPM:						LREAL;	(*$M unit :=  PPM; desc := Cartoner Running Velocity; $*)
+	csp_running_velocity_mmpm:						LREAL;	(*$M unit :=  mm/s; desc := CasePacker Running Velocity; $*)
+	velocity_req_perc:								REAL:=0.0;	(*$M unit := %; desc := Pump Speed Request Output ; $*)
+	velocity_req_limited_perc:						REAL:=0.0;	(*$M unit := %; desc := Pump Speed Limited Output ; $*)
+	velocity_req_limited_old_perc:					REAL;
+	
+	metering_running_velocity_mmpm:					LREAL;
+	waterfall_accum_running_velocity_mmpm:			LREAL;
+	
+	
+	debug_conveyor:									BOOL;		
+	manual_velocity_ppm_override:					BOOL;
+	manual_velocity_ppm:							LREAL := 15;
+	
+	metering_belt_rpm_per_mm:						LREAL := 0.0062;
+	metering_belt_hz_per_rpm:						LREAL := 0.1739;
+	metering_belt_rpm_req:							LREAL;
+	metering_belt_hz_req:							LREAL;
+	
+	metering_belt_hz_per_mm:						LREAL := 0.0000663349917; (* 1Hz = 15075 mm/min *)
+	
+	waterfall_belt_rpm_per_mm:						LREAL := 0.0062;
+	waterfall_belt_hz_per_rpm:						LREAL := 0.1739;
+	waterfall_belt_rpm_req:							LREAL;
+	waterfall_belt_hz_req:							LREAL;
+	
+	waterfall_belt_hz_per_mm:						LREAL := 0.00006557377; (* 1Hz = 15250 mm/min *)
+	
+	accumulation_belt_rpm_per_mm:					LREAL := 0.0020595; (* 173RPM = 84 m/min - NEEDS TO CHANGE*)
+	accumulation_belt_hz_per_rpm:					LREAL := 0.3468; (* 173RPM = 60Hz *)
+	accumulation_belt_rpm_req:						LREAL;
+	accumulation_belt_hz_req:						LREAL;
+	
+	accumulation_belt_hz_per_mm:					LREAL := 0.00002160994; (* 1Hz = 46275 mm/min *)
+	
+	rm_cartoner_speed:								LREAL := 60;
+	
+	
+	belts_time_out_tmr:								timer;
+	belts_faulted_aem:	 							message;
+	infeed_belts_surge_percent:						LREAL := 30;
+	
+	stop_signal_delay: 								Ton;
+	delay_stop_signal: 								BOOL;
+	run_infeed_belts_orginal: 						BOOL;
+END_VAR
+
+VAR_INPUT
+
+	i_downstream_ready:								BOOL;					(*$M desc := Downstream Process Ready; $*)
+	i_upstream_running:								BOOL;
+	i_upstream_immediate_stop:						BOOL;
+	i_upstream_velocity:							LREAL;
+
+END_VAR
+
+VAR CONSTANT
+	MIN_VELOCITY_PERC:								REAL := 10;
+	MAX_VELOCITY_PERC:								REAL := 100;
+	MAX_VELOCITY_MMPS:								REAL := 1500;
+	MIN_MACHINE_SPEED_FOR_BELTS:					INT := 10;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(************************************************************************)
+
+
+IF axis_is_moving(csp_transfer_infeed_metering_belt.axis)
+	OR
+	axis_is_moving(csp_transfer_infeed_waterfall_belt.axis)
+	AND NOT csp_transfer_infeed_accumulation_level.stop_upstream_belts
+THEN
+	temp_belt_run := TRUE;
+ELSE
+	temp_belt_run := FALSE;
+END_IF
+
+
+
+IF	machine_is_running(csp.mch)
+	AND csp_main_motorization_manager.motm.actual_velocity > 0
+THEN
+	IF	timer_is_expired(belts_time_out_tmr)
+		AND csp_transfer_infeed_metering_belt.fsm_status <> CSP_TRANSFER_INFEED_BELT_STATUS_RUNNING
+		AND csp_transfer_infeed_waterfall_belt.fsm_status <> CSP_TRANSFER_INFEED_WATERFALL_BELT_STATUS_RUNNING
+		AND csp_transfer_infeed_accumulation_belt.fsm_status <> CSP_TRANSFER_INFEED_ACCUMULATION_BELT_STATUS_RUNNING
+	THEN
+		//process_message_set(1, 0, 0, belts_faulted_aem);
+	END_IF
+ELSE
+	timer_restart(2500, belts_time_out_tmr);
+END_IF
+
+
+(* ENABLE CONDITION FOR ALL INFEED BELTS *)
+run_infeed_belts :=
+	(
+		motorization_manager_is_execute(csp_main_motorization_manager.motm)
+		OR
+		motorization_manager_is_holding(csp_main_motorization_manager.motm)
+		OR
+		motorization_manager_is_held(csp_main_motorization_manager.motm)
+		OR
+		motorization_manager_is_unholding(csp_main_motorization_manager.motm)
+		OR
+		csp_main_motorization_virtualManager.axis.actual_velocity > 0 //catches suspend
+		OR
+		NOT delay_stop_signal 
+	)
+	AND
+	process_is_ready(prc);
+
+//Added to continue the infeed belts to run 2 seconds after a stop	
+stop_signal_delay(IN:= csp_main_motorization_virtualManager.axis.actual_velocity < 1, PT:=T#2S , Q=> delay_stop_signal , ET=> );
+
+run_infeed_belts_orginal :=
+	(
+		motorization_manager_is_execute(csp_main_motorization_manager.motm)
+		OR
+		motorization_manager_is_holding(csp_main_motorization_manager.motm)
+		OR
+		motorization_manager_is_held(csp_main_motorization_manager.motm)
+		OR
+		motorization_manager_is_unholding(csp_main_motorization_manager.motm)
+		OR
+		csp_main_motorization_virtualManager.axis.actual_velocity > 0 //catches suspend
+	)
+	AND
+	process_is_ready(prc);
+	
+IF manual_velocity_ppm_override
+THEN
+	csp_running_velocity_PPM := manual_velocity_ppm;
+ELSE
+	csp_running_velocity_PPM := csp_main_brand.case_pattern.case_pattern_L * csp_main_brand.case_pattern.case_pattern_W * csp_main_brand.surge_case_rate_ppm;
+END_IF
+
+csp_running_velocity_mmpm := 	MAX(csp_main_motorization_manager.motm.actual_velocity_setpoint, MIN_MACHINE_SPEED_FOR_BELTS) 
+								*
+								csp_main_brand.case_pattern.case_pattern_L
+								*
+								csp_main_brand.case_pattern.case_pattern_W;
+								
+
+(* USED FOR METERING BELTS SINCE SOMETIMES IN DIFFERENT ORIENTATION *)								
+metering_running_velocity_mmpm := 	csp_running_velocity_mmpm
+									*
+									(
+										SEL(csp_main_brand.Rollover_Carton,
+											csp_main_brand.carton_dimension.carton_size_L_mm, 
+											csp_main_brand.carton_dimension.carton_size_W_mm) (* SELECTED IF ROLLOVER IS TRUE *)
+										//csp_main_brand.carton_dimension.carton_size_W_mm
+										+ 
+										csp_main_brand.metering_carton_gap
+									)
+									*
+									(
+										(infeed_belts_surge_percent / 100) + 1
+									);
+
+(* USED FOR WATERFALL AND ACCUMULATION BELTS *)
+waterfall_accum_running_velocity_mmpm :=	csp_running_velocity_mmpm
+									*
+									(
+										SEL(csp_main_brand.Rollover_Carton,
+											csp_main_brand.carton_dimension.carton_size_W_mm, 
+											csp_main_brand.carton_dimension.carton_size_L_mm) (* SELECTED IF ROLLOVER IS TRUE *)
+										+ 
+										csp_main_brand.post_waterfall_carton_gap
+									)
+									*
+									(
+										(infeed_belts_surge_percent / 100) + 1
+									);
+
+							
+(* Metering Belt Req Velocity *)	
+metering_belt_rpm_req := 	metering_running_velocity_mmpm
+							*
+							metering_belt_rpm_per_mm
+							*
+							( 1 + (csp_transfer_infeed_metering_belt.override_percentage_par / 100)); (* mm per minute *)
+							
+
+
+(* Waterfall Belt Req Velocity *)	
+waterfall_belt_rpm_req := 	waterfall_accum_running_velocity_mmpm 
+							* 
+							waterfall_belt_rpm_per_mm
+							*
+							( 1 + (csp_transfer_infeed_waterfall_belt.override_percentage_par / 100)); (* mm per minute *)
+
+
+(* Accumulation Belt Req Velocity *)	
+accumulation_belt_rpm_req :=	waterfall_accum_running_velocity_mmpm
+								*
+								accumulation_belt_rpm_per_mm
+								*
+								( 1 + (csp_transfer_infeed_accumulation_belt.override_percentage_par / 100)); (* mm per minute *)
+							
+									
+velocity_req_perc := 	csp_running_velocity_mmpm
+						/
+						MAX_VELOCITY_MMPS
+						*
+						100
+						;
+						
+IF	run_infeed_belts
+	OR
+	debug_conveyor
+THEN
+	velocity_req_limited_perc := MIN(velocity_req_perc,MAX_VELOCITY_PERC);
+	velocity_req_limited_perc := MAX(velocity_req_limited_perc, MIN_VELOCITY_PERC);
+ELSE
+	velocity_req_limited_perc := 0;
+END_IF									
+
+(************************************************************************)
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{4f163c5a-7eb4-4622-8ee9-187937ceef11}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{767d76b1-77a6-44a3-b4a0-4c0c1f5da1b2}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{dcceaf8c-6b41-42de-a42d-122a64ec2123}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			velocity_req_limited_perc := 0;
+			velocity_req_perc := 0;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{8eafe36e-41ff-43be-993a-45cb6376c0ea}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_infeed.prc', 
+		process						:= csp_transfer.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	digital_output_init(
+		object_name				:= CONCAT(prc_path, '_run_do'),
+		polarity_direct			:= TRUE,
+		process					:= prc,
+		CONVERSION_this					:= run_do);
+
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_belts_faulted_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NORMAL_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	belts_faulted_aem);
+	
+	timer_init(
+		object_name					:= CONCAT(prc_path, '_belts_time_out_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= belts_time_out_tmr);	
+		
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{95bc1723-67d4-4dbc-8550-71d53b44f8f9}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{fdb7dc47-20a4-4261-b224-b89eb2e7eeb3}">
+      <Implementation>
+        <ST><![CDATA[i_downstream_ready:= TRUE;
+
+i_upstream_running:=	NOT machine_is_stopped(csp.mch)
+						AND
+						process_mode_is_operational(csp_main_motorization_manager.prc);
+						
+i_upstream_immediate_stop:= FALSE; (* To Be Changed - Marco*)
+i_upstream_velocity:= csp_running_velocity_mmpm;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{101e3e3d-0274-43bb-abe2-2bd7726db9a0}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{103486b6-856b-4983-897b-9702d3222b95}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_transfer_infeed">
+      <LineId Id="344" Count="181" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed._handle_messages">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed._mode_manager">
+      <LineId Id="2" Count="14" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed._object_manager">
+      <LineId Id="2" Count="37" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed._read_var_input">
+      <LineId Id="2" Count="6" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed._set_runtime_properties">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,311 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_motorization_manager" Id="{ef370afb-acdc-4a4e-9dbb-c47ac86bfef4}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp motorization head program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/18 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_motorization_manager
+VAR	
+	prc:												process;
+	prc_path:											STRING;
+	
+	motm:												motorization_manager;
+	empty_command_motcond:								motorization_conditioner;
+	
+	suspend_conditions: 								BOOL;
+	unsuspend_conditions: 								BOOL;
+	suspend_completed: 									BOOL;
+	
+	reset_production_stats: 							BOOL;
+	reset_statistics_cbtn: 								command_button;
+	reset_statistics_cbtn_hgos: 						hmi_graphic_object_status;
+	debug11: 											BOOL;
+	debug10: 											BOOL;
+	debug12: 											BOOL;
+	Upstream_Wait: 										BOOL;
+	Downstream_Wait: 									BOOL;
+	reject_command_motcond: 							motorization_conditioner;
+	empty_command_velocity: 							LREAL := 10;(*$P $*)
+	reject_command_velocity: 							LREAL := 10;(*$P $*)
+	debug_Enable_new_conditioners:						BOOL := TRUE;(*$P $*)
+END_VAR
+
+VAR CONSTANT
+	MACHINE_NOMINAL_VELOCITY_PPM:						INT := 15;
+	MACHINE_NOMINAL_VELOCITY_BOUND_PPM:					INT := 20;
+	MACHINE_MIN_VELOCITY_PPM:							INT := 5;
+	MACHINE_MAX_RELATIVE_OVERSPEED_PPM:					INT := 30;
+	MACHINE_ACCELERATION_TIME_S:						LREAL := 5;
+	MACHINE_VEL_LIMITED_CHANGE_ACC_DEGPS2:				LREAL := 5; // started at 200
+	MACHINE_SERVICE_DECELERATION_TIME_S:				LREAL := 2;
+	MACHINE_EMERGENCY_DECELERATION_TIME_S:				LREAL := 0.5;
+	MACHINE_ON_PHASE_STOP_SEARCH_SPEED_PPM:				INT := 100;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF csp_case_main_services.dry_cycle_mode
+THEN
+	motorization_conditioner_deactivate(csp_transfer_infeed_accumulation_level.product_starved_motcond);
+END_IF
+
+motorization_conditioner_set_velocity_limit(
+	velocity_limit			:= empty_command_velocity,
+	CONVERSION_this			:= empty_command_motcond);
+
+IF csp_main_motorization.empty_command
+THEN
+	motorization_conditioner_velocity_limit_activate(empty_command_motcond);
+	motorization_conditioner_deactivate(csp_transfer_infeed_accumulation_level.product_starved_motcond);
+ELSE
+	motorization_conditioner_velocity_limit_deactivate(empty_command_motcond);
+	motorization_conditioner_activate(csp_transfer_infeed_accumulation_level.product_starved_motcond);
+END_IF
+
+motorization_conditioner_set_velocity_limit(
+	velocity_limit := reject_command_velocity,
+	CONVERSION_this := reject_command_motcond);
+
+IF csp_case_transport_virtualMaster.stop_for_reject
+THEN
+	motorization_conditioner_velocity_limit_activate(reject_command_motcond);
+ELSE
+	motorization_conditioner_velocity_limit_deactivate(reject_command_motcond);
+END_IF
+
+(* Up/Downstream stop Management for OEE Production Counter on Statistics Page *)
+suspend_conditions := NOT unsuspend_conditions
+							AND csp_main_motorization.execute_bit;
+
+unsuspend_conditions := csp_main_motorization.execute_bit
+						AND
+						axis_is_moving(csp_case_transport_virtualMaster.axis);
+						
+IF suspend_conditions
+	AND (* Upstream wait conditions *)
+	(
+		csp_transfer_infeed_accumulation_level.level_status <= CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_MIN
+		OR
+		csp_case_feed_magazine.hold_request_aml_zone
+		OR	
+		NOT csp_transfer_upstacker.stack_at_loader
+	)	
+THEN
+	Upstream_Wait := TRUE;
+ELSE
+	Upstream_Wait := FALSE;
+END_IF
+
+IF suspend_conditions
+	AND (* Upstream wait conditions *)
+	(
+		message_is_on(csp_case_discharge_reject_sensors.downstream_backup_di_dchk.alarm_asm.message)
+		OR 
+		motorization_manager_is_suspended(csp_main_motorization_manager.motm)//message_is_on(csp_main_interface.Cartoner_Stop_Request_aem)	
+	)	
+THEN
+	Downstream_Wait := TRUE;
+ELSE
+	Downstream_Wait := FALSE;
+END_IF				
+					
+
+
+IF suspend_conditions OR debug11(*IN fake Suspend*)
+THEN
+	machine_set_wait_production_log_lsm_state(TRUE, csp.mch); // This turns the production mode off
+	motorization_manager_set_manual_log_state(TRUE, motm); 
+	machine_set_production_log_lsm_state(FALSE, csp.mch); //may not be needed but here to be safe
+	IF Upstream_Wait OR debug10(* UPSTREAM*)
+	THEN
+		motorization_manager_set_production_wait_external_up_lsm_state(TRUE,motm);
+	ELSIF Downstream_Wait OR debug12(* DOWNSTREAM *) 
+	THEN
+		motorization_manager_set_production_wait_external_down_lsm_state(TRUE,motm);
+	ELSE
+		//motorization_manager_set_production_wait_external_operator_lsm_state(TRUE,motm);
+	END_IF
+ELSE
+		motorization_manager_set_manual_log_state(FALSE, motm);
+		machine_set_wait_production_log_lsm_state(FALSE, csp.mch);
+		machine_set_production_log_lsm_state(TRUE, csp.mch);
+END_IF
+
+
+
+IF reset_production_stats
+THEN
+	csp_transfer_infeed_metering_jam.good_carton_count := 0;
+	csp_transfer_infeed_metering_jam.waterfall_reject_carton_count := 0;
+	csp_transfer_crosspusher.accumulator_reject_carton_count := 0;
+	csp_case_transport_virtualMaster.feed_reject_case_count := 0;
+	reset_production_stats := FALSE;
+END_IF
+(************************************************************************)
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{e74e0eac-2e72-4d50-9b3c-7f7fcf49e4da}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{58aaa849-34fa-48ec-a1b3-415097c01472}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{a31c2a4b-8d94-4cee-82ac-2b578a828c20}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{ed68bf71-a256-4b52-be6e-b17492c9a44b}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_main_motorization_manager.prc', 
+		process									:= csp_main_motorization.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+	
+	motorization_manager_init(
+		object_name								:= CONCAT(prc_path, '_motm'), 
+		nameplate_nominal_velocity				:= MACHINE_NOMINAL_VELOCITY_PPM, 
+		nominal_velocity						:= MACHINE_NOMINAL_VELOCITY_PPM, 
+		nominal_velocity_bound					:= MACHINE_NOMINAL_VELOCITY_BOUND_PPM, 
+		min_velocity							:= MACHINE_MIN_VELOCITY_PPM, 
+		max_relative_overspeed					:= MACHINE_MAX_RELATIVE_OVERSPEED_PPM, 
+		units_to_rpm_conversion_factor			:= G_CONV_PPM_TO_DEGPS, 
+		acceleration_time						:= MACHINE_ACCELERATION_TIME_S, 
+		velocity_limit_change_acceleration		:= MACHINE_VEL_LIMITED_CHANGE_ACC_DEGPS2, 
+		service_deceleration_time				:= MACHINE_SERVICE_DECELERATION_TIME_S, 
+		emergency_deceleration_time				:= MACHINE_EMERGENCY_DECELERATION_TIME_S, 
+		on_phase_stop_type						:= MOTORIZATION_MANAGER_ON_PHASE_STOP_DIRECT, 
+		on_phase_stop_search_speed				:= MACHINE_ON_PHASE_STOP_SEARCH_SPEED_PPM, 
+		engage_to_main_encoder_when_stopped		:= FALSE, 
+		main_motor_axis							:= csp_main_motorization_virtualManager.axis, 
+		process									:= prc, 
+		CONVERSION_this							:= motm);
+		
+		
+	motorization_conditioner_init(
+		object_name								:=	CONCAT(prc_path, '_empty_command_motcond'),
+		velocity_limit							:=	empty_command_velocity,
+		velocity_limit_active					:=	FALSE,
+		idle_handshake_active					:=	FALSE,
+		execute_handshake_active				:=	FALSE,
+		hold_handshake_active					:=	FALSE,
+		suspend_handshake_active				:=	FALSE,
+		complete_handshake_active				:=	FALSE,
+		abort_handshake_active					:=	FALSE,
+		stop_handshake_active					:=	FALSE,
+		origin									:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager									:=	csp_main_motorization_manager.motm,
+		process									:=	prc,
+		CONVERSION_this							:=	empty_command_motcond);
+		
+	motorization_conditioner_init(
+		object_name 							:= CONCAT(prc_path, '_reject_command_motcond'),
+		velocity_limit 							:= reject_command_velocity,
+		velocity_limit_active 					:= FALSE,
+		idle_handshake_active 					:= FALSE,
+		execute_handshake_active 				:= FALSE,
+		hold_handshake_active 					:= FALSE,
+		suspend_handshake_active 				:= FALSE,
+		complete_handshake_active 				:= FALSE,
+		abort_handshake_active 					:= FALSE,
+		stop_handshake_active 					:= FALSE,
+		origin 									:= MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager 								:= csp_main_motorization_manager.motm,
+		process									:= prc,
+		CONVERSION_this 						:= reject_command_motcond);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	motorization_manager_cycle(motm);
+	motorization_conditioner_cycle(empty_command_motcond);
+	motorization_conditioner_cycle(reject_command_motcond);
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{27702f70-6fd5-4977-abdf-19eb805c45aa}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{4172bedc-8c0f-4fec-9348-ac27fa6a74d2}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{7999df6f-238a-4f95-9c2b-347973f27066}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{606994a8-949b-496e-856e-f0bb8b869f06}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

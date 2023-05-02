@@ -1,0 +1,149 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_discharge_reject_modsort" Id="{fe61ac28-e0dc-4682-81f7-f488e95c4d2e}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_discharge_reject_modsort
+VAR
+		
+	prc:											process;
+	prc_path:										STRING;
+	
+	MODSORT_FWD_RUN_do: 							digital_output;
+	MODSORT_REJECT_RUN_do: 							digital_output;
+	
+	modsort_fwd_faulted_di:							digital_input;
+	modsort_reject_faulted_di:						digital_input;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{e9f6735b-4e4d-4510-b932-a3e58559e7a5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{fbc4ec73-1f75-4ac3-b258-bb0a75d52c56}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{0e9fac41-3a4a-415b-acc3-16bac8cfafcf}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{6d9cd80b-3d1d-4ef9-a497-defde9c4747a}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_discharge_reject_modsort.prc', 
+		process						:= csp_case_discharge_reject.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	digital_output_init(
+		object_name					:= CONCAT(prc_path, '_MODSORT_FWD_RUN_do'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= MODSORT_FWD_RUN_do);
+	
+	digital_output_init(
+		object_name					:= CONCAT(prc_path, '_MODSORT_REJECT_RUN_do'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= MODSORT_REJECT_RUN_do);
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_modsort_fwd_faulted_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= modsort_fwd_faulted_di);
+
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_modsort_reject_faulted_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= modsort_reject_faulted_di);
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{a6a26e43-7ec1-4765-bce7-94f5c0f8202b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{5d67ee55-e4c5-4724-8c4c-873c8736693f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{2fc49e4e-0e1d-4e6d-8bab-6b735debeef6}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{a96c086b-71bf-45f3-b00a-86d5243a8725}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

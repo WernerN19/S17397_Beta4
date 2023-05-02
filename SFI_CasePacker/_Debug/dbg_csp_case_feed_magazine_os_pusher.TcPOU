@@ -1,0 +1,76 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_case_feed_magazine_os_pusher" Id="{861715e7-3dfe-4284-b971-008b5896b29f}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_case_feed_magazine_os_pusher
+VAR
+  dact_shd : double_actuator_shadow;
+  extend_do_shd : digital_output_shadow;
+  retract_do_shd : digital_output_shadow;
+  retracted_di_shd : digital_input_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{cfd10d22-52b6-452f-acaa-4243e2e7146e}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	double_actuator_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_magazine_os_pusher.dact, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= dact_shd);
+
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_magazine_os_pusher.extend_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= extend_do_shd);
+
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_magazine_os_pusher.retract_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= retract_do_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_magazine_os_pusher.retracted_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= retracted_di_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	double_actuator_shadow_cycle(dact_shd);
+	digital_output_shadow_cycle(extend_do_shd);
+	digital_output_shadow_cycle(retract_do_shd);
+	digital_input_shadow_cycle(retracted_di_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

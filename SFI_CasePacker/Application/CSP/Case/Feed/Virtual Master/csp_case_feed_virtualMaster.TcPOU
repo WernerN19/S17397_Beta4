@@ -1,0 +1,2272 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_virtualMaster" Id="{98183008-91ee-4584-a220-d21f6cafbad7}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_virtualMaster
+VAR_INPUT
+	i_check_done_ok:								BOOL;
+	i_check_done_error:								BOOL;
+	i_follower_at_start_position:					BOOL;
+END_VAR
+VAR_OUTPUT
+	o_follower_check_request:						BOOL;
+END_VAR
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	axis: 											axis;
+	axis_actual_position:							LREAL;
+	active_cam:										DINT;
+	
+	fsm_enable_condition:							BOOL := FALSE;
+	fsm_next_status:								csp_case_feed_status_enum;
+	fsm_status:										csp_case_feed_status_enum;
+	
+	engage_enable:									BOOL := TRUE;
+	disable_req:									BOOL;
+	debug_state_machine:							BOOL := FALSE;
+	debug_state_machine_one_step:					BOOL := FALSE;	
+	debug_phase_machine_one_step:					BOOL := FALSE;
+	debug_connection_machine_one_step:				BOOL := FALSE;
+	
+	virtual_reject_disengage_position:				LREAL := 268; (*$P $*)
+	virtual_reject_rephasing_position:				LREAL := 0.0; (*$P $*)
+	shuttle_horizontal_reject_position:				LREAL := -430; (*$P $*)
+	shuttle_horizontal_reject_speed:				LREAL := 100; (*$P $*)
+	shuttle_vertical_reject_position:				LREAL := 144; (*$P $*)
+	shuttle_vertical_reject_speed:					LREAL := 100; (*$P $*)
+	kinematic_x_reject_position1:					LREAL := -604; (*$P $*)
+	kinematic_x_reject_speed1:						LREAL := 100; (*$P $*)
+	kinematic_x_reject_position2:					LREAL := -820; (*$P $*)
+	kinematic_x_reject_speed2:						LREAL := 100; (*$P $*)
+			
+	first_cycle:									BOOL := TRUE;
+	feed_request:									BOOL;
+	complete_first_cycle:							BOOL;
+	check_request:									BOOL := FALSE;
+	follower_check_request:							BOOL := FALSE;
+	activation_mode:								axis_cam_activation_mode_enum;	
+	
+	cam_id:											DINT  := FORWARD_CAM;
+	slave_scaling_mm:								LREAL := 1; 
+	master_scaling_deg:								LREAL := 1; 
+	pusher_cam_engaged:								BOOL;
+	
+	vfed_start_cam:									LREAL;
+	vfed_end_cam:									LREAL;
+	
+	case_vfed_phgen:								phase_generator;
+	case_vfed_phwin:								phase_window;
+	
+	case_fed_phgen:									phase_generator;		
+	case_fed_major_phwin:							phase_window;
+	case_pick_main_sol_on:							LREAL:=105; (*$P $*)
+    case_pick_main_sol_off:							LREAL:=34; (*$P $*)
+	case_pick_begin_delay:							LREAL:=50; 
+	case_pick_end_delay:							LREAL:=50;
+	
+	case_fed_minor_phgen:							phase_generator;
+	case_fed_minor_phwin:							phase_window;
+	case_pick_flap_sol_on:							LREAL:=105; (*$P $*)
+    case_pick_flap_sol_off:							LREAL:=235; (*$P $*)
+	
+	
+	shuttle_vaccum_1_phgen:							phase_generator;
+	shuttle_vaccum_1_phwin:							phase_window;
+	shuttle_1_sol_on:								LREAL:=0; (*$P $*)
+    shuttle_1_sol_off:								LREAL:=180; (*$P $*)
+	
+	shuttle_vaccum_2_phgen:							phase_generator;
+	shuttle_vaccum_2_phwin:							phase_window;
+	shuttle_2_sol_on:								LREAL:=0; (*$P $*)
+    shuttle_2_sol_off:								LREAL:=180; (*$P $*)
+	
+	shuttle_vaccum_3_phgen:							phase_generator;
+	shuttle_vaccum_3_phwin:							phase_window;
+	shuttle_3_sol_on:								LREAL:=0; (*$P $*)
+    shuttle_3_sol_off:								LREAL:=180; (*$P $*)
+	
+	phase_status: 									csp_case_feed_phase_status_enum;
+	phase_status_next: 								csp_case_feed_phase_status_enum;
+	phase_done: 									BOOL;
+	phase_running: 									BOOL;
+	phase_time_out_tmr:								timer;
+	phase_faulted_aem:	 							message;
+	phase_conditions:								BOOL;
+	
+	is_ok:											BOOL;
+	
+	phase_horizontal_master_position:				LREAL;
+	phase_horizontal_slave_position:				LREAL;
+	phase_vertical_master_position:					LREAL;
+	phase_vertical_slave_position:					LREAL;
+	phase_x_master_position:						LREAL;
+	phase_x_slave_position:							LREAL;
+	phase_y_master_position:						LREAL;
+	phase_y_slave_position:							LREAL;
+	phase_tilt_master_position:						LREAL;
+	phase_tilt_slave_position:						LREAL;
+	
+	virtual_master_offset:							LREAL := 0.0;
+	shuttle_horizontal_master_offset:				LREAL := 105.0; (*$P min:= 0; max:=360; step := 0.1; unit :=°; ecode:=SMTR8003; desc := Shuttle Horizontal Master Offset; $*)
+	
+	shuttle_vertical_master_offset:					LREAL := 46; (*$P min:= 0; max:=360; step := 0.1; unit :=°; ecode:=SMTR8023; desc := Shuttle Vertical Master Offset; $*)
+	shuttle_vertical_slave_offset:					LREAL := 36.0; (*$P min:= -360; max:=360; unit :=°; ecode:=SMTR8023; desc := Shuttle Vertical Slave Offset; $*)
+	shuttle_vertical_slave_scaling:					LREAL := 68; (*$P min:= -360; max:=360; unit :=°; ecode:=SMTR8023; desc := Shuttle Vertical Slave Scaling; $*)
+	
+	kinematic_x_cam_offset:							LREAL := 229.1; (*$P min:= 0; max:=360; step := 0.1; unit :=°; ecode:=SMTRXXXX; desc := XXXXX; $*)
+	kinematic_y_cam_offset:							LREAL := 229.1; (*$P min:= 0; max:=360; step := 0.1; unit :=°; ecode:=SMTRXXXX; desc := XXXXX; $*)
+	kinematic_tilt_cam_offset:						LREAL := 229.1; (*$P min:= 0; max:=360; step := 0.1; unit :=°; ecode:=SMTRXXXX; desc := XXXXX; $*)
+	
+	kinematic_x_slave_offset:						LREAL := -18;   //beta 1,3,10 = 0; beta 4 = -24; alpha 1 = 0
+	kinematic_y_slave_offset:						LREAL := 3;   //beta 1,3,4,10 = 3; alpha 1, 17450 = 0
+	kinematic_tilt_slave_offset:					LREAL := 0;	  // 0 for all machines
+	
+	connection_status: 								csp_case_feed_connection_status_enum;
+	connection_status_next: 						csp_case_feed_connection_status_enum;
+	connection_done: 								BOOL;
+	connection_running: 							BOOL;
+	connection_time_out_tmr:						timer;
+	connection_faulted_aem:	 						message;
+	connection_conditions:							BOOL;
+	connection_done_motcond:						motorization_conditioner;	
+	connection_motorization_moving:					BOOL;
+	connection_wait_stop_TON:						TON;
+	
+	stop_during_reject:								BOOL := FALSE;
+	stop_done_motcond:								motorization_conditioner;
+	
+	ABSENT_HOR_VER: BOOL := FALSE;
+	shuttle_horizontal_slave_offset: 				INT := -6; (*$P min:= -360; max:=360; unit :=°; ecode:=SMTRXXXX; desc := XXXXX; $*)
+	case_feed_reject_active:						boolean;
+	case_feed_reject_active_di_dchk:				digital_check;
+	compensation_on: 								LREAL:= 10;
+	compensation_off: 								LREAL:= 10;
+	
+	test_phase_seq:									BOOL:= FALSE;
+	turn_off_vaccuum: 								BOOL := FALSE;
+	turn_ON_vaccuum_for_reject: 					BOOL := FALSE;
+	
+	reject_accel:									LREAL := 250;
+	
+	kinematic_y_reject_position1: 					LREAL := -640;(*$P $*)
+	
+	y_erect_pos:									LREAL;
+	move_followers_spreaders_safe:					BOOL;
+	
+	Remove_Case_At_Feed_aem:						message;
+	
+	
+	
+
+	Engaged: 										BOOL;
+	New_Case_Pick: 									BOOL;
+	large_move_required: 							BOOL;
+	major_phwin_begin_delay: 						REAL;
+	major_phwin_end_delay: 							REAL;
+END_VAR
+
+VAR CONSTANT
+	
+	CONSTANTS:										csp_case_feed_constant_struct;
+	FED_START_POSITION:								LREAL := 340.0;
+	FED_STOP_POSITION:								LREAL := 1.0;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF 	NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+phase_window_set_phases_data(
+	begin_phase:=  case_pick_main_sol_on,
+	end_phase:=  case_pick_main_sol_off,
+	begin_delay:= major_phwin_begin_delay,
+	end_delay:= major_phwin_end_delay,
+	begin_max_compensation:= compensation_on,
+	end_max_compensation:= compensation_off,
+	CONVERSION_this:= case_fed_major_phwin);
+	
+phase_window_set_phases_data(
+	begin_phase:=  case_pick_flap_sol_on,
+	end_phase:=  case_pick_flap_sol_off,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= case_fed_minor_phwin);
+
+phase_window_set_phases_data(
+	begin_phase:=  shuttle_1_sol_on,
+	end_phase:=  shuttle_1_sol_off,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= shuttle_vaccum_1_phwin);
+	
+phase_window_set_phases_data(
+	begin_phase:=  shuttle_2_sol_on,
+	end_phase:=  shuttle_2_sol_off,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= shuttle_vaccum_2_phwin);
+	
+phase_window_set_phases_data(
+	begin_phase:=  shuttle_3_sol_on,
+	end_phase:=  shuttle_3_sol_off,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= shuttle_vaccum_3_phwin);
+
+(* CLEARS VACUUM FROM REJECT IF STOP DURING REJECT *)
+IF csp_case_feed_virtualMaster.stop_during_reject
+	AND turn_ON_vaccuum_for_reject
+THEN
+	turn_ON_vaccuum_for_reject := FALSE;
+END_IF
+	
+IF 	csp_case_transport_virtualMaster.stop_for_reject
+	AND machine_is_stopped(csp.mch)
+THEN
+	stop_during_reject := TRUE;
+	process_message_set(0,0,0, Remove_Case_At_Feed_aem);
+ELSE
+	stop_during_reject := FALSE;
+END_IF
+
+(*FSM Control*)
+fsm_enable_condition := axis_is_ok(FALSE, axis)
+						AND
+						process_is_ready(prc)
+						AND
+						process_subtree_is_ready(prc)
+						AND						
+						csp_main_motorization.motorization_axis_redefined_at_powerup
+						AND
+						NOT jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_FEED_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+						AND						
+						NOT csp_case_feed_kinematic.ext_stop_request
+						AND
+						NOT csp_main_accuChange.machine_size_running
+						AND
+						NOT disable_req;
+						//AND
+						//csp_transfer_infeed_reject_virtualMaster.ready_for_cam;
+
+IF	NOT fsm_enable_condition
+	AND
+	fsm_status <> CSP_CASE_FEED_STATUS_DISABLED
+	AND
+	fsm_status < CSP_CASE_FEED_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_CASE_FEED_STATUS_STOP_REQUEST;
+	IF	csp_case_feed_kinematic.ext_stop_request
+	THEN
+		fsm_next_status := CSP_CASE_FEED_STATUS_STOP_REQUEST;
+	END_IF	
+END_IF
+
+Engaged := axis_is_cam_engaged(axis);
+
+CASE fsm_status OF
+	
+	CSP_CASE_FEED_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_next_status := CSP_CASE_FEED_STATUS_DISABLED;
+        END_IF
+		
+
+	CSP_CASE_FEED_STATUS_DISABLED:
+	
+		IF	fsm_enable_condition	
+			AND (
+					motorization_manager_is_starting(csp_main_motorization_manager.motm)	
+					OR
+					jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)	
+				)
+		THEN							
+			follower_check_request := FALSE;
+			fsm_next_status := CSP_CASE_FEED_STATUS_ENABLE_REQUEST;
+		END_IF;
+
+		
+	CSP_CASE_FEED_STATUS_ENABLE_REQUEST:
+	
+		axis_enable(axis);
+		IF 	axis_is_standstill(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_FEED_STATUS_ENABLED;
+		END_IF;		
+		
+
+	CSP_CASE_FEED_STATUS_ENABLED:	
+	
+		fsm_next_status	:= CSP_CASE_FEED_STATUS_PHASE_REQUEST;
+	
+		
+	CSP_CASE_FEED_STATUS_PHASE_REQUEST:	
+		
+		IF	axis_is_cam_engaged(csp_case_virtualMaster.axis)
+			OR
+			jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)								
+		THEN
+			IF 	stop_during_reject
+				AND
+				NOT jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+			THEN
+				IF	axis_redefine_position(
+					position		:= virtual_reject_rephasing_position, 
+					mode			:= AXIS_REDEFINE_POSITION_MODE_ABSOLUTE, 
+					CONVERSION_this	:= axis)	
+				THEN
+					fsm_next_status	:= CSP_CASE_FEED_STATUS_REJECT_END_REJECT_SEQUENCE;
+				END_IF					
+			ELSE			
+				IF	first_cycle
+				THEN
+					vfed_start_cam := MODABS(FED_START_POSITION+virtual_master_offset, axis_get_modulo(axis));
+					vfed_end_cam := MODABS(FED_STOP_POSITION+virtual_master_offset, axis_get_modulo(axis));
+					IF 	(vfed_start_cam <= vfed_end_cam)
+					THEN
+						check_request := 
+							(axis_get_actual_modulo_position(csp_case_virtualMaster.axis) >= vfed_start_cam) AND
+							(axis_get_actual_modulo_position(csp_case_virtualMaster.axis) <= vfed_end_cam);
+					ELSE
+						check_request := 
+							(axis_get_actual_modulo_position(csp_case_virtualMaster.axis) >= vfed_start_cam) OR
+							(axis_get_actual_modulo_position(csp_case_virtualMaster.axis) <= vfed_end_cam);
+					END_IF				
+				ELSE
+					IF 	(FED_START_POSITION <= FED_STOP_POSITION)
+					THEN
+						check_request := 
+							(axis_actual_position >= FED_START_POSITION) AND
+							(axis_actual_position <= FED_STOP_POSITION);
+					ELSE
+						check_request := 
+							(axis_actual_position >= FED_START_POSITION) OR
+							(axis_actual_position <= FED_STOP_POSITION);
+					END_IF		
+				END_IF			
+				complete_first_cycle := NOT check_request;
+				
+				axis_move_absolute(
+					position 		:= SEL(complete_first_cycle, 0.0, MODABS(axis_get_actual_modulo_position(csp_case_virtualMaster.axis)+virtual_master_offset, axis_get_modulo(csp_case_virtualMaster.axis))),
+					velocity 		:= CONSTANTS.MAX_VELOCITY_MMpSEC/2,
+					direction		:= AXIS_SHORTEST_WAY,
+					acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+					deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+					jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+					buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := axis);						  						
+
+				IF 	axis_is_absolute_moving(axis)
+				THEN
+					fsm_next_status	:= CSP_CASE_FEED_STATUS_PHASING;
+				END_IF
+			END_IF
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_PHASING:
+	
+		IF 	axis_is_standstill(axis)
+		THEN
+			//To adjust the phase window after rephasing movement!
+			phase_generator_reset(case_vfed_phgen);
+			phase_window_reset(case_vfed_phwin);
+			fsm_next_status	:= CSP_CASE_FEED_STATUS_SLAVE_PHASING;				
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_SLAVE_PHASING:
+	
+		IF	connection_done
+		THEN			
+			IF	check_request AND csp_case_transport_virtualMaster.fsm_status = CSP_CASE_TRANSPORT_STATUS_REJECT_ABS_STEP_4 //Flap control in position for check
+			THEN
+				follower_check_request := TRUE;
+				fsm_next_status	:= CSP_CASE_FEED_STATUS_CHECK_CARTON;
+			ELSE
+				fsm_next_status	:= CSP_CASE_FEED_STATUS_PHASED;
+			END_IF
+		END_IF
+			
+	CSP_CASE_FEED_STATUS_CHECK_CARTON:
+
+		IF	i_check_done_ok 
+		THEN
+			follower_check_request := FALSE;
+			csp_retain_data.carton_erected := TRUE; //In this situation mayght be already true!
+			fsm_next_status	:= CSP_CASE_FEED_STATUS_CHECK_OK;			
+		ELSIF i_check_done_error
+		THEN
+			follower_check_request := FALSE; 
+			fsm_next_status	:= CSP_CASE_FEED_STATUS_REJECT_WAIT_FOLLOWER;
+		END_IF
+
+		
+	CSP_CASE_FEED_STATUS_CHECK_OK:
+	
+		IF	i_follower_at_start_position
+		THEN
+			boolean_reset(case_feed_reject_active);	
+			fsm_next_status	:= CSP_CASE_FEED_STATUS_PHASED;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_PHASED:
+				
+		IF 	engage_enable
+		THEN
+			fsm_next_status := CSP_CASE_FEED_STATUS_CAM_ENGAGED_REQ;
+		END_IF
+
+		
+	CSP_CASE_FEED_STATUS_CAM_ENGAGED_REQ:
+	
+		IF 	complete_first_cycle			
+		THEN					
+			cam_id := FORWARD_CAM;
+			complete_first_cycle := FALSE;	
+		ELSE
+			cam_id := SEL(csp_case_feed.Feed_request, DWELL_CAM, FORWARD_CAM);
+		END_IF		
+
+		IF	axis_is_cam_engaged(axis)
+			OR
+			axis_is_cam_engaging(axis)
+		THEN
+			activation_mode := AXIS_CAM_ACTIVATION_NEXT_CYCLE;
+		ELSE
+			IF	NOT csp.o_machine_is_running //motorization_manager_is_execute(csp_main_motorization_manager.motm)
+				AND
+				NOT stop_during_reject
+			THEN
+				activation_mode := AXIS_CAM_ACTIVATION_IMMEDIATELY;
+			ELSE
+				activation_mode := AXIS_CAM_ACTIVATION_IMMEDIATELY;
+			END_IF
+		END_IF
+		
+		IF 	activation_mode >= 0
+		THEN		
+			axis_engage_cam(
+				cam_id 				:= cam_id,
+				master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+				slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+				activation_mode 	:= activation_mode,									
+				activation_position	:= 0.0,
+				master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				master_offset 		:= virtual_master_offset,
+				slave_offset 		:= 0,
+				master_scaling 		:= master_scaling_deg,
+				slave_scaling 		:= slave_scaling_mm,
+				interpolation_type 	:= AXIS_CAM_INTERPOLATION_SYSTEM_DEFAULT,
+				master 				:= csp_case_virtualMaster.axis,
+				CONVERSION_this 	:= axis);
+				
+			fsm_next_status := CSP_CASE_FEED_STATUS_AXIS_ENGAGE_VERIFY;
+		END_IF
+	
+		
+	CSP_CASE_FEED_STATUS_AXIS_ENGAGE_VERIFY:
+		
+		IF	axis_is_cam_engaged(axis) 
+			OR 
+			axis_is_cam_engaging(axis)
+		THEN
+	   		fsm_next_status := CSP_CASE_FEED_STATUS_CAM_ENGAGED;
+		END_IF;
+		
+		
+	CSP_CASE_FEED_STATUS_CAM_ENGAGED:
+	
+		IF	phase_window_rising_edge(case_vfed_phwin)
+		THEN
+			IF	(active_cam = FORWARD_CAM)
+				OR
+				(cam_id = FORWARD_CAM)
+			THEN
+				csp_retain_data.carton_erected := TRUE; 
+			END_IF	
+			
+			IF	(
+					NOT csp_case_feed.Feed_request
+					AND 
+					(active_cam = FORWARD_CAM)								
+				)
+				OR
+				(
+					csp_case_feed.Feed_request
+					AND 
+					(active_cam = DWELL_CAM)
+				)			
+			THEN
+				fsm_next_status := CSP_CASE_FEED_STATUS_CAM_ENGAGED_REQ;
+			END_IF
+			stop_during_reject := FALSE;
+		ELSIF phase_window_falling_edge(case_vfed_phwin)
+		THEN
+			IF	(active_cam = FORWARD_CAM)
+				OR
+				(cam_id = FORWARD_CAM)
+			THEN
+				csp_retain_data.carton_erected := FALSE; 
+			END_IF
+			stop_during_reject := FALSE;	
+		END_IF
+	
+		IF	phase_window_is_in_window(case_vfed_phwin)
+			AND		
+			i_check_done_error				
+		THEN
+			log_section_inc_auxiliary_counter(CASE_FEED_REJECT,1,csp_case_main_statistics.logsect);
+			fsm_next_status := CSP_CASE_FEED_STATUS_DISENGAGE_REQUEST;			
+		END_IF
+		
+		motorization_conditioner_start_done(connection_done_motcond);
+		
+		
+	CSP_CASE_FEED_STATUS_DISENGAGE_REQUEST:
+	
+		fsm_next_status := CSP_CASE_FEED_STATUS_DISENGAGING;
+	
+		
+	CSP_CASE_FEED_STATUS_DISENGAGING:
+	
+		IF	NOT axis_is_moving(axis)
+		THEN
+			axis_stop(
+				deceleration		:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk				:= CONSTANTS.MAX_JERK_MMpSEC3,
+				CONVERSION_this		:= axis);
+				
+			fsm_next_status := CSP_CASE_FEED_STATUS_DISENGAGED_AND_STOPPED;								
+		ELSE
+			IF 	axis_disengage(
+					mode			:= AXIS_DISENGAGE_AND_ON_PHASE_STOP, 
+					position		:= 0, 
+					velocity		:= 0, 
+					acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2, 
+					deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2, 
+					jerk			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+					CONVERSION_this	:= axis)
+			THEN
+				fsm_next_status := CSP_CASE_FEED_STATUS_DISENGAGED;
+			END_IF
+		END_IF
+	
+		
+	CSP_CASE_FEED_STATUS_DISENGAGED:
+	
+		IF 	axis_is_disengaged(axis)
+		THEN
+			fsm_next_status := CSP_CASE_FEED_STATUS_DISENGAGED_AND_STOPPED;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_DISENGAGED_AND_STOPPED:
+	
+		IF 	axis_is_standstill(axis)
+		THEN									
+			fsm_next_status := CSP_CASE_FEED_STATUS_REJECT_WAIT_FOLLOWER;			
+		END_IF	
+		
+		
+	CSP_CASE_FEED_STATUS_REJECT_WAIT_FOLLOWER:
+	
+		IF	i_follower_at_start_position
+		THEN
+			IF	csp_retain_data.carton_erected
+			THEN
+				fsm_next_status := CSP_CASE_FEED_STATUS_REJECT_MOVE_BACK;
+			ELSE
+				fsm_next_status := CSP_CASE_FEED_STATUS_REJECT_END_REJECT_SEQUENCE;
+			END_IF
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_REJECT_MOVE_BACK:
+	
+		axis_move_absolute(
+			position 		:= virtual_reject_disengage_position,
+			velocity 		:= motorization_manager_get_nominal_velocity(csp_main_motorization_manager.motm),
+			direction		:= AXIS_NEGATIVE_DIRECTION,
+			acceleration 	:= reject_accel,//CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+			deceleration 	:= reject_accel,//CONSTANTS.MAX_DECELERATION_MMpSEC2,
+			jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := axis); 				
+
+		IF 	axis_is_absolute_moving(axis)
+		THEN
+			fsm_next_status	:= CSP_CASE_FEED_STATUS_REJECT_MOVED_BACK;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_REJECT_MOVED_BACK:
+	
+		IF 	axis_is_standstill(axis)
+		THEN			
+			csp_retain_data.carton_erected := FALSE;
+			fsm_next_status	:= CSP_CASE_FEED_STATUS_REJECT_START_REJECT_SEQUENCE;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_REJECT_START_REJECT_SEQUENCE:
+	
+		IF	connection_status = CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP1
+		THEN
+			boolean_set(case_feed_reject_active);
+			IF	axis_redefine_position(
+				position		:= virtual_reject_rephasing_position, 
+				mode			:= AXIS_REDEFINE_POSITION_MODE_ABSOLUTE, 
+				CONVERSION_this	:= axis)	
+			THEN
+				New_Case_Pick := TRUE;
+				fsm_next_status	:= CSP_CASE_FEED_STATUS_REJECT_END_REJECT_SEQUENCE;
+			END_IF
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_REJECT_END_REJECT_SEQUENCE:
+	
+		IF	connection_done
+		THEN
+			axis_move_absolute(
+					position 		:= 0, //359.999, //Return to 0 moving in positive direction to pick a new carton!
+					velocity 		:= motorization_manager_get_nominal_velocity(csp_main_motorization_manager.motm)*6,
+					direction		:= AXIS_POSITIVE_DIRECTION,
+					acceleration 	:= reject_accel,
+					deceleration 	:= reject_accel,
+					jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+					buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := axis);
+		END_IF
+			
+		IF 	axis_is_absolute_moving(axis)
+		THEN
+			New_Case_Pick := FALSE;
+			fsm_next_status	:= CSP_CASE_FEED_STATUS_REJECT_WAIT_NEW_CARTON;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_REJECT_WAIT_NEW_CARTON:
+	
+		IF 	axis_is_standstill(axis)
+		THEN			
+			follower_check_request := TRUE;
+			csp_retain_data.carton_erected := TRUE;
+			fsm_next_status	:= CSP_CASE_FEED_STATUS_CHECK_CARTON;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_STOP_REQUEST:
+	
+		axis_stop(
+		    deceleration 		:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		    jerk 				:= CONSTANTS.MAX_JERK_MMpSEC3,
+		    CONVERSION_this 	:= axis);
+
+		IF 	axis_is_standstill(axis)
+			OR
+			axis_is_position_redefined(axis)
+			OR
+			NOT axis_is_ok(FALSE, axis)
+			OR
+			axis_is_disabled(axis)
+		THEN
+			fsm_next_status := CSP_CASE_FEED_STATUS_DISABLE_REQUEST;
+		END_IF
+
+		
+	CSP_CASE_FEED_STATUS_DISABLE_REQUEST:
+	
+   		axis_disable(axis);
+   		fsm_next_status := CSP_CASE_FEED_STATUS_DISABLING;
+
+		
+	CSP_CASE_FEED_STATUS_DISABLING:
+	
+        IF	axis_is_disabled(axis)
+        THEN
+            fsm_next_status := CSP_CASE_FEED_STATUS_DISABLED;
+        END_IF;
+
+END_CASE;
+
+IF 	(
+		NOT debug_state_machine
+		OR
+		debug_state_machine_one_step
+	)
+	AND
+	(
+		(
+			(
+				motorization_manager_is_starting(csp_main_motorization_manager.motm)
+				AND
+				(
+					NOT stop_during_reject
+					OR
+					motorization_conditioner_is_execute(csp_main_services_towerLamp.buzzer_motcond)
+				)
+			)
+			OR
+			(
+				NOT motorization_manager_is_starting(csp_main_motorization_manager.motm)
+				AND
+				NOT motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+			)			
+		)
+		OR
+		jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_FEED_VIRTUAL, csp_main_jogManager.jog_manager_virtual)	
+		OR
+		jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)			
+	)
+THEN
+	fsm_status := fsm_next_status;
+	debug_state_machine_one_step := FALSE;
+END_IF
+
+IF 	motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+	AND
+	(
+		(fsm_status <> fsm_next_status)
+		OR
+		(connection_status <> connection_status_next)
+		OR 
+		NOT stop_during_reject
+	)
+THEN
+	motorization_conditioner_stop_done(stop_done_motcond);
+END_IF
+
+phase();
+connection();
+
+jog_manager_set_all_slave_axis_engaged(
+	index					:= JOG_LIST_CSP_CASE_FEED_VIRTUAL, 
+	all_slave_axis_engaged	:= connection_done,
+	CONVERSION_this			:= csp_main_jogManager.jog_manager_virtual);
+	
+	
+
+	
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{e38a0296-006b-416d-bf63-7a3ad3f28d01}">
+      <Implementation>
+        <ST><![CDATA[IF NOT csp_case_main_safety_guards.sis.is_safely_closed
+	AND
+	process_message_is_on(Remove_Case_At_Feed_aem)
+THEN
+	process_message_reset(Remove_Case_At_Feed_aem);
+END_IF
+
+
+
+
+;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{e08615c8-c82d-46cc-ad6c-96eef107ca28}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{24f5cb5f-c396-4542-bca6-2fe911638ffe}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{94a7f0cd-3e1b-473b-9baf-e79cf385f91e}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_feed_virtualMaster.prc', 
+		process						:= csp_case_feed.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	axis_init(
+		object_name					:= CONCAT(prc_path, '_axis'), 
+		axis_type					:= AXIS_TYPE_VIRTUAL, 
+		encoder_scaling_factor		:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo						:= G_MODULO_360_DEG, 
+		process						:= prc, 
+		CONVERSION_this				:= axis);
+	
+	axis_set_max_dynamic(
+		reference_velocity			:= CONSTANTS.MAX_VELOCITY_MMpSEC,
+		velocity					:= CONSTANTS.MAX_VELOCITY_MMpSEC,
+		acceleration				:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+		deceleration				:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		jerk						:= CONSTANTS.MAX_JERK_MMpSEC3,
+		following_error				:= CONSTANTS.MAX_FOLLOWING_ERROR_MM,
+		CONVERSION_this				:= axis);
+	
+	jog_manager_add_axis(
+		list_index					:= JOG_LIST_CSP_CASE_FEED_VIRTUAL,
+		axis						:= axis,
+		master_axis					:= TRUE,
+		jog_type					:= JOG_TYPE_ROTATIVE_PLUS,
+		sw_limit_positive			:= 0.0,
+		sw_limit_negative			:= 0.0,
+		CONVERSION_this				:= csp_main_jogManager.jog_manager_virtual);
+		
+	//VPhase Generator
+	phase_generator_init(
+		object_name					:= CONCAT(PRC_PATH, '_case_vfed_phgen'), 
+		modulo						:= G_MODULO_360_DEG, 
+		resolution					:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis						:= csp_case_virtualMaster.axis, 
+		process						:= prc,
+		CONVERSION_this				:= case_vfed_phgen);
+	
+	phase_window_init(
+		object_name					:= CONCAT(PRC_PATH, '_case_vfed_phwin'), 
+		begin_phase					:= MODABS(FED_START_POSITION+virtual_master_offset, axis_get_modulo(axis)), 
+		end_phase					:= MODABS(FED_STOP_POSITION+virtual_master_offset, axis_get_modulo(axis)), 
+		begin_delay					:= 0, 
+		end_delay					:= 0, 
+		begin_max_compensation		:= 0, 
+		end_max_compensation		:= 0, 
+		generator					:= case_vfed_phgen, 
+		process						:= prc, 
+		CONVERSION_this				:= case_vfed_phwin);	
+		
+	//Phase generator
+	phase_generator_init(
+		object_name					:= CONCAT(PRC_PATH, '_case_fed_phgen'), 
+		modulo						:= G_MODULO_360_DEG, 
+		resolution					:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis						:= axis, 
+		process						:= prc, 
+		CONVERSION_this				:= case_fed_phgen);
+	
+	//Major Flap Vacuum Engage Cam	
+	phase_window_init(
+		object_name					:= CONCAT(PRC_PATH, '_case_fed_major_phwin'), 
+		begin_phase					:= case_pick_main_sol_on, 
+		end_phase					:= case_pick_main_sol_off, 
+		begin_delay					:= case_pick_begin_delay, 
+		end_delay					:= case_pick_end_delay, 
+		begin_max_compensation		:= compensation_on, 
+		end_max_compensation		:= compensation_off, 
+		generator					:= case_fed_phgen, 
+		process						:= prc, 
+		CONVERSION_this				:= case_fed_major_phwin);		
+	
+	//Minor Flap Vacuum Engage Cam		
+	phase_window_init(
+		object_name					:= CONCAT(PRC_PATH, '_case_fed_minor_phwin'), 
+		begin_phase					:= case_pick_flap_sol_on, 
+		end_phase					:= case_pick_flap_sol_off, 
+		begin_delay					:= 0, 
+		end_delay					:= 0, 
+		begin_max_compensation		:= 0, 
+		end_max_compensation		:= 0, 
+		generator					:= case_fed_phgen , 
+		process						:= prc , 
+		CONVERSION_this				:= case_fed_minor_phwin);
+		
+		//Shuttle 1 
+	phase_generator_init(
+		object_name					:= CONCAT(PRC_PATH, '_shuttle_vaccum_1_phgen'), 
+		modulo						:= 360, 
+		resolution					:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis						:= axis, 
+		process						:= prc, 
+		CONVERSION_this				:= shuttle_vaccum_1_phgen);
+	
+	phase_window_init(
+		object_name					:= CONCAT(PRC_PATH, '_shuttle_vaccum_1_phwin'), 
+		begin_phase					:= shuttle_1_sol_on, 
+		end_phase					:= shuttle_1_sol_off, 
+		begin_delay					:= 0, 
+		end_delay					:= 0, 
+		begin_max_compensation		:= 0, 
+		end_max_compensation		:= 0, 
+		generator					:= case_fed_phgen , 
+		process						:= prc , 
+		CONVERSION_this				:= shuttle_vaccum_1_phwin);	
+		
+	//Shuttle 2 
+	phase_generator_init(
+		object_name					:= CONCAT(PRC_PATH, '_shuttle_vaccum_2_phgen'), 
+		modulo						:= 360, 
+		resolution					:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis						:= axis, 
+		process						:= prc, 
+		CONVERSION_this				:= shuttle_vaccum_2_phgen);
+	
+	phase_window_init(
+		object_name					:= CONCAT(PRC_PATH, '_shuttle_vaccum_2_phwin'), 
+		begin_phase					:= shuttle_2_sol_on, 
+		end_phase					:= shuttle_2_sol_off, 
+		begin_delay					:= 0, 
+		end_delay					:= 0, 
+		begin_max_compensation		:= 0, 
+		end_max_compensation		:= 0, 
+		generator					:= case_fed_phgen , 
+		process						:= prc , 
+		CONVERSION_this				:= shuttle_vaccum_2_phwin);	
+
+	//Shuttle 3
+	phase_generator_init(
+		object_name					:= CONCAT(PRC_PATH, '_shuttle_vaccum_3_phgen'), 
+		modulo						:= 360, 
+		resolution					:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis						:= axis, 
+		process						:= prc, 
+		CONVERSION_this				:= shuttle_vaccum_3_phgen);
+	
+	phase_window_init(
+		object_name					:= CONCAT(PRC_PATH, '_shuttle_vaccum_3_phwin'), 
+		begin_phase					:= shuttle_3_sol_on, 
+		end_phase					:= shuttle_3_sol_off, 
+		begin_delay					:= 0, 
+		end_delay					:= 0, 
+		begin_max_compensation		:= 0, 
+		end_max_compensation		:= 0, 
+		generator					:= case_fed_phgen , 
+		process						:= prc , 
+		CONVERSION_this				:= shuttle_vaccum_3_phwin);		
+		
+		
+		
+
+	//Phase/Connection management
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_phase_faulted_aem'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout				:= 0,
+		disableable					:= TRUE,
+		individual_reset			:= FALSE,
+		machine_reaction			:= MACHINE_REACTION_NORMAL_STOP,
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:= prc,
+		CONVERSION_this				:= phase_faulted_aem);
+	
+	timer_init(
+		object_name					:= CONCAT(prc_path, 'phase_time_out_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= phase_time_out_tmr);
+	
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_connection_faulted_aem'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout				:= 0,
+		disableable					:= TRUE,
+		individual_reset			:= FALSE,
+		machine_reaction			:= MACHINE_REACTION_NORMAL_STOP,
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:= prc,
+		CONVERSION_this				:= connection_faulted_aem);
+	
+	timer_init(
+		object_name					:= CONCAT(prc_path, 'connection_time_out_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= connection_time_out_tmr);
+		
+	motorization_conditioner_init(
+		object_name					:= CONCAT(prc_path, 'connection_done_motcond'),
+		velocity_limit				:= 0.0,
+		velocity_limit_active		:= FALSE,
+		idle_handshake_active		:= FALSE,
+		execute_handshake_active	:= TRUE,
+		hold_handshake_active		:= FALSE,
+		suspend_handshake_active	:= FALSE,
+		complete_handshake_active	:= FALSE,
+		abort_handshake_active		:= FALSE,
+		stop_handshake_active		:= FALSE,
+		origin						:= MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:= csp_main_motorization_manager.motm,
+		process						:= prc,
+		CONVERSION_this				:= connection_done_motcond);
+	
+	motorization_conditioner_init(
+		object_name					:= CONCAT(prc_path, 'stop_done_motcond'),
+		velocity_limit				:= 0.0,
+		velocity_limit_active		:= FALSE,
+		idle_handshake_active		:= FALSE,
+		execute_handshake_active	:= FALSE,
+		hold_handshake_active		:= FALSE,
+		suspend_handshake_active	:= FALSE,
+		complete_handshake_active	:= FALSE,
+		abort_handshake_active		:= FALSE,
+		stop_handshake_active		:= TRUE,
+		origin						:= MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:= csp_main_motorization_manager.motm,
+		process						:= prc,
+		CONVERSION_this				:= stop_done_motcond);	
+		
+	boolean_init(
+		object_name:= '_case_feed_reject_active',
+		process:= prc,
+		CONVERSION_this:= case_feed_reject_active);
+
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_case_feed_reject_active_di_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 0, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:=  MACHINE_REACTION_NO_STOP, 
+		typology:=  MESSAGE_TYPOLOGY_OBLIGATION, 
+		process:= prc, 
+		CONVERSION_this:= case_feed_reject_active_di_dchk);
+		
+		
+	digital_check_add_boolean(
+		boolean:= case_feed_reject_active, 
+		CONVERSION_this:= case_feed_reject_active_di_dchk);
+		
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_Remove_Case_At_Feed_aem'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:= 0,
+		disableable					:= TRUE,
+		individual_reset			:= FALSE,
+		machine_reaction			:= MACHINE_REACTION_EMERGENCY_STOP,
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:= prc,
+		CONVERSION_this				:= Remove_Case_At_Feed_aem);
+			
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+	
+	phase_generator_cycle(case_vfed_phgen);
+	phase_window_cycle(case_vfed_phwin);
+	
+	phase_generator_cycle(case_fed_phgen);		
+	phase_window_cycle(case_fed_major_phwin);	
+	phase_window_cycle(case_fed_minor_phwin);
+	
+	phase_window_cycle(shuttle_vaccum_1_phwin);
+	phase_generator_cycle(shuttle_vaccum_1_phgen);
+	phase_window_cycle(shuttle_vaccum_2_phwin);
+	phase_generator_cycle(shuttle_vaccum_2_phgen);
+	phase_window_cycle(shuttle_vaccum_3_phwin);
+	phase_generator_cycle(shuttle_vaccum_3_phgen);
+	
+	motorization_conditioner_cycle(connection_done_motcond);
+	motorization_conditioner_cycle(stop_done_motcond);
+	
+	digital_check_cycle(case_feed_reject_active_di_dchk);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{8bb909e1-a084-4678-a5fa-a880fa357e95}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{2eb1fa2f-9d35-4c29-b74d-e9b5b4e93d2e}">
+      <Implementation>
+        <ST><![CDATA[disable_req := csp_case.disable_req;
+
+i_check_done_ok := csp_case_transport_virtualMaster.Good_case_detected; 
+i_check_done_error := csp_case_transport_virtualMaster.Bad_case_detected;
+i_follower_at_start_position := csp_case_transport_virtualMaster.startup_follower_at_start_position OR  csp_case_transport.Followers_Spreaders_At_Starting_position OR csp_case_transport_virtualMaster.Ready_to_collapse_bad_case;//NOT follower_check_request;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{d47622bb-1756-4345-a1f2-3fdf35dc12a4}">
+      <Implementation>
+        <ST><![CDATA[axis_actual_position := axis_get_actual_modulo_position(axis);
+active_cam := axis.engaged_cam.cam_id;
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{c00f84ae-75a0-4ed3-ae7e-6c95c922b07e}">
+      <Implementation>
+        <ST><![CDATA[o_follower_check_request := follower_check_request;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="connection" Id="{02cc2377-f1b1-487f-aed3-b89c45e8686c}">
+      <Implementation>
+        <ST><![CDATA[connection_conditions :=	
+	NOT process_message_is_on(connection_faulted_aem)
+	AND
+	phase_done;
+
+(* connection_done reset *)
+IF	connection_done
+	AND	
+	NOT connection_conditions
+	AND
+	NOT csp.o_machine_is_running
+THEN
+	connection_done := FALSE;
+END_IF
+
+(* Exit conditions *)
+IF	NOT connection_conditions 
+	AND
+	NOT motorization_manager_is_stopping(csp_main_motorization_manager.motm)	
+THEN	
+	connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_ERROR;
+	connection_status := connection_status_next;	
+END_IF
+
+(*************** MACHINE STATUS ***************)
+connection_wait_stop_TON(
+	IN := (connection_status = CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP1),
+	PT := T#100MS);
+	
+CASE connection_status OF
+
+	CSP_CASE_FEED_STATUS_CONNECTION_START:	(* Start connection *)
+	
+		IF	motorization_manager_is_starting(csp_main_motorization_manager.motm) //TODOPZ: da decidere a che livello usare le variabili di i e o: wn_feeding.i_motorization_is_starting?
+			OR
+			jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_FEED_VIRTUAL, csp_main_jogManager.jog_manager_virtual)	
+			OR
+			jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)	
+									
+		THEN
+			connection_running := TRUE;
+			connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_ENGAGE;
+		END_IF
+				
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_ENGAGE:
+	
+		IF NOT ABSENT_HOR_VER
+		THEN
+			axis_engage_cam(
+			cam_id 				:= csp_case_feed_shuttle_horizontal.cam_id, //CASE_FEED_SHUTTLE_HORIZONTAL_RUN_CAM,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+			activation_position	:= 0,
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			master_offset 		:= shuttle_horizontal_master_offset,
+			slave_offset 		:= shuttle_horizontal_slave_offset,
+			master_scaling 		:= 1.0,
+			slave_scaling 		:= 1.0,
+			interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+			master 				:= axis,
+			CONVERSION_this 	:= csp_case_feed_shuttle_horizontal.axis);
+		
+		axis_engage_cam(
+			cam_id 				:= CASE_FEED_SHUTTLE_VERTICAL_RUN_CAM,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+			activation_position	:= 0,
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			master_offset 		:= shuttle_vertical_master_offset,
+			slave_offset 		:= shuttle_vertical_slave_offset,
+			master_scaling 		:= 1.0,
+			slave_scaling 		:= shuttle_vertical_slave_scaling,
+			interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+			master 				:= axis,
+			CONVERSION_this 	:= csp_case_feed_shuttle_vertical.axis);
+	END_IF
+		
+		
+		axis_engage_cam(
+			cam_id 				:= csp_case_feed_kinematic_x.cam_id, //CASE_FEED_KINEMATIC_X_RUN_CAM,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+			activation_position	:= 0,
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+			master_offset 		:= kinematic_x_cam_offset,
+			slave_offset 		:= kinematic_x_slave_offset,
+			master_scaling 		:= 1.0,
+			slave_scaling 		:= 1.0,
+			interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+			master 				:= axis,
+			CONVERSION_this 	:= csp_case_feed_kinematic_x.axis);
+		
+		axis_engage_cam(
+			cam_id 				:= csp_case_feed_kinematic_y.cam_id, //CASE_FEED_KINEMATIC_Y_RUN_CAM,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+			activation_position	:= 0,
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+			master_offset 		:= kinematic_y_cam_offset,
+			slave_offset 		:= kinematic_y_slave_offset,
+			master_scaling 		:= 1.0,
+			slave_scaling 		:= 1.0,
+			interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+			master 				:= axis,
+			CONVERSION_this 	:= csp_case_feed_kinematic_y.axis);
+		
+		axis_engage_cam(
+			cam_id 				:= csp_case_feed_kinematic_tilt.cam_id, //CASE_FEED_KINEMATIC_TILT_RUN_CAM,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+			activation_position	:= 0,
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+			master_offset 		:= kinematic_tilt_cam_offset,
+			slave_offset 		:= kinematic_tilt_slave_offset,
+			master_scaling 		:= 1.0,
+			slave_scaling 		:= 1.0,
+			interpolation_type 	:= AXIS_CAM_INTERPOLATION_SPLINE,
+			master 				:= axis,
+			CONVERSION_this 	:= csp_case_feed_kinematic_tilt.axis);
+					
+		connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_ENGAGED;		
+		
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_ENGAGED:
+	
+		IF	(
+				((
+					axis_is_cam_engaged(csp_case_feed_shuttle_horizontal.axis)
+					OR
+					axis_is_cam_engaging(csp_case_feed_shuttle_horizontal.axis)
+				)
+				AND
+				(
+					axis_is_cam_engaged(csp_case_feed_shuttle_vertical.axis)
+					OR
+					axis_is_cam_engaging(csp_case_feed_shuttle_vertical.axis)
+				))
+				OR
+				ABSENT_HOR_VER
+			)
+			AND
+			(
+				axis_is_cam_engaged(csp_case_feed_kinematic_x.axis)
+				OR
+				axis_is_cam_engaging(csp_case_feed_kinematic_x.axis)
+			)
+			AND
+			(
+				axis_is_cam_engaged(csp_case_feed_kinematic_y.axis)
+				OR
+				axis_is_cam_engaging(csp_case_feed_kinematic_y.axis)
+			)	
+			AND
+			(
+				axis_is_cam_engaged(csp_case_feed_kinematic_tilt.axis)
+				OR
+				axis_is_cam_engaging(csp_case_feed_kinematic_tilt.axis)
+			)
+		THEN
+			connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_DONE;
+		END_IF
+	
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_STOPPING:	
+	
+		IF NOT ABSENT_HOR_VER	
+		THEN
+			axis_stop(
+				deceleration 		:= csp_case_feed_shuttle_horizontal.MOTOR_MAX_DECELLERATION_MMPS2,
+				jerk 				:= csp_case_feed_shuttle_horizontal.MOTOR_MAX_JERK_MMPS3,
+				CONVERSION_this 	:= csp_case_feed_shuttle_horizontal.axis);
+				
+			axis_stop(
+				deceleration 		:= csp_case_feed_shuttle_vertical.MOTOR_MAX_DECELLERATION_DEGPS2,
+				jerk 				:= csp_case_feed_shuttle_vertical.MOTOR_MAX_JERK_DEGPS3,
+				CONVERSION_this 	:= csp_case_feed_shuttle_vertical.axis);
+	END_IF
+		
+		
+		axis_stop(
+		    deceleration 		:= csp_case_feed_kinematic_x.MOTOR_MAX_DECELLERATION_MMPS2,
+		    jerk 				:= csp_case_feed_kinematic_x.MOTOR_MAX_JERK_MMPS3,
+		    CONVERSION_this 	:= csp_case_feed_kinematic_x.axis);
+		
+		axis_stop(
+		    deceleration 		:= csp_case_feed_kinematic_y.MOTOR_MAX_DECELLERATION_MMPS2,
+		    jerk 				:= csp_case_feed_kinematic_y.MOTOR_MAX_JERK_MMPS3,
+		    CONVERSION_this 	:= csp_case_feed_kinematic_y.axis);
+			
+		axis_stop(
+		    deceleration 		:= csp_case_feed_kinematic_tilt.MOTOR_MAX_DECELLERATION_DEGPS2,
+		    jerk 				:= csp_case_feed_kinematic_tilt.MOTOR_MAX_JERK_DEGPS3,
+		    CONVERSION_this 	:= csp_case_feed_kinematic_tilt.axis);
+		
+		connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_STOPPED;
+	
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_STOPPED:
+		
+		IF 	(
+				(axis_is_standstill(csp_case_feed_shuttle_horizontal.axis)
+				AND
+				axis_is_standstill(csp_case_feed_shuttle_vertical.axis))
+				OR
+				ABSENT_HOR_VER
+			)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_x.axis)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_y.axis)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_tilt.axis)
+		THEN
+			connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP1;
+		END_IF
+	
+	
+	CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP1:	
+	
+		turn_ON_vaccuum_for_reject := TRUE;
+		IF 	connection_wait_stop_TON.Q
+		THEN		
+			IF NOT ABSENT_HOR_VER
+			THEN
+				axis_move_absolute(
+					position 		:= shuttle_horizontal_reject_position,
+					velocity 		:= shuttle_horizontal_reject_speed,
+					direction		:= AXIS_CURRENT_DIRECTION,
+					acceleration 	:= reject_accel,//csp_case_feed_shuttle_horizontal.MOTOR_MAX_ACCELLERATION_MMPS2,
+					deceleration 	:= reject_accel,//csp_case_feed_shuttle_horizontal.MOTOR_MAX_DECELLERATION_MMPS2, 
+					jerk 			:= csp_case_feed_shuttle_horizontal. MOTOR_MAX_JERK_MMPS3, 
+					buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+					CONVERSION_this := csp_case_feed_shuttle_horizontal.axis);
+			END_IF
+			
+	 
+			axis_move_absolute(
+				position 		:= kinematic_x_reject_position1 + kinematic_x_slave_offset,
+				velocity 		:= kinematic_x_reject_speed1,
+				direction		:= AXIS_POSITIVE_DIRECTION, //AXIS_CURRENT_DIRECTION,
+				acceleration 	:= reject_accel,//csp_case_feed_kinematic_x.MOTOR_MAX_ACCELLERATION_MMPS2,
+				deceleration 	:= reject_accel,//csp_case_feed_kinematic_x.MOTOR_MAX_DECELLERATION_MMPS2, 
+				jerk 			:= csp_case_feed_kinematic_x.MOTOR_MAX_JERK_MMPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_kinematic_x.axis);
+	 
+			IF 	(axis_is_absolute_moving(csp_case_feed_shuttle_horizontal.axis)
+				OR
+				ABSENT_HOR_VER)
+				AND
+				axis_is_absolute_moving(csp_case_feed_kinematic_x.axis)
+			THEN
+				connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP2;
+			END_IF
+		END_IF
+	
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP2:
+	
+		IF 	axis_is_standstill(csp_case_feed_kinematic_x.axis)			
+		THEN //Added the kinematic x reject feed kinematic 2 position
+		
+			axis_move_absolute(
+			position 		:= kinematic_x_reject_position2 + kinematic_x_slave_offset,
+			velocity 		:= kinematic_x_reject_speed2,
+			direction		:= AXIS_CURRENT_DIRECTION,
+			acceleration 	:= reject_accel,//csp_case_feed_kinematic_x.MOTOR_MAX_ACCELLERATION_MMPS2,
+			deceleration 	:= reject_accel,//csp_case_feed_kinematic_x.MOTOR_MAX_DECELLERATION_MMPS2, 
+			jerk 			:= csp_case_feed_kinematic_x.MOTOR_MAX_JERK_MMPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_case_feed_kinematic_x.axis);
+			
+		END_IF
+		
+		IF (axis_is_standstill(csp_case_feed_shuttle_horizontal.axis)
+			OR
+			ABSENT_HOR_VER)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_x.axis)		
+		THEN
+			turn_ON_vaccuum_for_reject := FALSE;
+			connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP3;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP3:	
+			
+		IF NOT ABSENT_HOR_VER
+		THEN	
+			axis_move_absolute(
+				position 		:= shuttle_vertical_reject_position,
+				velocity 		:= shuttle_vertical_reject_speed,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= reject_accel,//csp_case_feed_shuttle_vertical.MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration 	:= reject_accel,//csp_case_feed_shuttle_vertical.MOTOR_MAX_DECELLERATION_DEGPS2, 
+				jerk 			:= csp_case_feed_shuttle_vertical.MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_ABORTING,//AXIS_BUFFER_MODE_BUFFERED, //AMR //9_24_2021
+				CONVERSION_this := csp_case_feed_shuttle_vertical.axis); 
+			
+			axis_move_absolute(
+				position 		:= kinematic_y_reject_position1 + kinematic_y_slave_offset,
+				velocity 		:= kinematic_x_reject_speed2,
+				direction		:= AXIS_CURRENT_DIRECTION,
+				acceleration 	:= reject_accel,//csp_case_feed_kinematic_x.MOTOR_MAX_ACCELLERATION_MMPS2,
+				deceleration 	:= reject_accel,//csp_case_feed_kinematic_x.MOTOR_MAX_DECELLERATION_MMPS2, 
+				jerk 			:= csp_case_feed_kinematic_x.MOTOR_MAX_JERK_MMPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_kinematic_y.axis);	
+						
+		END_IF
+
+		IF 	(axis_is_absolute_moving(csp_case_feed_shuttle_vertical.axis)
+			AND 
+			axis_is_absolute_moving(csp_case_feed_kinematic_y.axis))
+			OR
+			ABSENT_HOR_VER
+		THEN
+				
+			connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP4;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP4:
+	
+		IF 	axis_is_standstill(csp_case_feed_shuttle_vertical.axis)
+			OR
+			ABSENT_HOR_VER
+		THEN
+			
+			connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP5;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP5: //Just one movement (big carton)			
+		
+		IF 	axis_is_standstill(csp_case_feed_kinematic_x.axis)
+			OR 
+			axis_is_absolute_moving(csp_case_feed_kinematic_x.axis)
+		THEN			
+			connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP6;			
+		END_IF
+	
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP6:
+	
+		IF 	axis_is_standstill(csp_case_feed_kinematic_x.axis)
+		THEN
+			IF NOT ABSENT_HOR_VER
+			THEN
+				phase_horizontal_master_position := 
+					LMOD(axis_get_actual_modulo_position(axis)
+					+ shuttle_horizontal_master_offset, axis_get_modulo(axis));
+				
+				phase_vertical_master_position := 
+					LMOD(axis_get_actual_modulo_position(axis)
+					+ shuttle_vertical_master_offset, axis_get_modulo(axis));
+			END_IF
+			
+			phase_x_master_position := 
+				LMOD(axis_get_actual_modulo_position(axis)
+				+ kinematic_x_cam_offset, axis_get_modulo(axis));
+				
+			phase_y_master_position := 
+				LMOD(axis_get_actual_modulo_position(axis)
+				+ kinematic_y_cam_offset, axis_get_modulo(axis));
+		
+			phase_tilt_master_position := 
+				LMOD(axis_get_actual_modulo_position(axis)
+				+ kinematic_tilt_cam_offset, axis_get_modulo(axis));
+										
+			IF	((axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= csp_case_feed_shuttle_horizontal.cam_id, //CASE_FEED_SHUTTLE_HORIZONTAL_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_horizontal_master_position,
+					slave_scaling 		:= 1.0,
+					CONVERSION_this 	:= csp_case_feed_shuttle_horizontal.axis)
+				AND
+				axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= CASE_FEED_SHUTTLE_VERTICAL_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_vertical_master_position,
+					slave_scaling 		:= shuttle_vertical_slave_scaling,
+					CONVERSION_this 	:= csp_case_feed_shuttle_vertical.axis)
+				)
+				OR
+				ABSENT_HOR_VER
+				)
+				AND
+				axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= csp_case_feed_kinematic_x.cam_id, //CASE_FEED_KINEMATIC_X_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_x_master_position,
+					slave_scaling 		:= 1.0,
+					CONVERSION_this 	:= csp_case_feed_kinematic_x.axis)
+				AND
+				axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= csp_case_feed_kinematic_y.cam_id, //CASE_FEED_KINEMATIC_Y_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_y_master_position,
+					slave_scaling 		:= 1.0,
+					CONVERSION_this 	:= csp_case_feed_kinematic_y.axis)
+				AND
+				axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= csp_case_feed_kinematic_tilt.cam_id, //CASE_FEED_KINEMATIC_TILT_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_tilt_master_position,
+					slave_scaling 		:= 1.0,
+					CONVERSION_this 	:= csp_case_feed_kinematic_tilt.axis)
+			THEN			
+				connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP7;
+			END_IF			 
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP7:
+	
+		IF 	((axis_cam_slave_dynamics_data_calculated(csp_case_feed_shuttle_horizontal.axis)
+			AND
+			axis_cam_slave_dynamics_data_calculated(csp_case_feed_shuttle_vertical.axis))
+			OR
+			ABSENT_HOR_VER
+			)
+			AND
+			axis_cam_slave_dynamics_data_calculated(csp_case_feed_kinematic_x.axis)
+			AND
+			axis_cam_slave_dynamics_data_calculated(csp_case_feed_kinematic_y.axis)
+			AND
+			axis_cam_slave_dynamics_data_calculated(csp_case_feed_kinematic_tilt.axis)
+		THEN
+			IF NOT ABSENT_HOR_VER
+			THEN
+				phase_horizontal_slave_position := axis_get_cam_slave_dynamics_position(csp_case_feed_shuttle_horizontal.axis) + shuttle_horizontal_slave_offset;
+				phase_vertical_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_case_feed_shuttle_vertical.axis) + shuttle_vertical_slave_offset, axis_get_modulo(csp_case_feed_shuttle_vertical.axis));
+			END_IF
+			phase_x_slave_position := axis_get_cam_slave_dynamics_position(csp_case_feed_kinematic_x.axis) + kinematic_x_slave_offset;
+			phase_y_slave_position := axis_get_cam_slave_dynamics_position(csp_case_feed_kinematic_y.axis) + kinematic_y_slave_offset;
+			phase_tilt_slave_position := axis_get_cam_slave_dynamics_position(csp_case_feed_kinematic_tilt.axis) + kinematic_tilt_slave_offset;
+			connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP8;					
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP8:
+	
+		IF NOT ABSENT_HOR_VER
+		THEN
+			axis_move_absolute(
+				position 		:= phase_horizontal_slave_position,
+				velocity 		:= csp_case_feed_shuttle_horizontal.MOTOR_PHASE_VELOCITY_MMPS*3,
+				direction		:= AXIS_CURRENT_DIRECTION,
+				acceleration 	:= reject_accel,
+				deceleration 	:= reject_accel,
+				jerk 			:=csp_case_feed_shuttle_horizontal. MOTOR_MAX_JERK_MMPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_shuttle_horizontal.axis); 
+	
+			axis_move_absolute(
+				position 		:= phase_vertical_slave_position,
+				velocity 		:= csp_case_feed_shuttle_vertical.MOTOR_PHASE_VELOCITY_DEGPS*3,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= reject_accel,
+				deceleration 	:= reject_accel, 
+				jerk 			:= csp_case_feed_shuttle_vertical.MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_shuttle_vertical.axis); 
+		END_IF
+
+		axis_move_absolute(
+			position 		:= phase_x_slave_position,
+			velocity 		:= csp_case_feed_kinematic_x.MOTOR_PHASE_VELOCITY_MMPS*3,
+			direction		:= AXIS_CURRENT_DIRECTION,
+			acceleration 	:= reject_accel,
+			deceleration 	:= reject_accel, 
+			jerk 			:= csp_case_feed_kinematic_x.MOTOR_MAX_JERK_MMPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_case_feed_kinematic_x.axis); 
+		
+		axis_move_absolute(
+			position 		:= phase_y_slave_position,
+			velocity 		:= csp_case_feed_kinematic_y.MOTOR_PHASE_VELOCITY_MMPS*3,
+			direction		:= AXIS_CURRENT_DIRECTION,
+			acceleration 	:= reject_accel,
+			deceleration 	:= reject_accel,
+			jerk 			:= csp_case_feed_kinematic_y.MOTOR_MAX_JERK_MMPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_case_feed_kinematic_y.axis); 
+		
+		axis_move_absolute(
+			position 		:= phase_tilt_slave_position,
+			velocity 		:= csp_case_feed_kinematic_tilt.MOTOR_PHASE_VELOCITY_DEGPS*3,
+			direction		:= AXIS_CURRENT_DIRECTION,
+			acceleration 	:= reject_accel,
+			deceleration 	:= reject_accel,
+			jerk 			:= csp_case_feed_kinematic_tilt.MOTOR_MAX_JERK_DEGPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_case_feed_kinematic_tilt.axis); 
+			
+		IF 	((axis_is_absolute_moving(csp_case_feed_shuttle_horizontal.axis)
+			AND
+			axis_is_absolute_moving(csp_case_feed_shuttle_vertical.axis))
+			OR
+			ABSENT_HOR_VER)
+			AND
+			axis_is_absolute_moving(csp_case_feed_kinematic_x.axis)
+			AND
+			axis_is_absolute_moving(csp_case_feed_kinematic_y.axis)
+			AND
+			axis_is_absolute_moving(csp_case_feed_kinematic_tilt.axis)
+		THEN
+			connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP9;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_REJECT_STEP9:
+	
+		IF 	((axis_is_standstill(csp_case_feed_shuttle_horizontal.axis)
+			AND
+			axis_is_standstill(csp_case_feed_shuttle_vertical.axis))
+			OR
+			ABSENT_HOR_VER
+			)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_x.axis)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_y.axis)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_tilt.axis)
+		THEN
+			connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_ENGAGE;
+			
+		END_IF
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_DONE:	(* Connection done *)	
+	
+		connection_running := FALSE;
+		connection_done := TRUE;
+				
+		IF	fsm_status = CSP_CASE_FEED_STATUS_REJECT_START_REJECT_SEQUENCE
+		THEN
+			connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_STOPPING;
+			connection_done := FALSE;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_CONNECTION_ERROR:	(* Connection error *)	
+	
+		IF 	connection_running
+		THEN			
+			axis_disable(csp_case_feed_shuttle_horizontal.axis);
+			axis_disable(csp_case_feed_shuttle_vertical.axis);											
+		END_IF
+		connection_running	:= FALSE;
+		connection_done 	:= FALSE;	
+		
+		IF	connection_conditions
+		THEN		
+			connection_status_next := CSP_CASE_FEED_STATUS_CONNECTION_START;
+		END_IF
+		
+END_CASE
+
+IF 	(
+		NOT debug_state_machine
+		OR
+		debug_connection_machine_one_step
+	)
+	AND
+	(
+		(
+			(
+				motorization_manager_is_starting(csp_main_motorization_manager.motm)
+				AND
+				(
+					NOT stop_during_reject
+					OR
+					motorization_conditioner_is_execute(csp_main_services_towerLamp.buzzer_motcond)
+				)
+			)
+			OR
+			csp.o_machine_is_running//motorization_manager_is_execute(csp_main_motorization_manager.motm)
+		)
+		OR
+		jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_FEED_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+		OR
+		jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)	
+	)	
+THEN
+	connection_status := connection_status_next;
+	debug_connection_machine_one_step := FALSE;
+END_IF
+
+connection_motorization_moving	:= 
+	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_execute(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_suspended(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_suspending(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_unsuspending(csp_main_motorization_manager.motm)
+	OR 
+	motorization_manager_is_holding(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_held(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_unholding(csp_main_motorization_manager.motm);
+	
+(* Connection timeout *)
+IF	connection_running
+	AND NOT debug_state_machine
+THEN
+	IF	timer_is_expired(connection_time_out_tmr)
+	THEN
+		process_message_set(1, connection_status, 0, connection_faulted_aem);
+	END_IF
+ELSE
+	timer_restart(10000, connection_time_out_tmr);
+END_IF
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="phase" Id="{e231f528-e1ee-439f-b6ad-d2bbc540daff}">
+      <Implementation>
+        <ST><![CDATA[is_ok :=
+	process_is_ready(prc)
+	AND
+	process_subtree_is_ready(prc)
+	AND				
+	csp_case_feed_shuttle_horizontal.servo_on_condition
+	AND
+	csp_case_feed_shuttle_vertical.servo_on_condition
+	AND
+	axis_is_ok(TRUE, csp_case_feed_shuttle_horizontal.axis)
+	AND
+	axis_is_ok(TRUE, csp_case_feed_shuttle_vertical.axis)
+	AND		
+	NOT csp_main_brand.cam_data_changed	
+	AND
+	NOT jog_manager_is_jog_axis_deactivating(JOG_LIST_CSP_CASE_FEED_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+	AND
+	NOT csp_main_accuChange.machine_size_running
+	AND
+	NOT disable_req;		
+phase_conditions :=
+	is_ok
+	AND
+	csp_case_feed_kinematic.is_ok;
+	
+csp_case_feed_kinematic.ext_stop_request := 
+	phase_done
+	AND
+	NOT	csp_case_feed_kinematic.phase_request;		
+	
+(* phase_done reset *)
+IF	phase_done
+	AND
+	NOT phase_conditions
+	AND 
+	NOT csp.o_machine_is_running
+THEN
+	axis_disable(csp_case_feed_shuttle_horizontal.axis);
+	axis_disable(csp_case_feed_shuttle_vertical.axis);
+	
+	phase_done := FALSE;
+END_IF
+
+(* Exit condition *)
+IF 	NOT phase_conditions
+THEN
+	phase_status_next := CSP_CASE_FEED_STATUS_PHASE_ERROR;
+	phase_status := phase_status_next;	
+END_IF
+
+(*************** MACHINE STATUS ***************)
+CASE phase_status OF
+
+	CSP_CASE_FEED_STATUS_PHASE_START:	(* Start phasing *)
+	
+		IF	(
+				(fsm_status = CSP_CASE_FEED_STATUS_SLAVE_PHASING)
+				OR
+				(
+					(fsm_status = CSP_CASE_FEED_STATUS_REJECT_END_REJECT_SEQUENCE)
+					AND
+					axis_is_position_redefined(axis)
+				)
+			)
+			OR
+			jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_FEED_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+			OR
+			jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)									
+		THEN
+			phase_running := TRUE;		
+			csp_case_feed_kinematic.ext_cartesian_mode_request := FALSE;
+			csp_case_feed_kinematic.ext_phase_request := FALSE;	
+			phase_status_next := CSP_CASE_FEED_STATUS_PHASE_DISABLE;
+		END_IF
+			
+			
+	CSP_CASE_FEED_STATUS_PHASE_DISABLE:
+	
+		axis_disable(csp_case_feed_shuttle_horizontal.axis);
+		axis_disable(csp_case_feed_shuttle_vertical.axis);		
+		
+		IF 	axis_is_disabled(csp_case_feed_shuttle_horizontal.axis)
+			AND
+			axis_is_disabled(csp_case_feed_shuttle_vertical.axis)
+		THEN
+			ABSENT_HOR_VER := FALSE;
+			phase_status_next := CSP_CASE_FEED_STATUS_PHASE_ENABLE;
+		END_IF
+		
+		IF  axis_get_mode(csp_case_feed_shuttle_horizontal.axis) = MODE_ABSENT
+			AND
+			axis_get_mode(csp_case_feed_shuttle_vertical.axis) = MODE_ABSENT
+			AND
+			csp_case_feed_kinematic.is_axis_enabled
+		THEN
+			ABSENT_HOR_VER := TRUE;
+			IF	csp_case_feed_kinematic.cartesian_mode_active
+			THEN 
+				phase_status_next := CSP_CASE_FEED_STATUS_PHASE_CALCULATE_SLAVE_POSITION;
+			ELSE
+				phase_status_next := CSP_CASE_FEED_STATUS_PHASE_ACTIVATE_KINEMATIC;
+			END_IF
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_PHASE_ENABLE:
+	
+		axis_enable(csp_case_feed_shuttle_horizontal.axis);
+		axis_enable(csp_case_feed_shuttle_vertical.axis);
+		
+		IF 	axis_is_enabled(csp_case_feed_shuttle_horizontal.axis)
+			AND
+			axis_is_enabled(csp_case_feed_shuttle_vertical.axis)
+			AND
+			csp_case_feed_kinematic.is_axis_enabled
+		THEN
+			IF	csp_case_feed_kinematic.cartesian_mode_active
+			THEN 
+				phase_status_next := CSP_CASE_FEED_STATUS_PHASE_CALCULATE_SLAVE_POSITION;
+			ELSE
+				phase_status_next := CSP_CASE_FEED_STATUS_PHASE_ACTIVATE_KINEMATIC;
+			END_IF	
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_PHASE_ACTIVATE_KINEMATIC:
+	
+		csp_case_feed_kinematic.ext_cartesian_mode_request := TRUE;
+		IF 	csp_case_feed_kinematic.cartesian_mode_active
+		THEN
+			csp_case_feed_kinematic.ext_cartesian_mode_request := FALSE;
+			phase_status_next := CSP_CASE_FEED_STATUS_PHASE_CALCULATE_SLAVE_POSITION;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_PHASE_CALCULATE_SLAVE_POSITION:
+	
+		IF 	axis_is_standstill(csp_case_feed_shuttle_horizontal.axis) 
+			AND
+			axis_is_standstill(csp_case_feed_shuttle_vertical.axis) 
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_x.axis) 
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_y.axis)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_tilt.axis) 
+		THEN
+			phase_horizontal_master_position := 
+				LMOD(axis_get_actual_modulo_position(axis)
+				+ shuttle_horizontal_master_offset, axis_get_modulo(axis));
+			
+			phase_vertical_master_position := 
+				LMOD(axis_get_actual_modulo_position(axis)
+				+ shuttle_vertical_master_offset, axis_get_modulo(axis));
+			
+			phase_x_master_position := 
+				LMOD(axis_get_actual_modulo_position(axis)
+				+ kinematic_x_cam_offset, axis_get_modulo(axis));
+				
+			phase_y_master_position := 
+				LMOD(axis_get_actual_modulo_position(axis)
+				+ kinematic_y_cam_offset, axis_get_modulo(axis));
+		
+			phase_tilt_master_position := 
+				LMOD(axis_get_actual_modulo_position(axis)
+				+ kinematic_tilt_cam_offset, axis_get_modulo(axis));
+										
+			IF	axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= csp_case_feed_shuttle_horizontal.cam_id, //CASE_FEED_SHUTTLE_HORIZONTAL_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_horizontal_master_position,
+					slave_scaling 		:= 1.0,
+					CONVERSION_this 	:= csp_case_feed_shuttle_horizontal.axis)
+				AND
+				axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= CASE_FEED_SHUTTLE_VERTICAL_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_vertical_master_position,
+					slave_scaling 		:= shuttle_vertical_slave_scaling,
+					CONVERSION_this 	:= csp_case_feed_shuttle_vertical.axis)
+				AND
+				axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= csp_case_feed_kinematic_x.cam_id, //CASE_FEED_KINEMATIC_X_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_x_master_position,
+					slave_scaling 		:= 1.0,
+					CONVERSION_this 	:= csp_case_feed_kinematic_x.axis)
+				AND
+				axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= csp_case_feed_kinematic_y.cam_id, //CASE_FEED_KINEMATIC_Y_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_y_master_position,
+					slave_scaling 		:= 1.0,
+					CONVERSION_this 	:= csp_case_feed_kinematic_y.axis)
+				AND
+				axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= csp_case_feed_kinematic_tilt.cam_id, //CASE_FEED_KINEMATIC_TILT_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_tilt_master_position,
+					slave_scaling 		:= 1.0,
+					CONVERSION_this 	:= csp_case_feed_kinematic_tilt.axis)
+			THEN			
+				phase_status_next := CSP_CASE_FEED_STATUS_PHASE_READ_SLAVE_POSITION;
+			END_IF	
+			
+		ELSIF	ABSENT_HOR_VER	
+				AND
+				axis_is_standstill(csp_case_feed_kinematic_x.axis) 
+				AND
+				axis_is_standstill(csp_case_feed_kinematic_y.axis)
+				AND
+				axis_is_standstill(csp_case_feed_kinematic_tilt.axis)	
+		THEN
+			phase_x_master_position := 
+				LMOD(axis_get_actual_modulo_position(axis)
+				+ kinematic_x_cam_offset, axis_get_modulo(axis));
+				
+			phase_y_master_position := 
+				LMOD(axis_get_actual_modulo_position(axis)
+				+ kinematic_y_cam_offset, axis_get_modulo(axis));
+		
+			phase_tilt_master_position := 
+				LMOD(axis_get_actual_modulo_position(axis)
+				+ kinematic_tilt_cam_offset, axis_get_modulo(axis));
+										
+			IF	axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= csp_case_feed_kinematic_x.cam_id, //CASE_FEED_KINEMATIC_X_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_x_master_position,
+					slave_scaling 		:= 1.0,
+					CONVERSION_this 	:= csp_case_feed_kinematic_x.axis)
+				AND
+				axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= csp_case_feed_kinematic_y.cam_id, //CASE_FEED_KINEMATIC_Y_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_y_master_position,
+					slave_scaling 		:= 1.0,
+					CONVERSION_this 	:= csp_case_feed_kinematic_y.axis)
+				AND
+				axis_calculate_cam_slave_dynamics_data(
+					cam_id 				:= csp_case_feed_kinematic_tilt.cam_id, //CASE_FEED_KINEMATIC_TILT_RUN_CAM,
+					master_scaling 		:= 1.0,
+					master_position 	:= phase_tilt_master_position,
+					slave_scaling 		:= 1.0,
+					CONVERSION_this 	:= csp_case_feed_kinematic_tilt.axis)
+			THEN			
+				phase_status_next := CSP_CASE_FEED_STATUS_PHASE_READ_SLAVE_POSITION;
+			END_IF	
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_PHASE_READ_SLAVE_POSITION:
+	
+		IF 	axis_cam_slave_dynamics_data_calculated(csp_case_feed_shuttle_horizontal.axis)
+			AND
+			axis_cam_slave_dynamics_data_calculated(csp_case_feed_shuttle_vertical.axis)
+			AND
+			axis_cam_slave_dynamics_data_calculated(csp_case_feed_kinematic_x.axis)
+			AND
+			axis_cam_slave_dynamics_data_calculated(csp_case_feed_kinematic_y.axis)
+			AND
+			axis_cam_slave_dynamics_data_calculated(csp_case_feed_kinematic_tilt.axis)
+		THEN
+			phase_horizontal_slave_position := axis_get_cam_slave_dynamics_position(csp_case_feed_shuttle_horizontal.axis) + shuttle_horizontal_slave_offset;
+			phase_vertical_slave_position := MODABS(axis_get_cam_slave_dynamics_position(csp_case_feed_shuttle_vertical.axis) + shuttle_vertical_slave_offset, axis_get_modulo(csp_case_feed_shuttle_vertical.axis));
+			phase_x_slave_position := axis_get_cam_slave_dynamics_position(csp_case_feed_kinematic_x.axis) + kinematic_x_slave_offset;
+			phase_y_slave_position := axis_get_cam_slave_dynamics_position(csp_case_feed_kinematic_y.axis) + kinematic_y_slave_offset;
+			phase_tilt_slave_position := axis_get_cam_slave_dynamics_position(csp_case_feed_kinematic_tilt.axis) + kinematic_tilt_slave_offset;
+			phase_status_next := CSP_CASE_FEED_STATUS_PHASE_MOVE_SLAVE_POSITION;		
+		END_IF
+	
+		
+	CSP_CASE_FEED_STATUS_PHASE_MOVE_SLAVE_POSITION: //Simple phasing movement without product!
+	
+		IF ((phase_horizontal_slave_position > (csp_case_feed_shuttle_horizontal.axis.actual_position + 5))
+			OR
+			(phase_horizontal_slave_position < (csp_case_feed_shuttle_horizontal.axis.actual_position - 5)))
+		THEN
+			large_move_required := TRUE;	// shuttle is moving a large amount, spreader need to be moved
+		ELSE
+			large_move_required := FALSE; // shuttle is moving a small amount, spreaders do not need to be moved
+		END_IF
+		
+		IF (ABSENT_HOR_VER = FALSE) 
+			AND (csp_case_flapControl.spreaders_clear
+			OR
+			large_move_required = FALSE)
+		THEN
+			axis_move_absolute(
+				position 		:= phase_horizontal_slave_position,
+				velocity 		:= csp_case_feed_shuttle_horizontal.MOTOR_PHASE_VELOCITY_MMPS,
+				direction		:= AXIS_CURRENT_DIRECTION,
+				acceleration 	:= csp_case_feed_shuttle_horizontal.MOTOR_MAX_ACCELLERATION_MMPS2,
+				deceleration 	:= csp_case_feed_shuttle_horizontal.MOTOR_MAX_DECELLERATION_MMPS2, 
+				jerk 			:=csp_case_feed_shuttle_horizontal. MOTOR_MAX_JERK_MMPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_shuttle_horizontal.axis); 
+	
+			axis_move_absolute(
+				position 		:= phase_vertical_slave_position,
+				velocity 		:= csp_case_feed_shuttle_vertical.MOTOR_PHASE_VELOCITY_DEGPS,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= csp_case_feed_shuttle_vertical.MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration 	:= csp_case_feed_shuttle_vertical.MOTOR_MAX_DECELLERATION_DEGPS2, 
+				jerk 			:= csp_case_feed_shuttle_vertical.MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_shuttle_vertical.axis); 
+		END_IF
+	 	
+	
+			axis_move_absolute(
+				position 		:= phase_x_slave_position,
+				velocity 		:= csp_case_feed_kinematic_x.MOTOR_PHASE_VELOCITY_MMPS,
+				direction		:= AXIS_CURRENT_DIRECTION,
+				acceleration 	:= csp_case_feed_kinematic_x.MOTOR_MAX_ACCELLERATION_MMPS2,
+				deceleration 	:= csp_case_feed_kinematic_x.MOTOR_MAX_DECELLERATION_MMPS2, 
+				jerk 			:= csp_case_feed_kinematic_x.MOTOR_MAX_JERK_MMPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_kinematic_x.axis); 
+			
+			axis_move_absolute(
+				position 		:= phase_y_slave_position,
+				velocity 		:= csp_case_feed_kinematic_y.MOTOR_PHASE_VELOCITY_MMPS,
+				direction		:= AXIS_CURRENT_DIRECTION,
+				acceleration 	:= csp_case_feed_kinematic_y.MOTOR_MAX_ACCELLERATION_MMPS2,
+				deceleration 	:= csp_case_feed_kinematic_y.MOTOR_MAX_DECELLERATION_MMPS2, 
+				jerk 			:= csp_case_feed_kinematic_y.MOTOR_MAX_JERK_MMPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_kinematic_y.axis); 
+			
+			axis_move_absolute(
+				position 		:= phase_tilt_slave_position,
+				velocity 		:= csp_case_feed_kinematic_tilt.MOTOR_PHASE_VELOCITY_DEGPS,
+				direction		:= AXIS_CURRENT_DIRECTION,
+				acceleration 	:= csp_case_feed_kinematic_tilt.MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration 	:= csp_case_feed_kinematic_tilt.MOTOR_MAX_DECELLERATION_DEGPS2, 
+				jerk 			:= csp_case_feed_kinematic_tilt.MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_kinematic_tilt.axis); 
+			
+		IF 	axis_is_absolute_moving(csp_case_feed_shuttle_horizontal.axis)
+			AND
+			axis_is_absolute_moving(csp_case_feed_shuttle_vertical.axis)
+			AND
+			axis_is_absolute_moving(csp_case_feed_kinematic_x.axis)
+			AND
+			axis_is_absolute_moving(csp_case_feed_kinematic_y.axis)
+			AND
+			axis_is_absolute_moving(csp_case_feed_kinematic_tilt.axis)
+		THEN
+			csp_case_feed_kinematic.ext_phase_request := TRUE;
+			phase_status_next := CSP_CASE_FEED_STATUS_PHASE_MOVED_SLAVE_POSITION;
+		ELSIF 	ABSENT_HOR_VER
+				AND
+				axis_is_absolute_moving(csp_case_feed_kinematic_x.axis)
+				AND
+				axis_is_absolute_moving(csp_case_feed_kinematic_y.axis)
+				AND
+				axis_is_absolute_moving(csp_case_feed_kinematic_tilt.axis)
+		THEN
+				csp_case_feed_kinematic.ext_phase_request := TRUE;
+				phase_status_next := CSP_CASE_FEED_STATUS_PHASE_MOVED_SLAVE_POSITION;
+		END_IF
+
+		
+	CSP_CASE_FEED_STATUS_PHASE_MOVED_SLAVE_POSITION:
+	
+		IF 	((axis_is_standstill(csp_case_feed_shuttle_horizontal.axis)
+			AND
+			axis_is_standstill(csp_case_feed_shuttle_vertical.axis))
+			OR
+			ABSENT_HOR_VER)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_x.axis)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_y.axis)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_tilt.axis)
+			AND
+			csp_case_feed_kinematic.phase_request
+		THEN			
+			phase_status_next := CSP_CASE_FEED_STATUS_PHASE_DONE;
+		END_IF
+					
+		
+	CSP_CASE_FEED_STATUS_PHASE_DONE:	(* Phase done *)
+			
+		phase_running := FALSE;
+		phase_done := TRUE;			
+
+		IF 	csp_case_feed_kinematic.ext_stop_request	
+		THEN
+			phase_done := FALSE;
+			phase_status_next := CSP_CASE_FEED_STATUS_PHASE_START;
+		END_IF
+		
+		
+	CSP_CASE_FEED_STATUS_PHASE_ERROR:	(* Phase error *)
+	
+		IF	phase_running
+		THEN
+			axis_disable(csp_case_feed_shuttle_horizontal.axis);
+			axis_disable(csp_case_feed_shuttle_vertical.axis);									
+		END_IF
+		phase_running := FALSE;
+		
+		IF	phase_conditions 	
+		THEN
+			phase_status_next := CSP_CASE_FEED_STATUS_PHASE_START;
+		END_IF
+		
+END_CASE
+
+IF 	NOT debug_state_machine
+	OR
+	debug_phase_machine_one_step	
+THEN
+	phase_status := phase_status_next;
+	debug_phase_machine_one_step := FALSE;
+END_IF
+
+(* Phasing timeout *)
+IF	phase_running
+	AND NOT debug_state_machine
+THEN
+	IF	timer_is_expired(phase_time_out_tmr)
+	THEN
+		process_message_set(1, phase_status, 0, phase_faulted_aem);
+	END_IF
+ELSE
+	timer_restart(30000, phase_time_out_tmr);
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_case_feed_virtualMaster">
+      <LineId Id="3" Count="612" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_virtualMaster._handle_messages">
+      <LineId Id="2" Count="9" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_virtualMaster._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_virtualMaster._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_virtualMaster._object_manager">
+      <LineId Id="2" Count="278" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_virtualMaster._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_virtualMaster._read_var_input">
+      <LineId Id="2" Count="3" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_virtualMaster._set_runtime_properties">
+      <LineId Id="2" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_virtualMaster._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_virtualMaster.connection">
+      <LineId Id="2" Count="630" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_virtualMaster.phase">
+      <LineId Id="2" Count="432" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

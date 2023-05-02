@@ -1,0 +1,1709 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_phaseManager" Id="{36e4a1f4-f471-0bc1-00fa-7efbb08e789d}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+WN phase manager program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/06/16 	0000.00	 	G.Cera 			Creation of the PRG
+2021/04/09 	0000.01	 	M.Grasso	 	Flow Chart version
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_phaseManager
+VAR
+	prc:												process;
+	prc_path:											STRING;																		
+
+	start_MES_variables_update:							BOOL;
+	
+	start_job_completed:								BOOL;
+	//steady_state_completed:								BOOL;
+	//cup_supply_completed:								BOOL;
+	//carton_case_supply_completed:						BOOL;
+	//production_completed:								BOOL;
+	//near_end_of_run_completed:						BOOL;
+	runout_completed:									BOOL;
+		
+	(*TOTAL RUNNING TIME additional variables*)
+	mch_running_tmr:									timer;
+	refresh_tmr:										timer;
+
+	mch_running_rtrig:									R_TRIG;
+	
+	mch_running_elapsed_time_nvr:						LREAL;
+	mch_running_elapsed_time_mem_nvr:					LREAL;
+	timer_to_be_removed:								LREAL;
+
+	mch_order_tmr:										timer;
+	(*****)
+	
+	start_job_green_label:								hmi_graphic_object_status;
+	steady_state_green_label:							hmi_graphic_object_status;
+	cups_supply_green_label:							hmi_graphic_object_status;
+	carton_cases_supply_green_label:					hmi_graphic_object_status;
+	production_green_label:								hmi_graphic_object_status;
+	completion_green_label:								hmi_graphic_object_status;
+	runout_green_label:									hmi_graphic_object_status;
+	end_job_green_label:								hmi_graphic_object_status;
+	
+	mes_interface_enable_prow:							parameter_overwrite;
+	mes_interface_enable_old:							BOOL;
+	
+	mes_interface_disabled_wsm:							message;
+	mes_alarm_start_job_asm:							csp_main_phMan_start_job_snapshot;
+	mes_alarm_asm:										csp_main_phaseManager_snapshot;
+	mes_warning_wsm:									csp_main_phaseManager_warning_snapshot;
+	mes_alarm_string:									STRING;
+	mes_warning_string:									STRING;	
+	
+	change_order_ID:									BOOL;
+	
+	(* MES production variables *)
+	//Status variables
+	current_job_status:									DINT;								(*$M $*)
+	next_job_status:									DINT;								(*$M $*)
+	filler_ready_for_coffee:							BOOL;								(*$M $*)	
+	machine_running:									BOOL;								(*$M $*)
+	filler_faulted:										BOOL;								(*$M $*)
+	cup_automation_faulted:								BOOL;								(*$M $*)
+	disk_automation_faulted:							BOOL;								(*$M $*)	
+	filter_automation_faulted:							BOOL;								(*$M $*)	
+	lid_automation_faulted:								BOOL;								(*$M $*)	
+	run_out_in_progress:								BOOL;								(*$M $*)
+	run_out_completed:									BOOL;								(*$M $*)
+	target_speed_cupspmin:								INT;								(*$M unit := cups/min; $*)
+	actual_speed_cupspmin:								INT;								(*$M unit := cups/min; $*)
+	actual_speed_poundspmin:							INT;								(*$M unit := pounds/min; $*)
+	current_stop_reason:								DINT;								(*$M $*)
+	emergency_stop_active:								BOOL;								(*$M $*)
+	guard_open_stop_active:								BOOL;								(*$M $*)
+	operator_stop_active:								BOOL;								(*$M $*)
+	infeed_cups_missing:								BOOL;								(*$M $*)
+	infeed_filters_missing:								BOOL;								(*$M $*)
+	infeed_disks_missing:								BOOL;								(*$M $*)
+	infeed_coffee_missing:								BOOL;								(*$M $*)
+	infeed_lids_missing:								BOOL;								(*$M $*)	
+	downstream_block:									BOOL;								(*$M $*)
+	reject_block:										BOOL;								(*$M $*)
+	waste_block:										BOOL;								(*$M $*)
+
+	//Start variables
+	csp_start_request:									BOOL;								(*$M $*)	
+	csp_start_ramp:										BOOL;								(*$M $*)
+	csp_start_peak_wait:								BOOL;								(*$M $*)	
+	
+	//Production variables
+	current_order_started_pods:							DINT;								(*$M unit := cups; $*)
+	current_order_good_pods:							DINT;								(*$M unit := cups; $*)
+	total_started_cups:									DINT;								(*$M unit := cups; $*)
+	total_good_cups:									DINT;								(*$M unit := cups; $*)
+	total_reject_cups:									DINT;								(*$M unit := cups; $*)
+	current_order_time_min:								DINT;								(*$M unit := min; $*)
+	current_order_running_time_min:						DINT;								(*$M unit := min; $*)
+	rejected_cups_percentage:							DINT;								(*$M unit := %; $*)
+	calculated_cups_with_remaining_coffee:				DINT;								(*$M unit := cups; $*)	
+	current_order_no_cup_rejects:						DINT;								(*$M unit := cups; $*)	
+	current_order_no_disk_rejects:						DINT;								(*$M unit := cups; $*)	
+	current_order_no_filter_rejects:			    	DINT;								(*$M unit := cups; $*)	
+	current_order_over_weight_rejects:					DINT;								(*$M unit := cups; $*)	
+	current_order_under_weight_rejects:					DINT;								(*$M unit := cups; $*)	
+	current_order_no_lid_rejects:						DINT;								(*$M unit := cups; $*)	
+	current_order_leak_test_rejects:					DINT;								(*$M unit := cups; $*)	
+	current_order_bad_filter_rejects:					DINT;								(*$M unit := cups; $*)	
+	current_order_sample_rejects:						DINT;								(*$M unit := cups; $*)	
+	current_order_consumed_cups:						DINT;								(*$M unit := cups; $*)
+	current_order_consumed_disks:						DINT;								(*$M unit := disks; $*)
+	current_order_consumed_filters:						DINT;								(*$M unit := filters; $*)
+	current_order_consumed_coffee:						REAL;								(*$M unit := pounds; $*)
+	current_order_consumed_flavor:						REAL;								(*$M unit := ml; $*)
+	current_order_consumed_lids:						DINT;								(*$M unit := lids; $*)
+
+	
+	//CT calls variables
+	ctCall_low_cup_supply:								BOOL;								(*$M $*)
+	ctCall_low_disk_supply:								BOOL;								(*$M $*)
+	ctCall_low_lid_supply:								BOOL;								(*$M $*)
+	ctCall_low_filter_supply:							BOOL;								(*$M $*)
+	ctCall_scrap_full:									BOOL;								(*$M $*)
+	ctCall_main_fault:									BOOL;								(*$M $*)
+	ctCall_cup_automation_fault:						BOOL;								(*$M $*)
+	ctCall_disk_automation_fault:						BOOL;								(*$M $*)
+	ctCall_lid_automation_fault:						BOOL;								(*$M $*)
+	ctCall_filter_automation_fault:						BOOL;								(*$M $*)
+
+
+	//Take Away system variables	
+	foil_and_paper_take_away_system_run_request:		BOOL;								(*$M $*)
+	foil_and_paper_take_away_system_run_status:			BOOL;								(*$M $*)
+	stop_from_foil_and_paper_take_away_system:			BOOL;								(*$M $*)
+	foil_and_paper_take_away_system_faulted_status:		BOOL;								(*$M $*)
+	
+
+	//Dock variables
+	dock_1_drop_available:								BOOL;								(*$M $*)
+	dock_1_pick_available:								BOOL;								(*$M $*)
+	dock_1_AMR_ready_to_receive:						BOOL;								(*$M $*)						
+	dock_1_pick_location_conveyor_energized:			BOOL;								(*$M $*)
+	dock_1_AMR_conveyor_top_fault_code:					DINT;								(*$M $*)
+	dock_2_drop_available:								BOOL;								(*$M $*)
+	dock_2_pick_available:								BOOL;								(*$M $*)
+	dock_2_AMR_ready_to_receive:						BOOL;								(*$M $*)						
+	dock_2_pick_location_conveyor_energized:			BOOL;								(*$M $*)
+	dock_2_AMR_conveyor_top_fault_code:					DINT;								(*$M $*)
+
+
+	//Coffe supply system variables
+
+
+	upstream_coffee_no_active_job:						BOOL;								(*$M $*)
+	upstream_coffee_supplying_coffee:					BOOL;								(*$M $*)
+	upstream_coffee_order_complete_tubo_empty:			BOOL;								(*$M $*)
+	upstream_coffee_faulted:							BOOL;								(*$M $*)
+	upstream_coffee_silo_low:							BOOL;								(*$M $*)
+	upstream_coffee_tube_high:							BOOL;								(*$M $*)
+	upstream_coffee_tube_med:							BOOL;								(*$M $*)
+	upstream_coffee_tube_low:							BOOL;								(*$M $*)
+	
+
+
+	machine_running_led:								led;	
+	filler_faulted_led:									led;	
+	ready_for_coffee_led:								led;	
+	cup_automation_faulted_led:							led;	
+	disk_automation_faulted_led:						led;
+	filter_automation_faulted_led:						led;
+	lid_automation_faulted_led:							led;	
+	runout_in_progress_led:								led;	
+	runout_completed_led:								led;	
+	estop_active_led:									led;	
+	guard_open_led:										led;	
+	operator_stop_led:									led;	
+	infeed_cups_missing_led:							led;				
+	infeed_filters_missing_led:							led;				
+	infeed_disks_missing_led:							led;			
+	infeed_coffee_missing_led:							led;		
+	infeed_lids_missing_led:							led;
+	downstream_block_led:								led;
+	reject_block_led:									led;
+	waste_block_led:									led;	
+	filler_start_request_led:							led;	
+	filler_start_ramp_led:								led;
+	filler_start_peak_wait_led:							led;
+	dock_1_drop_available_led:							led;
+	dock_1_pick_available_led:							led;
+	dock_1_AMR_ready_to_receive_led:					led;						
+	dock_1_pick_location_conveyor_energized_led:		led;
+	dock_2_drop_available_led:							led;
+	dock_2_pick_available_led:							led;
+	dock_2_AMR_ready_to_receive_led:					led;						
+	dock_2_pick_location_conveyor_energized_led:		led;
+	dock_2_AMR_conveyor_top_fault_code_led:				led;
+	ctCall_low_cup_supply_led:							led;
+	ctCall_low_disk_supply_led:							led;
+	ctCall_low_lid_supply_led:							led;
+	ctCall_low_filter_supply_led:						led;
+	ctCall_scrap_full_led:								led;
+	ctCall_main_fault_led:								led;
+	ctCall_cup_automation_fault_led:					led;
+	ctCall_disk_automation_fault_led:					led;
+	ctCall_lid_automation_fault_led:					led;
+	ctCall_filter_automation_fault_led:					led;
+	
+	
+	p_mes_interface_enable:								BOOL; 	(*$P desc := if TRUE, phase manager transitions are commanded by MES system; $*)
+	p_last_case:										BOOL;	(*$P $*)
+	confirm_run_out_mode_pow:							parameter_overwrite;
+	first_cycle:										BOOL;	//this bit prevents the phase manager cycle to restart when the machine is switched on			
+
+	
+	
+	TEST_BOOL:											BOOL;
+	TEST_DINT:											DINT;
+	
+	bt_1sec:											TON;
+	bt_1sec_aux:										BOOL;
+	i_start_job_done:									POINTER TO BOOL;
+	stop_message_CSP_ref:								POINTER TO message;
+	
+END_VAR
+
+VAR PERSISTENT
+	fsm_status:											csp_main_phaseManager_status_enum;		(*$M desc := phase manager status; $*)														
+	mes_elapsed_time_1_npr:								UDINT;	(*$M desc := Time1; $*)	
+	mes_elapsed_time_2_npr:								UDINT; 	(*$M desc := Time2; $*)
+END_VAR
+
+VAR CONSTANT
+	MASTER_CASE_BLANK_MATERIAL_ID:						INT:=6;
+	CASE_LABEL_MATERIAL_ID:								INT:=7;
+END_VAR
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+IF first_cycle
+THEN	
+	mes_interface_enable_old := TRUE;
+	IF p_mes_interface_enable
+	THEN
+		first_cycle := FALSE;
+	ELSE
+		parameter_overwrite_set_bool_value(
+			value				:= TRUE, 
+			CONVERSION_this		:= mes_interface_enable_prow);	
+	END_IF
+END_IF;	
+
+IF	(
+		mes_interface_enable_old
+		<>
+		p_mes_interface_enable
+	)
+	AND
+	NOT first_cycle
+THEN
+	IF machine_is_stopped(csp.mch)
+	THEN
+		mes_interface_enable_old := p_mes_interface_enable;
+	ELSE
+		parameter_overwrite_set_bool_value(
+			value				:= mes_interface_enable_old, 
+			CONVERSION_this		:= mes_interface_enable_prow);
+	END_IF
+END_IF
+
+csp_main.i_csp_data_ref^.Status.Online	:=	p_mes_interface_enable;
+
+(************************************************************************)
+
+start_job_completed		:=	csp_main_phaseManager_startJob.start_job_done;
+runout_completed		:=	csp_main_phaseManager_run_out.run_out_done;
+
+IF csp_main.i_csp_data_ref^.Status.RunOutComplete AND NOT p_last_case
+THEN
+	parameter_overwrite_set_bool_value(TRUE, confirm_run_out_mode_pow);
+END_IF
+
+(**************************** PROGRAM HANDLER ***************************)
+run_cycle();
+custom_page();
+variables_update();
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{66e7e7f1-aa1b-084f-0574-a64c474f1e9a}">
+      <Implementation>
+        <ST><![CDATA[IF	p_mes_interface_enable
+THEN
+	process_message_reset(mes_interface_disabled_wsm);
+	
+	IF	csp_customerInterfaces.MES.Alarm <> 0
+	THEN		
+
+		CASE csp_customerInterfaces.MES.Alarm OF
+			1:	mes_alarm_string := 'JOB NOT SCHEDULED';	
+			2:	mes_alarm_string := 'JOB PENDING';
+			
+			ELSE mes_alarm_string := 'ALARM CODE NON DEFINED';
+			
+		END_CASE	
+	
+		csp_main_phaseManager_set_snapshot(
+			errorID_1			:= csp_customerInterfaces.MES.Alarm, 
+			errorID_2			:= 0, 
+			errorID_3			:= 0, 
+			reason				:= mes_alarm_string, 
+			job_not_scheduled	:= csp_customerInterfaces.MES.Alarm.0, 
+			job_pending			:=csp_customerInterfaces.MES.Alarm.1, 
+			CONVERSION_this		:= mes_alarm_asm);
+	ELSE
+		process_message_reset(mes_alarm_asm.message);			
+	END_IF		
+
+	IF	csp_customerInterfaces.MES.Warning <> 0
+	THEN		
+
+		CASE csp_customerInterfaces.MES.Warning OF
+			1:	mes_warning_string := 'MAINTENANCE JOB ACTIVE';	
+						
+			ELSE mes_warning_string := 'WARNING CODE NON DEFINED';
+			
+		END_CASE	
+	
+		csp_main_phaseManager_warning_set_snapshot(
+			errorID_1				:= csp_customerInterfaces.MES.Warning, 
+			errorID_2				:= 0, 
+			errorID_3				:= 0, 
+			reason					:= mes_warning_string, 
+			maintenance_job_active	:= csp_customerInterfaces.MES.Warning.0, 
+			CONVERSION_this			:= mes_warning_wsm);
+	ELSE
+		process_message_reset(mes_warning_wsm.message);			
+	END_IF
+	
+ELSE
+	process_message_set(
+		errorID_1			:= 1, 
+		errorID_2			:= 0, 
+		errorID_3			:= 0, 
+		CONVERSION_this		:= mes_interface_disabled_wsm);
+		
+	process_message_reset(mes_alarm_asm.message);	
+	process_message_reset(mes_warning_wsm.message);	
+END_IF
+
+IF	(
+		csp_main_phaseManager_startJob.fsm_status
+		=
+		666
+	)
+THEN
+	csp_main_phMan_start_job_set_snapshot(
+		errorID_1			:= fsm_status, 
+		errorID_2			:= csp_main.i_csp_data_ref^.Status.Job, 
+		errorID_3			:= 0, 
+		reason				:= 'MES INCORRECT INFORMATION', 
+		order_valid			:= csp_main_phaseManager_startJob.order_valid, 
+		product_valid		:= csp_main_phaseManager_startJob.product_valid, 
+		recipe_valid		:= csp_main_phaseManager_startJob.recipe_valid, 
+		materials_valid		:= (csp_main_phaseManager_startJob.curr_material_valid AND csp_main_phaseManager_startJob.next_material_valid), 
+		mark_valid			:= csp_main_phaseManager_startJob.mark_bubd_valid, 
+		CONVERSION_this		:= mes_alarm_start_job_asm);
+ELSE
+	process_message_reset(mes_alarm_start_job_asm.message);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{f6fdc6bc-72de-0962-0ef5-24bc03ecac0a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{e242c55e-6e8f-0d68-02c2-75a379a3bf16}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{f6195bff-7df3-09f0-34fa-1c33b1d43770}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_main_phaseManager.prc', 
+		process						:= csp_main.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	parameter_overwrite_bool_init(
+		object_name					:= CONCAT(prc_path, '_mes_interface_enable_prow'), 
+		parameter					:= p_mes_interface_enable, 
+		process						:= prc, 
+		CONVERSION_this				:= mes_interface_enable_prow);
+		
+	timer_init(
+		object_name					:=	CONCAT(prc_path, '_mch_running_tmr'),
+		process						:=	prc,
+		CONVERSION_this				:=	mch_running_tmr);
+		
+	timer_init(
+		object_name					:=	CONCAT(prc_path, '_refresh_tmr'),
+		process						:=	prc,
+		CONVERSION_this				:=	refresh_tmr);
+		
+	timer_init(
+		object_name					:=	CONCAT(prc_path, '_mch_order_tmr'),
+		process						:=	prc,
+		CONVERSION_this				:=	mch_order_tmr);	
+		
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_mes_interface_disabled_wsm'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout				:= 0, 
+		disableable					:= FALSE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_NO_STOP, 
+		typology					:= MESSAGE_TYPOLOGY_NORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= mes_interface_disabled_wsm);
+		
+	csp_main_phMan_start_job_init_snapshot(
+		message_name				:= CONCAT(prc_path, '_mes_alarm_start_job_asm'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_TRY_AND_CHECK, 
+		reset_timeout				:= 500, 
+		disableable					:= FALSE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_NORMAL_STOP, 
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= mes_alarm_start_job_asm);			
+		
+	csp_main_phaseManager_init_snapshot(
+		message_name				:= CONCAT(prc_path, '_mes_alarm_asm'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout				:= 0, 
+		disableable					:= FALSE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_NORMAL_STOP, 
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= mes_alarm_asm);	
+
+	csp_main_phaseManager_warning_init_snapshot(
+		message_name				:= CONCAT(prc_path, '_mes_warning_wsm'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout				:= 0, 
+		disableable					:= FALSE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_NO_STOP, 
+		typology					:= MESSAGE_TYPOLOGY_NORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= mes_warning_wsm);	
+		
+	hmi_graphic_object_status_init(
+		object_name					:= CONCAT(prc_path, '_start_job_green_label'), 
+		process						:= prc, 
+		CONVERSION_this				:= start_job_green_label);
+		
+	hmi_graphic_object_status_init(
+		object_name					:= CONCAT(prc_path, '_steady_state_green_label'), 
+		process						:= prc, 
+		CONVERSION_this				:= steady_state_green_label);
+
+	hmi_graphic_object_status_init(
+		object_name					:= CONCAT(prc_path, '_cups_supply_green_label'), 
+		process						:= prc, 
+		CONVERSION_this				:= cups_supply_green_label);
+
+	hmi_graphic_object_status_init(
+		object_name					:= CONCAT(prc_path, '_carton_cases_supply_green_label'), 
+		process						:= prc, 
+		CONVERSION_this				:= carton_cases_supply_green_label);
+
+	hmi_graphic_object_status_init(
+		object_name					:= CONCAT(prc_path, '_production_green_label'), 
+		process						:= prc, 
+		CONVERSION_this				:= production_green_label);
+
+	hmi_graphic_object_status_init(
+		object_name					:= CONCAT(prc_path, '_completion_green_label'), 
+		process						:= prc, 
+		CONVERSION_this				:= completion_green_label);
+
+	hmi_graphic_object_status_init(
+		object_name					:= CONCAT(prc_path, '_runout_green_label'), 
+		process						:= prc, 
+		CONVERSION_this				:= runout_green_label);	
+
+	hmi_graphic_object_status_init(
+		object_name					:= CONCAT(prc_path, '_end_job_green_label'), 
+		process						:= prc, 
+		CONVERSION_this				:= end_job_green_label);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_machine_running_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= machine_running_led);	
+		
+	led_init(
+		object_name					:= CONCAT(prc_path, '_filler_faulted_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= filler_faulted_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_ready_for_coffee_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= ready_for_coffee_led);		
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_cup_automation_faulted_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= cup_automation_faulted_led);
+		
+	led_init(
+		object_name					:= CONCAT(prc_path, '_disk_automation_faulted_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= disk_automation_faulted_led);		
+		
+	led_init(
+		object_name					:= CONCAT(prc_path, '_filter_automation_faulted_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= filter_automation_faulted_led);		
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_lid_automation_faulted_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= lid_automation_faulted_led);		
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_runout_in_progress_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= runout_in_progress_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_runout_completed_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= runout_completed_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_estop_active_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= estop_active_led);	
+		
+	led_init(
+		object_name					:= CONCAT(prc_path, '_guard_open_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= guard_open_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_operatpr_stop_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= operator_stop_led);
+		
+	led_init(
+		object_name					:= CONCAT(prc_path, '_infeed_cups_missing_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= infeed_cups_missing_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_infeed_filters_missing_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= infeed_filters_missing_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_infeed_disks_missing_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= infeed_disks_missing_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_infeed_coffee_missing_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= infeed_coffee_missing_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_infeed_lids_missing_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= infeed_lids_missing_led);		
+		
+	led_init(
+		object_name					:= CONCAT(prc_path, '_downstream_block_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= downstream_block_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_reject_block_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= reject_block_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_waste_block_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= waste_block_led);		
+		
+	led_init(
+		object_name					:= CONCAT(prc_path, '_filler_start_request_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= filler_start_request_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_filler_start_ramp_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= filler_start_ramp_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_filler_start_peak_wait_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= filler_start_peak_wait_led);		
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_dock_1_drop_available_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= dock_1_drop_available_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_dock_1_pick_available_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= dock_1_pick_available_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_dock_1_AMR_ready_to_receive_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= dock_1_AMR_ready_to_receive_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_dock_1_pick_location_conveyor_energized_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= dock_1_pick_location_conveyor_energized_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_dock_2_drop_available_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= dock_2_drop_available_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_dock_2_pick_available_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= dock_2_pick_available_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_dock_2_AMR_ready_to_receive_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= dock_2_AMR_ready_to_receive_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_dock_2_pick_location_conveyor_energized_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= dock_2_pick_location_conveyor_energized_led);	
+ 	
+	led_init(
+		object_name					:= CONCAT(prc_path, '_ctCall_low_cup_supply_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= ctCall_low_cup_supply_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_ctCall_low_disk_supply_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= ctCall_low_disk_supply_led);		
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_ctCall_low_lid_supply_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= ctCall_low_lid_supply_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_ctCall_low_filter_supply_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= ctCall_low_filter_supply_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_ctCall_scrap_full_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= ctCall_scrap_full_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_ctCall_main_fault_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= ctCall_main_fault_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_ctCall_cup_automation_fault_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= ctCall_cup_automation_fault_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_ctCall_disk_automation_fault_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= ctCall_disk_automation_fault_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_ctCall_lid_automation_fault_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= ctCall_lid_automation_fault_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_ctCall_filter_automation_fault_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= ctCall_filter_automation_fault_led);	
+	
+	parameter_overwrite_bool_init(
+		object_name						:= CONCAT(prc_path, '_confirm_run_out_mode_pow'), 
+		parameter						:= p_last_case, 
+		process							:= prc, 
+		CONVERSION_this					:= confirm_run_out_mode_pow);
+		
+	first_cycle := TRUE;		
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{fa553dcc-d51a-0d71-0acd-356631ac0265}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{9ea45f39-06b5-023b-1007-aff07c8cbb74}">
+      <Implementation>
+        <ST><![CDATA[i_start_job_done 	:= ADR(csp_main_phaseManager_startJob.start_job_done);]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{3b1cb4cf-d680-0904-2768-f5119c2f48b4}">
+      <Implementation>
+        <ST><![CDATA[;
+		
+
+
+
+	]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{569526f2-5539-007d-0d88-4db4f4a37b61}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="custom_page" Id="{ef9e768c-1754-0458-32c4-c8b556538a27}">
+      <Implementation>
+        <ST><![CDATA[hmi_graphic_object_set_status(
+	status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+	CONVERSION_this		:= start_job_green_label);	
+
+hmi_graphic_object_set_status(
+	status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+	CONVERSION_this		:= steady_state_green_label);	
+	
+hmi_graphic_object_set_status(
+	status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+	CONVERSION_this		:= cups_supply_green_label);
+
+hmi_graphic_object_set_status(
+	status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+	CONVERSION_this		:= carton_cases_supply_green_label);	
+	
+hmi_graphic_object_set_status(
+	status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+	CONVERSION_this		:= production_green_label);	
+	
+hmi_graphic_object_set_status(
+	status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+	CONVERSION_this		:= completion_green_label);	
+	
+hmi_graphic_object_set_status(
+	status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+	CONVERSION_this		:= runout_green_label);
+
+hmi_graphic_object_set_status(
+	status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+	CONVERSION_this		:= end_job_green_label);
+
+CASE fsm_status OF
+	CSP_MAIN_PHASE_MANAGER_STATUS_START_JOB_10:
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= start_job_green_label);
+			
+	CSP_MAIN_PHASE_MANAGER_STATUS_STEADY_STATE_20:
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= steady_state_green_label);	
+	
+(*	CSP_MAIN_PHASE_MANAGER_STATUS_CUP_SUPPLY_30:
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= cups_supply_green_label);	
+	
+	CSP_MAIN_PHASE_MANAGER_STATUS_CARTON_CASE_SUPPLY_40:
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= carton_cases_supply_green_label);	*)
+	
+	CSP_MAIN_PHASE_MANAGER_MANUAL_STEADY_STATE_40:
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= production_green_label);	
+	
+	CSP_MAIN_PHASE_MANAGER_STATUS_NEAR_END_OF_RUN_50:
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= completion_green_label);	
+	
+	CSP_MAIN_PHASE_MANAGER_STATUS_RUNOUT_60:
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= runout_green_label);	
+	
+	CSP_MAIN_PHASE_MANAGER_STATUS_END_JOB_70:
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= end_job_green_label);	
+ELSE
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+			CONVERSION_this		:= start_job_green_label);	
+
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+			CONVERSION_this		:= steady_state_green_label);	
+			
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+			CONVERSION_this		:= cups_supply_green_label);
+	
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+			CONVERSION_this		:= carton_cases_supply_green_label);	
+			
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+			CONVERSION_this		:= production_green_label);	
+			
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+			CONVERSION_this		:= completion_green_label);	
+			
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+			CONVERSION_this		:= runout_green_label);
+	
+		hmi_graphic_object_set_status(
+			status				:= HMI_OBJECT_STATUS_INVISIBLE, 
+			CONVERSION_this		:= end_job_green_label);	
+END_CASE
+
+//LED update
+IF machine_running
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= machine_running_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= machine_running_led);
+END_IF
+
+IF filler_faulted
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= filler_faulted_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= filler_faulted_led);
+END_IF
+
+IF filler_ready_for_coffee
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= ready_for_coffee_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= ready_for_coffee_led);
+END_IF
+
+
+IF cup_automation_faulted
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= cup_automation_faulted_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= cup_automation_faulted_led);
+END_IF
+
+IF disk_automation_faulted
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= disk_automation_faulted_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= disk_automation_faulted_led);
+END_IF
+
+IF filter_automation_faulted
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= filter_automation_faulted_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= filter_automation_faulted_led);
+END_IF
+
+IF lid_automation_faulted
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= lid_automation_faulted_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= lid_automation_faulted_led);
+END_IF
+
+IF emergency_stop_active
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= estop_active_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= estop_active_led);
+
+END_IF
+
+IF guard_open_stop_active
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= guard_open_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= guard_open_led);
+
+END_IF
+
+IF operator_stop_active
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= operator_stop_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= operator_stop_led);
+
+END_IF
+
+IF infeed_cups_missing
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= infeed_cups_missing_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= infeed_cups_missing_led);
+
+END_IF
+
+IF infeed_filters_missing
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= infeed_filters_missing_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= infeed_filters_missing_led);
+
+END_IF
+
+IF infeed_disks_missing
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= infeed_disks_missing_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= infeed_disks_missing_led);
+
+END_IF
+
+IF infeed_coffee_missing
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= infeed_coffee_missing_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= infeed_coffee_missing_led);
+
+END_IF				
+			
+IF infeed_lids_missing
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= infeed_lids_missing_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= infeed_lids_missing_led);
+
+END_IF	
+
+IF downstream_block
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= downstream_block_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= downstream_block_led);
+
+END_IF
+
+IF reject_block
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= reject_block_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= reject_block_led);
+
+END_IF
+
+IF waste_block
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= waste_block_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= waste_block_led);
+
+END_IF
+		
+IF csp_start_request
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= filler_start_request_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= filler_start_request_led);
+
+END_IF
+
+IF csp_start_ramp
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= filler_start_ramp_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= filler_start_ramp_led);
+
+END_IF
+
+IF csp_start_peak_wait
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= filler_start_peak_wait_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= filler_start_peak_wait_led);
+
+END_IF
+
+IF dock_1_drop_available
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= dock_1_drop_available_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_YELLOW, 
+		CONVERSION_this	:= dock_1_drop_available_led);
+
+END_IF
+
+IF dock_1_pick_available
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= dock_1_pick_available_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_YELLOW, 
+		CONVERSION_this	:= dock_1_pick_available_led);
+
+END_IF
+
+IF dock_1_AMR_ready_to_receive
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= dock_1_AMR_ready_to_receive_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= dock_1_AMR_ready_to_receive_led);
+
+END_IF
+
+IF dock_1_pick_location_conveyor_energized
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= dock_1_pick_location_conveyor_energized_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= dock_1_pick_location_conveyor_energized_led);
+
+END_IF
+
+IF dock_2_drop_available
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= dock_2_drop_available_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_YELLOW, 
+		CONVERSION_this	:= dock_2_drop_available_led);
+
+END_IF
+
+IF dock_2_pick_available
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= dock_2_pick_available_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_YELLOW, 
+		CONVERSION_this	:= dock_2_pick_available_led);
+
+END_IF
+
+IF dock_2_AMR_ready_to_receive
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= dock_2_AMR_ready_to_receive_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= dock_2_AMR_ready_to_receive_led);
+
+END_IF
+
+IF dock_2_pick_location_conveyor_energized
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this	:= dock_2_pick_location_conveyor_energized_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= dock_2_pick_location_conveyor_energized_led);
+
+END_IF
+
+
+
+
+
+
+
+
+
+
+
+
+IF ctCall_low_cup_supply
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_YELLOW, 
+		CONVERSION_this	:= ctCall_low_cup_supply_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= ctCall_low_cup_supply_led);
+
+END_IF
+
+IF ctCall_low_disk_supply
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_YELLOW, 
+		CONVERSION_this	:= ctCall_low_disk_supply_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= ctCall_low_disk_supply_led);
+
+END_IF
+
+IF ctCall_low_lid_supply
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_YELLOW, 
+		CONVERSION_this	:= ctCall_low_lid_supply_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= ctCall_low_lid_supply_led);
+
+END_IF
+
+IF ctCall_low_filter_supply
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_YELLOW, 
+		CONVERSION_this	:= ctCall_low_filter_supply_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= ctCall_low_filter_supply_led);
+
+END_IF
+
+IF ctCall_scrap_full
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_YELLOW, 
+		CONVERSION_this	:= ctCall_scrap_full_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= ctCall_scrap_full_led);
+
+END_IF
+
+IF ctCall_main_fault
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= ctCall_main_fault_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= ctCall_main_fault_led);
+
+END_IF
+
+IF ctCall_cup_automation_fault
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= ctCall_cup_automation_fault_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= ctCall_cup_automation_fault_led);
+
+END_IF
+
+IF ctCall_disk_automation_fault
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= ctCall_disk_automation_fault_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= ctCall_disk_automation_fault_led);
+
+END_IF
+
+IF ctCall_lid_automation_fault
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= ctCall_lid_automation_fault_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= ctCall_lid_automation_fault_led);
+
+END_IF
+
+IF ctCall_filter_automation_fault
+THEN
+	led_set_color(
+		color			:= HMI_LED_COLOR_RED, 
+		CONVERSION_this	:= ctCall_filter_automation_fault_led);
+ELSE
+	led_set_color(
+		color			:= HMI_LED_COLOR_GREY, 
+		CONVERSION_this	:= ctCall_filter_automation_fault_led);
+
+END_IF
+
+
+
+
+
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="run_cycle" Id="{8556fbd4-4c0e-0b5a-2c60-7bb61ccda452}">
+      <Implementation>
+        <ST><![CDATA[IF	csp_main.i_start_job_request
+	AND	
+	NOT csp_main.i_end_job_request
+	AND
+	NOT csp_main.i_cycle_enable_request
+THEN
+	fsm_status := CSP_MAIN_PHASE_MANAGER_STATUS_START_JOB_10;
+END_IF
+
+IF	NOT csp_main.i_start_job_request
+	AND	csp_main.i_end_job_request
+	AND
+	NOT csp_main.i_cycle_enable_request
+THEN
+	fsm_status := CSP_MAIN_PHASE_MANAGER_STATUS_END_JOB_70;
+END_IF
+
+
+CASE fsm_status OF
+	CSP_MAIN_PHASE_MANAGER_STATUS_UNDEFINED_0:
+		start_MES_variables_update := FALSE;
+		IF	p_mes_interface_enable
+		THEN
+			fsm_status := CSP_MAIN_PHASE_MANAGER_STATUS_START_JOB_10;
+		ELSE
+			fsm_status := CSP_MAIN_PHASE_MANAGER_MANUAL_STEADY_STATE_40;
+		END_IF
+		
+	CSP_MAIN_PHASE_MANAGER_STATUS_START_JOB_10:
+		start_MES_variables_update := FALSE;	
+		IF csp_main_phaseManager_startJob.start_job_done
+		THEN
+			fsm_status := CSP_MAIN_PHASE_MANAGER_STATUS_STEADY_STATE_20;
+		END_IF
+		
+	CSP_MAIN_PHASE_MANAGER_STATUS_STEADY_STATE_20:
+		start_MES_variables_update := TRUE;
+		i_start_job_done^ := FALSE;
+		IF csp_main.i_cartoner_RunOutComplete //MARCO: to be added to CARTONER interface communication
+		THEN
+			fsm_status := CSP_MAIN_PHASE_MANAGER_STATUS_RUNOUT_60;
+			//fsm_status := CSP_MAIN_PHASE_MANAGER_STATUS_NEAR_END_OF_RUN_50;
+		END_IF
+		
+	CSP_MAIN_PHASE_MANAGER_STATUS_NEAR_END_OF_RUN_50:
+		//IF 	csp_main_phaseManager_near_end_run.near_end_run_done //MARCO 1204
+		//THEN
+			fsm_status := CSP_MAIN_PHASE_MANAGER_STATUS_RUNOUT_60;
+		//END_IF	
+
+	CSP_MAIN_PHASE_MANAGER_STATUS_RUNOUT_60:
+		IF	runout_completed
+			AND
+			NOT csp_main.i_cycle_enable_request
+		THEN
+			fsm_status := CSP_MAIN_PHASE_MANAGER_STATUS_END_JOB_70;
+		END_IF	
+		
+	CSP_MAIN_PHASE_MANAGER_STATUS_END_JOB_70:
+		IF	csp_main_phaseManager_end_job.end_job_done
+		THEN	
+			fsm_status := CSP_MAIN_PHASE_MANAGER_STATUS_UNDEFINED_0;
+		END_IF
+		
+		
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="variables_update" Id="{a6a94190-9678-0c0e-1342-ff98e50d7836}">
+      <Implementation>
+        <ST><![CDATA[
+
+bt_1sec(
+	IN	:= (NOT bt_1sec_aux),
+	PT	:= T#992MS,
+	q	=> bt_1sec_aux);
+
+IF	start_MES_variables_update
+THEN
+
+	IF	bt_1sec_aux
+	THEN
+		mes_elapsed_time_1_npr := mes_elapsed_time_1_npr + 1;
+		
+		IF	machine_is_running(csp.mch)	AND NOT csp_main_motorization_manager.suspend_conditions
+		THEN
+			 mes_elapsed_time_2_npr := mes_elapsed_time_2_npr + 1;
+		END_IF
+	END_IF
+
+	IF machine_is_stopped(csp.mch)
+    THEN
+    	stop_message_CSP_ref := machine_get_downtime_stop_message(csp.mch);
+    END_IF
+
+	//Status update
+	csp_main.i_csp_data_ref^.CaseBlanks.ConsumedCart 		:= 	0; 
+	csp_main.i_csp_data_ref^.CaseBlanks.ConsumedTotal 		:= 	0;
+	
+	csp_main.i_csp_data_ref^.CtCall.FaultedCaseSupply		:= 	csp_case_feed_magazine.AML_Faulted;
+	csp_main.i_csp_data_ref^.CtCall.FaultedMain				:= 	machine_is_stopped(csp.mch)
+																AND 
+																csp_main_interface.alarm_id <> 430 // SERVICE CYCLE STOP FOR CASE SIDE
+																AND 
+																csp_main_interface.alarm_id <> 431 // CYCLE STOP FOR CASE SIDE	
+																AND 
+																csp_main_interface.alarm_id <> 768 // SERVICE CYCLE STOP FOR TRANSFER SIDE
+																AND 
+																csp_main_interface.alarm_id <> 769;// CYCLE STOP FOR TRANSFER SIDE
+																
+	csp_main.i_csp_data_ref^.CtCall.FullScrapBin			:= 	message_is_on(csp_transfer_crosspusher_reject.backup_di_dchk.alarm_asm.message)
+																OR
+																message_is_on(csp_transfer_infeed_reject.bin_full_dchk.alarm_asm.message);
+	csp_main.i_csp_data_ref^.CtCall.LowCaseSupply			:= 	csp_case_feed_magazine.AML_Robot_Out_Of_Cases; //MARCO - questo indica assenza Cases, non low_level
+	csp_main.i_csp_data_ref^.CtCall.LowGlueSupply			:= 	NOT digital_input_is_active(csp_case_glue_hotmelt.level_ok_di);
+	csp_main.i_csp_data_ref^.CtCall.LowLabelSupply			:= 	FALSE;//;inserire labeler presente nella Cartoner-step4
+	csp_main.i_csp_data_ref^.CtCall.TBD1 					:= 	FALSE;
+	csp_main.i_csp_data_ref^.CtCall.TBD2 					:= 	FALSE;	
+	csp_main.i_csp_data_ref^.CtCall.TBD3 					:= 	FALSE;
+	
+	csp_main.i_csp_data_ref^.Production.GoodPods			:=	(
+																	UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.total_good_products)
+																	*
+																	csp_main_brand.case_pattern.case_pattern_L
+																	*
+																	csp_main_brand.case_pattern.case_pattern_W
+																)
+																*
+																csp_main_brand.cups_number_for_carton;
+																					
+	csp_main.i_csp_data_ref^.Production.GoodUnits			:= 	UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.total_good_products)
+																*
+																csp_main_brand.case_pattern.case_pattern_L
+																*
+																csp_main_brand.case_pattern.case_pattern_W;
+																
+	csp_main.i_csp_data_ref^.Production.GoodCases			:=	UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.total_good_products);
+	
+	csp_main.i_csp_data_ref^.Production.GoodPodsNoReset		:=	(
+																	UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_unresettable_sampled_counters.total_good_products)
+																	*
+																	csp_main_brand.case_pattern.case_pattern_L
+																	*
+																	csp_main_brand.case_pattern.case_pattern_W
+																)
+																*
+																csp_main_brand.cups_number_for_carton;
+	
+	csp_main.i_csp_data_ref^.Production.GoodCasesNoReset	:=	UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_unresettable_sampled_counters.total_good_products);
+	
+	csp_main.i_csp_data_ref^.Production.GoodUnitsNoReset	:=	UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_unresettable_sampled_counters.total_good_products)
+																*
+																csp_main_brand.case_pattern.case_pattern_L
+																*
+																csp_main_brand.case_pattern.case_pattern_W;
+																
+	csp_main.i_csp_data_ref^.Production.TotalUnits			:=	(csp_customerInterfaces.CasePacker.Production.GoodUnits + csp_customerInterfaces.CasePacker.Production.TotalScrapUnits); //Cartoni Ricevuti a monte del metering belt per un ordine, a prescindere che andranno scartati o meno dal pusher
+	
+	csp_main.i_csp_data_ref^.Production.TotalUnitsNoReset	:=	(
+																UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_unresettable_sampled_counters.total_good_products)
+																+
+																UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_unresettable_sampled_counters.total_rejected)
+																)
+																	*
+																	csp_main_brand.case_pattern.case_pattern_L
+																	*
+																	csp_main_brand.case_pattern.case_pattern_W; //Cartoni Ricevuti a monte del metering belt, a prescindere che andranno scartati o meno dal pusher
+																
+	csp_main.i_csp_data_ref^.Production.TotalScrapUnits		:=	UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.total_rejected)
+																*
+																csp_main_brand.case_pattern.case_pattern_L
+																*
+																csp_main_brand.case_pattern.case_pattern_W;
+																
+	csp_main.i_csp_data_ref^.Production.TotalOrderTime		:= 	UDINT_TO_DINT(mes_elapsed_time_1_npr / 60); 	
+	csp_main.i_csp_data_ref^.Production.TotalRunningTime 	:=	UDINT_TO_DINT(mes_elapsed_time_2_npr / 60); 
+	
+	//Divide by zero protections
+	IF UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.total_good_products) <> 0
+	THEN
+	csp_main.i_csp_data_ref^.Production.PercentScrapUnits	:=	(		//Rejected Cases
+																		UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.total_rejected)
+																		/ 
+																		UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.total_good_products)
+																)		//Good Cases
+																*
+																100;
+	END_IF																
+	
+	csp_main.i_csp_data_ref^.Production.Rejects.Infeed_waterfall	:=	//Barcode Rejects
+																		UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.auxiliary_counters[1])
+																		+
+																		//High Load Rejects
+																		UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.auxiliary_counters[2]);
+																			
+	csp_main.i_csp_data_ref^.Production.Rejects.Accumulator	:=		//Crosspush Low-load
+																		UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.auxiliary_counters[3])
+																		+
+																	//Crosspush High-load
+																		UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.auxiliary_counters[4]);												
+																			
+	csp_main.i_csp_data_ref^.Production.Rejects.Case_Feed	:=		//Case Feed Reject
+																		UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.auxiliary_counters[5]);
+
+	csp_main.i_csp_data_ref^.Production.Rejects.Discharge	:=		//Rejected cases at discharge
+																		UDINT_TO_DINT(csp_case_main_statistics.logsect.hmi_shift_independent_sampled_counters.total_rejected);
+	
+	csp_main.i_csp_data_ref^.Production.Rejects.TBD5		:=		TEST_DINT;
+	csp_main.i_csp_data_ref^.Production.Rejects.Sample		:=		TEST_DINT;
+	
+	(*from RAJones MIX - MARCO *)
+	
+	csp_main.i_csp_data_ref^.Start.PeakWait 				:= 	FALSE;
+	csp_main.i_csp_data_ref^.Start.Ramp 					:= 	FALSE;	
+	csp_main.i_csp_data_ref^.Start.Request 					:= 	FALSE;	
+	
+	csp_main.i_csp_data_ref^.Status.NextJob 				:= 	TEST_DINT;;
+	csp_main.i_csp_data_ref^.Status.Running 				:= 	motorization_manager_is_execute(csp_main_motorization_manager.motm);
+
+	csp_main.i_csp_data_ref^.Status.Blocked.Downstream 		:= 	message_is_on(csp_case_discharge_reject_sensors.downstream_backup_hold_aem);
+	csp_main.i_csp_data_ref^.Status.Blocked.Reject 			:= 	message_is_on(csp_case_discharge_reject_sensors.consecutive_blocked_reject_aem);
+	csp_main.i_csp_data_ref^.Status.Blocked.Waste 			:= 	message_is_on(csp_transfer_crosspusher_reject.backup_di_dchk.alarm_asm.message)
+																OR
+																message_is_on(csp_transfer_infeed_reject.bin_full_dchk.alarm_asm.message);
+
+	csp_main.i_csp_data_ref^.Status.Faulted.CaseBlanks		:= 	csp_case_feed_magazine.AML_Faulted;;
+	
+	csp_main.i_csp_data_ref^.Status.Faulted.Main 			:= 	machine_is_stopped(csp.mch)
+																AND 
+																csp_main_interface.alarm_id <> 430 // SERVICE CYCLE STOP FOR CASE SIDE
+																AND 
+																csp_main_interface.alarm_id <> 431 // CYCLE STOP FOR CASE SIDE	
+																AND 
+																csp_main_interface.alarm_id <> 768 // SERVICE CYCLE STOP FOR TRANSFER SIDE
+																AND 
+																csp_main_interface.alarm_id <> 769;// CYCLE STOP FOR TRANSFER SIDE	
+
+	csp_main.i_csp_data_ref^.Status.Rate.Actual				:= 	LREAL_TO_INT(csp_main_motorization_manager.motm.actual_velocity);
+	
+	csp_main.i_csp_data_ref^.Status.Rate.Target				:= 	LREAL_TO_INT(csp_main_motorization_manager.motm.actual_velocity_setpoint);
+	
+	csp_main.i_csp_data_ref^.Status.Starved.CaseBlanks 		:= 	message_is_on(csp_case_feed_magazine_level_zonemin.magazine_level_zone_min_wem); //MARCO: PE presente nella presa cases
+	csp_main.i_csp_data_ref^.Status.Starved.Glue 			:= 	NOT digital_input_is_active(csp_case_glue_hotmelt.level_ok_di);
+	csp_main.i_csp_data_ref^.Status.Starved.Labels 			:= 	TEST_BOOL; //MARCO: inserire out_of_label che possiamo leggere dallo step 4 della cartoner
+	csp_main.i_csp_data_ref^.Status.Starved.Units 			:= 	csp_transfer_infeed_clamp.min_prime; //MARCO: indica che il livello dei cartoni è inferiore al min, oltre ad altri check da verificare se siano corretti (RAJones)
+	
+	csp_main.i_csp_data_ref^.Status.Stop.AutoReason 		:= 	csp_main_interface.alarm_id; 
+	csp_main.i_csp_data_ref^.Status.Stop.Estop 				:= 	//machine_is_stop_emergency_active(csp.mch);
+																NOT safety_integrated_series_is_safely_closed(csp_case_main_safety_emergency.sis)
+																OR
+																NOT safety_integrated_series_is_safely_closed(csp_transfer_main_safety_emergency.sis);
+																
+	csp_main.i_csp_data_ref^.Status.Stop.Guard 				:= 	NOT safety_integrated_series_is_safely_closed(csp_case_main_safety_guards.sis) OR NOT safety_integrated_series_is_safely_closed(csp_transfer_main_safety_guards.sis);
+	csp_main.i_csp_data_ref^.Status.Stop.Operator 			:= 	message_is_on(csp_case_main_services_pushbuttons.stop_dchk.alarm_asm.message)
+																OR
+																message_is_on(csp_case_main_services_pushbuttons.service_stop_dchk.alarm_asm.message)
+																OR
+																message_is_on(csp_transfer_main_services_pushbuttons.stop_dchk.alarm_asm.message)
+																OR
+																message_is_on(csp_transfer_main_services_pushbuttons.service_stop_dchk.alarm_asm.message);
+	
+	csp_main.i_csp_data_ref^.Status.RunOut 					:= 	csp_main_motorization.empty_command;
+	csp_main.i_csp_data_ref^.Status.RunOutComplete 			:=	message_is_on(csp_case_virtualMaster.runout_complete)
+																AND csp_case_main_services.end_production
+																OR
+																p_last_case;
+	
+ELSE
+	mes_elapsed_time_1_npr	:= 0;
+	mes_elapsed_time_2_npr	:= 0;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_main_phaseManager">
+      <LineId Id="3" Count="75" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_phaseManager._handle_messages">
+      <LineId Id="81" Count="77" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_phaseManager._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_phaseManager._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_phaseManager._object_manager">
+      <LineId Id="2" Count="331" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_phaseManager._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_phaseManager._read_var_input">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_phaseManager._set_runtime_properties">
+      <LineId Id="2" Count="4" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_phaseManager._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_phaseManager.custom_page">
+      <LineId Id="2" Count="584" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_phaseManager.run_cycle">
+      <LineId Id="2" Count="64" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_phaseManager.variables_update">
+      <LineId Id="207" Count="199" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

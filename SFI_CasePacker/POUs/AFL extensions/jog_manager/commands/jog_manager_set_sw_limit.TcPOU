@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="jog_manager_set_sw_limit" Id="{6c159de4-aff1-46ea-98b7-4a1a0eb20e43}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Set sw limit value to ogject <b><i>this.axis_list[index]</i></b>.
+	The method returns <i>TRUE</i> if the command is accepted, otherwise it returns <i>FALSE</i>.
+$*)
+FUNCTION jog_manager_set_sw_limit : BOOL
+VAR_INPUT
+	index:					UINT;	
+	sw_limit_positive:		LREAL;
+	sw_limit_negative:		LREAL;
+END_VAR
+VAR_IN_OUT
+    CONVERSION_this:		jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	NOT (descriptor_mode_is_operational(CONVERSION_this.descriptor)
+		(*OR
+		descriptor_mode_is_test(CONVERSION_this.descriptor)*)
+		OR
+		(index <= JOG_MANAGER_JOG_LIST_NONE)
+		OR
+		(index > JOG_MANAGER_JOG_LIST_MAX))
+THEN
+	jog_manager_set_sw_limit := FALSE;				(* command rejected *)
+ 	RETURN;
+END_IF
+
+IF	CONVERSION_this.axis_list[index].axis = G_framework.NULL
+THEN
+	jog_manager_set_sw_limit := FALSE;				(* command rejected *)
+ 	RETURN;
+END_IF
+
+CONVERSION_this.axis_list[index].sw_limit_positive := sw_limit_positive;
+CONVERSION_this.axis_list[index].sw_limit_negative := sw_limit_negative;
+jog_manager_set_sw_limit := TRUE;						(* command accepted *)]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

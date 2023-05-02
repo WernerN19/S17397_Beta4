@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_main_phaseManager_status_enum" Id="{5b9724e3-9494-0b85-0ebd-7be419ebe5e2}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+WN main phase manager status enum data structure definition
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/06/16 	0000.00	 	G.Cera 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_main_phaseManager_status_enum :
+(
+	CSP_MAIN_PHASE_MANAGER_STATUS_UNDEFINED_0							:= 0,
+	CSP_MAIN_PHASE_MANAGER_STATUS_START_JOB_10							:= 10,
+	CSP_MAIN_PHASE_MANAGER_STATUS_STEADY_STATE_20						:= 20,
+	CSP_MAIN_PHASE_MANAGER_MANUAL_STEADY_STATE_40						:= 40,
+	CSP_MAIN_PHASE_MANAGER_STATUS_NEAR_END_OF_RUN_50					:= 50,
+	CSP_MAIN_PHASE_MANAGER_STATUS_RUNOUT_60								:= 60,
+	CSP_MAIN_PHASE_MANAGER_STATUS_END_JOB_70							:= 70
+) := CSP_MAIN_PHASE_MANAGER_STATUS_UNDEFINED_0;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

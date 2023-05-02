@@ -1,0 +1,222 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_motorization_virtualManager" Id="{7d2a7a09-a77b-43f1-8a50-a0412adf5457}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp motorization head program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/18 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_motorization_virtualManager
+VAR
+	prc:									process;
+	prc_path:								STRING;
+	
+	axis:									axis;
+	machine_periodicity_axis:				axis;
+	virtual_master_test: 					axis;		
+	
+	phgen:									phase_generator;				
+	
+
+END_VAR
+
+VAR CONSTANT
+	MOTOR_MAX_VELOCITY_DEGPS:				LREAL := 9600;
+	MOTOR_MAX_ACCELLERATION_DEGPS2:			LREAL := 4800;
+	MOTOR_MAX_DECELLERATION_DEGPS2:			LREAL := 4800;
+	MOTOR_MAX_JERK_DEGPS3:					LREAL := 100000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:			LREAL := 2;
+END_VAR
+
+VAR_OUTPUT
+	o_machine_is_moving:					BOOL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(************************************************************************)
+
+_handle_messages();
+_feedback();
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_feedback" Id="{040f5187-b6d1-41cc-8b6a-99f79e569847}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_messages" Id="{c18b500c-c72e-4c61-bcfb-815899126974}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{f7cfd8e2-664b-41bb-bd74-dc2832abc53d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{f7427d37-7785-4f94-89e9-e0380205f633}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{8c748890-5949-449e-b1d5-9abbb0eb3302}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_main_motorization_virtualManager.prc', 
+		process									:= csp_main_motorization.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);	
+	
+	(* Motorization virtual axis - 360 degrees -> 1 carton *)	
+	axis_init(
+		object_name								:= CONCAT(prc_path, '_axis'), 
+		axis_type								:= AXIS_TYPE_VIRTUAL, 
+		encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo									:= G_MODULO_360_DEG, 
+		process									:= prc, 
+		CONVERSION_this							:= axis);
+		
+	axis_set_max_dynamic(
+		reference_velocity						:=	MOTOR_MAX_VELOCITY_DEGPS,
+		velocity								:=	MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration							:=	MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration							:=	MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk									:=	MOTOR_MAX_JERK_DEGPS3,
+		following_error							:=	MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this							:=	axis);
+		
+	(* Machine periodicity virtual axis - 360 degrees -> number of cartons brand dependent *)	
+	axis_init(
+		object_name								:= CONCAT(prc_path, '_machine_periodicity_axis'), 
+		axis_type								:= AXIS_TYPE_VIRTUAL, 
+		encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo									:= G_MODULO_360_DEG, 
+		process									:= prc, 
+		CONVERSION_this							:= machine_periodicity_axis);
+		
+	axis_set_max_dynamic(
+		reference_velocity						:= MOTOR_MAX_VELOCITY_DEGPS,
+		velocity								:= MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration							:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration							:= MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk									:= MOTOR_MAX_JERK_DEGPS3,
+		following_error							:= MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this							:= machine_periodicity_axis);		
+		
+	
+	//TODO replace with physical servo
+	axis_init(
+		object_name								:= CONCAT(prc_path, '_virtual_master_test'), 
+		axis_type								:= AXIS_TYPE_VIRTUAL, 
+		encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo									:= G_MODULO_360_DEG, 
+		process									:= prc, 
+		CONVERSION_this							:= virtual_master_test);
+		
+	axis_set_max_dynamic(
+		reference_velocity						:=	MOTOR_MAX_VELOCITY_DEGPS,
+		velocity								:=	MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration							:=	MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration							:=	MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk									:=	MOTOR_MAX_JERK_DEGPS3,
+		following_error							:=	MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this							:=	virtual_master_test);
+		
+		
+	phase_generator_init(
+		object_name								:= CONCAT(prc_path, '_phgen'), 
+		modulo									:= axis_get_modulo(axis), 
+		resolution								:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis									:= axis, 
+		process									:= prc, 
+		CONVERSION_this							:= phgen);	
+	
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	axis_cycle(axis);
+	axis_cycle(machine_periodicity_axis);
+	axis_cycle(virtual_master_test);
+	
+	phase_generator_cycle(phgen);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{baf441e5-0cca-48b7-889e-4b5cae7e819d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{4ca0add0-308c-4d39-953a-bd6fb90d9206}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{9a2c2fe9-cdf5-4dab-b383-47e5a5920cd3}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{dd02da17-1ba6-4626-b521-07d248c7a48e}">
+      <Implementation>
+        <ST><![CDATA[o_machine_is_moving := axis_is_moving(axis);]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

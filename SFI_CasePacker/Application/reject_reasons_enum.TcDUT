@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="reject_reasons_enum" Id="{820dba71-ed45-46db-a630-c5ff6721e72c}">
+    <Declaration><![CDATA[TYPE reject_reasons_enum :
+(
+	NO_REJ_REASON,	// 0 (this value must be the first of the list)
+	POWER_UP_REJECT, // 1
+	OPEN_FLAP_OPERATOR_SIDE, // 2
+	OPEN_FLAP_LOADER_SIDE, // 3
+	QUALITY_REJECT, // 4
+	TRANSFER_CARTONS_HIGH_LOAD, //5
+	OPEN_FLAP_OPERATOR_SIDE_INCHOERENCE, //6
+	OPEN_FLAP_LOADER_SIDE_INCHOERENCE, //7
+	TRAILING_MINOR_FLAP_OPEN, //8
+	LEADING_MINOR_FLAP_OPEN, //9
+	INCOMPLETE_GLUE //10
+);
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

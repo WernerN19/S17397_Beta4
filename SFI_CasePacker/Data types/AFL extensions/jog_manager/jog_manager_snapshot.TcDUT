@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="jog_manager_snapshot" Id="{cd1a3ab8-9b86-4429-9547-418b1954f80f}">
+    <Declaration><![CDATA[(*$S desc := Snapshot; $*)
+TYPE
+	jog_manager_snapshot:	STRUCT
+	message:        message;
+
+	status:			jog_manager_status_enum;
+	(*$
+	Value of the jog_manager <a href="#jog_manager_status_enum"><i>status</i></a> field
+	when the message is set 
+	$*)
+	command:		jog_manager_command_enum;
+	(*$
+	Value of the jog_manager <a href="#jog_manager_command_enum"><i>command</i></a> field
+	when the message is set 
+	$*)	
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

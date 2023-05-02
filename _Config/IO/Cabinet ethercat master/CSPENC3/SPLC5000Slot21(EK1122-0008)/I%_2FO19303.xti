@@ -1,0 +1,236 @@
+<?xml version="1.0"?>
+<TcSmItem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2012/07/TcSmProject" TcSmVersion="1.0" TcVersion="3.1.4024.7" ClassName="CFlbTermDef" SubType="9099">
+	<ImageDatas>
+		<ImageData Id="1000">424dd6020000000000003600000028000000100000000e0000000100180000000000a002000000000000000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffd5d0efbfb2e4c1b5e5bfb6e5c2b4e5c1b6e6c2b5e5c0b5e6c2b6e5bfb4e4cdc3ebf3f3f3b1a2e1bdafe3eceaf5edeaf40b00c31e00ca1e00ca2000cb1d00ca1c00cd1e00c91e00cc1c00cd1d00cb1300c68d78dc8a73d80000c4bbaee6bdb2e91d00cc2f07d02f07d02b06d01c00c02500bd2701cc2701c72700be1c00c22c04d21700c7c2b7e9816dd8b4a2e8dbd7ef1a00cc2d07cf2d06d02100c8fffffeffffff917ad7907cdafffffffffffe1f00c82d03d21500c3ffffffcdc4e7ffffff1600c42e06d02800cf6a4ed79883dd806bcb5536d45c3cce7259d5957fde694ed22800cf2400cf775ed5ffffffffffff5a3dce2700d02800ce6d54d98e79db3d18ca3513d26246d0715bd9846ddb6d52d22600cf2d04d01d00c5ffffffe6e3f3fbf7fc1000c62c04d02b06c7ffffffe9e0f24320d15a3ccffffffbffffff2a05c62e03d12d07cf1800caede8f6ab9ae6baafe9937ddb1c00cc2b01d12c09c05333c6310bce300acc4e2fc62d09be2b02d12f08cf2e08ce1e00ccc0b4e9bcafeb0000c5cac0ed5c40d01900cc2000d01c00ce2300cf2100ce1e00cf2100ce2100cf2100cf2200ce0c00c8d8cef0dbd4ef7f6ad1745acef2eff19783da8873d58c74d48975d48a75d58a74d68975d58b75d48b75d48871d59a86d9fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff</ImageData>
+	</ImageDatas>
+	<Box Id="44" Disabled="true" BoxType="9099" BoxFlags="#x00000020">
+		<Name>I/O19303</Name>
+		<ImageId>1000</ImageId>
+		<EtherCAT SlaveType="2" PdiType="#x0080" MboxDataLinkLayer="true" StateMBoxPolling="true" CycleMBoxPollingTime="0" CoeType="39" EoeType="1" FoeType="1" VendorId="#x0000bebe" ProductCode="#x00390001" RevisionNo="#x000003e8" InfoDataAddr="true" InfoDataDcTimes="true" TimeoutStateChange1="2000" TimeoutStateChange2="9000" TimeoutMailbox1="1000" TimeoutMailbox2="2000" PortPhys="17" MaxSlotCount="256" MaxSlotGroupCount="1" SlotPdoIncrement="1" SlotIndexIncrement="16" Type="GLUER-1000 ECAT\ECAT-P &amp;amp;amp;amp;quot;FULL&amp;amp;amp;amp;quot; REV 0" Desc="GLUER-1000">
+			<SyncMan>001000012600010001000000220000030001001026010000</SyncMan>
+			<SyncMan>001400012200010002000000220000030001001422010000</SyncMan>
+			<SyncMan>001830006400010003000000000000000400001864010000</SyncMan>
+			<SyncMan>001c34002000010004000000000000000c00001c20010000</SyncMan>
+			<Fmmu>0000000000000000001800020100000001000000000000000000000000000000</Fmmu>
+			<Fmmu>0000000000000000001c00010100000002000000000000000000000000000000</Fmmu>
+			<Fmmu>00000000000000000d0800010100000003000000000000000000000000000000</Fmmu>
+			<SwitchPortData>00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000</SwitchPortData>
+			<SuName>I/O483002</SuName>
+			<SuTask>#x05000010</SuTask>
+			<DcData>300700000000000020a107000000000001000000000000000000000000000000</DcData>
+			<DcMode>446353796e635f34000000000000000034204368616e6e656c73000000000000000000000000000000000000000000000000000020a10700000000000000300701000a00000000000000000000000000000000000000000000000000000000008016020090160200a0160200b0160200021a0300101a0300201a0300301a0300401a0300801a0300</DcMode>
+			<DcMode>446353796e635f33000000000000000033204368616e6e656c73000000000000000000000000000000000000000000000000000020a10700000000000000300701000800000000000000000000000000000000000000000000000000000000008016020090160200a0160200021a0300101a0300201a0300301a0300801a0300</DcMode>
+			<DcMode>446353796e635f32000000000000000032204368616e6e656c73000000000000000000000000000000000000000000000000000020a10700000000000000300701000600000000000000000000000000000000000000000000000000000000008016020090160200021a0300101a0300201a0300801a0300</DcMode>
+			<DcMode>446353796e635f31000000000000000031204368616e6e656c00000000000000000000000000000000000000000000000000000020a107000000000000003007010004000000000000000000000000000000000000000000000000000000000080160200021a0300101a0300801a0300</DcMode>
+			<Pdo Name="Power supply" Index="#x1a02" Flags="#x0010" SyncMan="3">
+				<Entry Name="DC voltage" Index="#x6002" Sub="#x01">
+					<Type>REAL</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Encoder" Index="#x1a08" Flags="#x0010">
+				<Entry Name="Position" Index="#x6008" Sub="#x01">
+					<Type>DINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Status Ch1" Index="#x1a10" Flags="#x0010" SyncMan="3">
+				<Entry Name="Slave position" Index="#x6010" Sub="#x01">
+					<Type>REAL</Type>
+				</Entry>
+				<Entry Name="Diagnosis" Index="#x6010" Sub="#x02">
+					<Type>WORD</Type>
+				</Entry>
+				<Entry Name="Status" Index="#x6010" Sub="#x03">
+					<Type>WORD</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Status Ch2" Index="#x1a20" Flags="#x0010" SyncMan="3">
+				<Entry Name="Slave position" Index="#x6020" Sub="#x01">
+					<Type>REAL</Type>
+				</Entry>
+				<Entry Name="Diagnosis" Index="#x6020" Sub="#x02">
+					<Type>WORD</Type>
+				</Entry>
+				<Entry Name="Status" Index="#x6020" Sub="#x03">
+					<Type>WORD</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Status Ch3" Index="#x1a30" Flags="#x0010" SyncMan="3">
+				<Entry Name="Slave position" Index="#x6030" Sub="#x01">
+					<Type>REAL</Type>
+				</Entry>
+				<Entry Name="Diagnosis" Index="#x6030" Sub="#x02">
+					<Type>WORD</Type>
+				</Entry>
+				<Entry Name="Status" Index="#x6030" Sub="#x03">
+					<Type>WORD</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Status Ch4" Index="#x1a40" Flags="#x0010" SyncMan="3">
+				<Entry Name="Slave position" Index="#x6040" Sub="#x01">
+					<Type>REAL</Type>
+				</Entry>
+				<Entry Name="Diagnosis" Index="#x6040" Sub="#x02">
+					<Type>WORD</Type>
+				</Entry>
+				<Entry Name="Status" Index="#x6040" Sub="#x03">
+					<Type>WORD</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="IO1" Index="#x1a50" Flags="#x0010">
+				<Entry Name="Input" Index="#x6050" Sub="#x01">
+					<Type>USINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="IO2" Index="#x1a51" Flags="#x0010">
+				<Entry Name="Input" Index="#x6051" Sub="#x01">
+					<Type>USINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="IO3" Index="#x1a52" Flags="#x0010">
+				<Entry Name="Input" Index="#x6052" Sub="#x01">
+					<Type>USINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="IO4" Index="#x1a53" Flags="#x0010">
+				<Entry Name="Input" Index="#x6053" Sub="#x01">
+					<Type>USINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Glue sensor 1" Index="#x1a60" Flags="#x0010">
+				<Entry Name="Check result" Index="#x6060" Sub="#x01">
+					<Type>USINT</Type>
+				</Entry>
+				<Entry Name="Number of edges" Index="#x6060" Sub="#x02">
+					<Type>USINT</Type>
+				</Entry>
+				<Entry Name="Percentage of detection" Index="#x6060" Sub="#x03">
+					<Type>UINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Glue sensor 2" Index="#x1a61" Flags="#x0010">
+				<Entry Name="Check result" Index="#x6061" Sub="#x01">
+					<Type>USINT</Type>
+				</Entry>
+				<Entry Name="Number of edges" Index="#x6061" Sub="#x02">
+					<Type>USINT</Type>
+				</Entry>
+				<Entry Name="Percentage of detection" Index="#x6061" Sub="#x03">
+					<Type>UINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Glue sensor 3" Index="#x1a62" Flags="#x0010">
+				<Entry Name="Check result" Index="#x6062" Sub="#x01">
+					<Type>USINT</Type>
+				</Entry>
+				<Entry Name="Number of edges" Index="#x6062" Sub="#x02">
+					<Type>USINT</Type>
+				</Entry>
+				<Entry Name="Percentage of detection" Index="#x6062" Sub="#x03">
+					<Type>UINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Glue sensor 4" Index="#x1a63" Flags="#x0010">
+				<Entry Name="Check result" Index="#x6063" Sub="#x01">
+					<Type>USINT</Type>
+				</Entry>
+				<Entry Name="Number of edges" Index="#x6063" Sub="#x02">
+					<Type>USINT</Type>
+				</Entry>
+				<Entry Name="Percentage of detection" Index="#x6063" Sub="#x03">
+					<Type>UINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Monitoring variables" Index="#x1a80" Flags="#x0010" SyncMan="3">
+				<Entry Name="Debug 1" Index="#x6080" Sub="#x01">
+					<Type>UINT</Type>
+				</Entry>
+				<Entry Name="Debug 2" Index="#x6080" Sub="#x02">
+					<Type>UINT</Type>
+				</Entry>
+				<Entry Name="Debug 3" Index="#x6080" Sub="#x03">
+					<Type>UINT</Type>
+				</Entry>
+				<Entry Name="Debug 4" Index="#x6080" Sub="#x04">
+					<Type>UINT</Type>
+				</Entry>
+				<Entry Name="Debug 5" Index="#x6080" Sub="#x05">
+					<Type>UINT</Type>
+				</Entry>
+				<Entry Name="Debug 6" Index="#x6080" Sub="#x06">
+					<Type>UINT</Type>
+				</Entry>
+				<Entry Name="Debug 7" Index="#x6080" Sub="#x07">
+					<Type>UINT</Type>
+				</Entry>
+				<Entry Name="Debug 8" Index="#x6080" Sub="#x08">
+					<Type>UINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Master 1" Index="#x1610" InOut="1" Flags="#x0010" SyncMan="2">
+				<Entry Name="Position" Index="#x7010" Sub="#x01">
+					<Type>LREAL</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Master 2" Index="#x1620" InOut="1" Flags="#x0010">
+				<Entry Name="Position" Index="#x7020" Sub="#x01">
+					<Type>LREAL</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Master 3" Index="#x1630" InOut="1" Flags="#x0010">
+				<Entry Name="Position" Index="#x7030" Sub="#x01">
+					<Type>LREAL</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Master 4" Index="#x1640" InOut="1" Flags="#x0010">
+				<Entry Name="Position" Index="#x7040" Sub="#x01">
+					<Type>LREAL</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Control Ch1" Index="#x1680" InOut="1" Flags="#x0010" SyncMan="2">
+				<Entry Name="Control" Index="#x7080" Sub="#x01">
+					<Type>WORD</Type>
+				</Entry>
+				<Entry Name="Dcam enable" Index="#x7080" Sub="#x02">
+					<Type>DWORD</Type>
+				</Entry>
+				<Entry Name="Check enable" Index="#x7080" Sub="#x03">
+					<Type>DWORD</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Control Ch2" Index="#x1690" InOut="1" Flags="#x0010" SyncMan="2">
+				<Entry Name="Control" Index="#x7090" Sub="#x01">
+					<Type>WORD</Type>
+				</Entry>
+				<Entry Name="Dcam enable" Index="#x7090" Sub="#x02">
+					<Type>DWORD</Type>
+				</Entry>
+				<Entry Name="Check enable" Index="#x7090" Sub="#x03">
+					<Type>DWORD</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Control Ch3" Index="#x16a0" InOut="1" Flags="#x0010" SyncMan="2">
+				<Entry Name="Control" Index="#x70a0" Sub="#x01">
+					<Type>WORD</Type>
+				</Entry>
+				<Entry Name="Dcam enable" Index="#x70a0" Sub="#x02">
+					<Type>DWORD</Type>
+				</Entry>
+				<Entry Name="Check enable" Index="#x70a0" Sub="#x03">
+					<Type>DWORD</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Control Ch4" Index="#x16b0" InOut="1" Flags="#x0010" SyncMan="2">
+				<Entry Name="Control" Index="#x70b0" Sub="#x01">
+					<Type>WORD</Type>
+				</Entry>
+				<Entry Name="Dcam enable" Index="#x70b0" Sub="#x02">
+					<Type>DWORD</Type>
+				</Entry>
+				<Entry Name="Check enable" Index="#x70b0" Sub="#x03">
+					<Type>DWORD</Type>
+				</Entry>
+			</Pdo>
+			<CoeProfile ProfileNo="5001"/>
+		</EtherCAT>
+	</Box>
+</TcSmItem>

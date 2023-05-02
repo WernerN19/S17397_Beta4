@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_casePackerProdRej" Id="{bd2261de-a0d1-4097-9671-4a69b25d5f6c}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_casePackerProdRej :
+STRUCT
+	
+	
+	Infeed_waterfall:			DINT;				(*$H_R desc := REAL TIME Itemized scrap FOR THIS order; $*)
+	Accumulator:				DINT;				(*$H_R desc := REAL TIME Itemized scrap FOR THIS order; $*)
+	Case_Feed:					DINT;				(*$H_R desc := REAL TIME Itemized scrap FOR THIS order; $*)
+	Discharge:					DINT;				(*$H_R desc := REAL TIME Itemized scrap FOR THIS order; $*)
+	TBD5:						DINT;				(*$H_R desc := REAL TIME Itemized scrap FOR THIS order; $*)
+	Sample:						DINT;				(*$H_R desc := REAL TIME Itemized scrap FOR THIS order; $*)
+
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

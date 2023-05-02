@@ -1,0 +1,62 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_phMan_start_job_set_snapshot" Id="{cc601f65-ddd4-0768-2d04-3862fb3b7c44}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+WU phase manager snapshot set function
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/06/19 	0000.00	 	G.Cera 			Creation of the PRG
+
+**********************************************************************************************************)
+
+FUNCTION csp_main_phMan_start_job_set_snapshot : VOID
+VAR_INPUT
+    errorID_1:				DINT;			(* Field for specify the faults code or enter
+								   				more message info *)
+    errorID_2:				DINT;			(* Field for specify the faults code or enter
+								   				more message info *)
+    errorID_3:				DINT;			(* Field for specify the faults code or enter
+								   				more message info *)
+	reason:					STRING := '';
+
+	order_valid:			BOOL;
+	
+	product_valid:			BOOL;
+	
+	recipe_valid:			BOOL;
+	
+	materials_valid:		BOOL;
+	
+	mark_valid:				BOOL;	
+	
+END_VAR
+
+VAR_IN_OUT
+    CONVERSION_this:		csp_main_phMan_start_job_snapshot;
+								(* csp_main_phaseManager_snapshot snapshot reference *)
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	message_set(
+		errorID_1		:= errorID_1, 
+		errorID_2		:= errorID_2, 
+		errorID_3		:= errorID_3, 
+		CONVERSION_this	:= CONVERSION_this.message)
+THEN
+	CONVERSION_this.sj_reason 				:= reason;
+	CONVERSION_this.order_valid			:= order_valid;
+	CONVERSION_this.recipe_valid		:= recipe_valid;
+	CONVERSION_this.product_valid		:= product_valid;
+	CONVERSION_this.materials_valid		:= materials_valid;
+	CONVERSION_this.mark_valid			:= mark_valid;
+END_IF]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

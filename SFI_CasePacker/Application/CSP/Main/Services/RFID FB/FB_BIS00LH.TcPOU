@@ -1,0 +1,544 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="FB_BIS00LH" Id="{889ca068-c014-4aea-b314-cf9a1820921a}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_BIS00LH
+VAR_IN_OUT
+	IO: ST_BIS00LH_IO;
+END_VAR
+VAR_INPUT
+	///	iDevice : ST_Alarm2;
+	ReadMode: BOOL;
+	WriteCMode: BOOL;
+	GroundStateRequest: BOOL;
+	ShutdownRequest: BOOL;
+	StartAddress: UINT;
+	NumberOfBytes: UINT;
+	WC_Value: BYTE;
+	NumTags: INT;
+	RecipeValue: BYTE;
+END_VAR
+VAR_IN_OUT
+	/// 0-255 range
+	//Cam: ST_Cam;
+END_VAR
+VAR_OUTPUT
+	DeviceReadyBB: BOOL;
+	TagPresentCP: BOOL;
+	JobAcceptedAA: BOOL;
+	JobEndAE: BOOL;
+	JobErrorAF: BOOL;
+	ToggleTO: BOOL;
+	HeadFailureHF: BOOL;
+	JobOk: BOOL;
+	WriteOK: BOOL;
+	ReadOK: BOOL;
+	Error: BOOL;
+	ER: BOOL;
+	CP: BOOL;
+	AA: BOOL;
+	AF: BOOL;
+	BB: BOOL;
+	ValueRead: BYTE;
+END_VAR
+VAR_OUTPUT PERSISTENT
+	Verified: BOOL;
+	ValidCount: INT;
+	InValidCount: INT;
+END_VAR
+VAR_OUTPUT
+	WriteCount: INT;
+	ReadModeActive: BOOL;
+	WriteCModeActive: BOOL;
+END_VAR
+VAR
+	//rfidHMI: ST_RFID_HMI;
+	State: INT := 0;
+	uRFIDInput: U_BYTE_TO_LINT;
+	uRFIDDintInput: U_BYTE_TO_UDINT;
+	uWriteValue: U_UINT_TO_BYTE;
+	BitHeaderOutBegin: ST_BITHEADEROUT;
+	BitHeaderOutEnd: ST_BITHEADEROUT;
+	BitHeaderInBegin: ST_BITHEADERIN;
+	BitHeaderInEnd: ST_BITHEADERIN;
+	ReadFifo: FB_MyQ_UDINT;
+	RdInsert: BOOL := FALSE;
+	RdRemove: BOOL := FALSE;
+	RdPeek: BOOL := FALSE;
+	RdDump: BOOL := FALSE;
+	RdReset: BOOL := FALSE;
+	RdValue: UDINT := 0;
+	///+++++++++++++++
+	InputHeader: BYTE;
+	CPRising: Tc2_Standard.R_TRIG;
+	CPFalling: Tc2_Standard.F_TRIG;
+	AARising: Tc2_Standard.R_TRIG;
+	AAFalling: Tc2_Standard.F_TRIG;
+	AERising: Tc2_Standard.R_TRIG;
+	AEFalling: Tc2_Standard.F_TRIG;
+	AFRising: Tc2_Standard.R_TRIG;
+	AFFalling: Tc2_Standard.F_TRIG;
+	TORising: Tc2_Standard.R_TRIG;
+	TOFalling: Tc2_Standard.F_TRIG;
+	HFRising: Tc2_Standard.R_TRIG;
+	HFFalling: Tc2_Standard.F_TRIG;
+	BBRising: Tc2_Standard.R_TRIG;
+	BBFalling: Tc2_Standard.F_TRIG;
+	OutputHeader: BYTE;
+	AVRising: Tc2_Standard.R_TRIG;
+	AVFalling: Tc2_Standard.F_TRIG;
+	GRRising: Tc2_Standard.R_TRIG;
+	GRFalling: Tc2_Standard.F_TRIG;
+	KARising: Tc2_Standard.R_TRIG;
+	KAFalling: Tc2_Standard.F_TRIG;
+	TIRising: Tc2_Standard.R_TRIG;
+	TIFalling: Tc2_Standard.F_TRIG;
+	JobPendingAV: BOOL;
+	GroundResetGR: BOOL;
+	HeadShutdownKA: BOOL;
+	ToggleTI: BOOL;
+	CommandIdentifier: BYTE;
+	Command: BYTE;
+	CmdChangeRising: Tc2_Standard.R_TRIG;
+	BeginJob: BOOL;
+	ReadData: ARRAY[0..255] OF BYTE;
+	WriteData: ARRAY[0..255] OF BYTE;
+	JobSet: BOOL;
+	JobSetRising: Tc2_Standard.R_TRIG;
+	ProcessedBytes: UINT;
+	RemainingBytes: UINT;
+	Sequence: BYTE;
+	Index: UINT;
+	Length: UINT;
+	tDelay: Tc2_Standard.TON;
+	TOLeading: BOOL;
+	TILeading: BOOL;
+	CompletedSize: UINT;
+	ErrorCode: BYTE;
+	GroundStateReqRising: Tc2_Standard.R_TRIG;
+	ShutdownReqRising: Tc2_Standard.R_TRIG;
+	ReadModeRising: R_TRIG;
+	uStartAddress: U_UINT_TO_BYTE;
+	uNumberOfBytes: U_UINT_TO_BYTE;
+	ReadRising: R_TRIG;
+	ReadFalling: R_TRIG;
+	WriteRising: R_TRIG;
+	WriteFalling: R_TRIG;
+	ReadRequest: BOOL;
+	WriteRequest: BOOL;
+	WriteConstant: BOOL;
+	InitCRC: BOOL;
+	initialized: BOOL;
+	StationaryTag: BOOL;
+	StationaryReadWaitCount: DINT;
+	InCamWindow: BOOL;
+	TagDetectedInCamWindow: BOOL;
+	CamWindowFalling: F_TRIG;
+	//Device: ST_Device;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* This object is for Balluff BIS00LH: BIS M-400-045-001-07-S4 only *)
+
+(*
+Unless required by applicable law or agreed to in writing, software is distributed on an 
+"AS IS" BASIS WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+*)
+
+
+// HMI & Device setup
+(*
+//rfidHMI.Description:= iDevice.Description;
+//rfidHMI.Symbol:= iDevice.Symbol;
+//rfidHMI.Verified:= Verified;
+//rfidHMI.VerifiedCount:= ValidCount;
+//rfidHMI.InvalidCount:= InvalidCount;
+//rfidHMI.ReadValue:= ValueRead;
+//rfidHMI.DeviceReady:= DeviceReadyBB;
+//rfidHMI.TagPresent:= TagPresentCP;
+
+IF NOT initialized THEN
+	rfidHMI.SizeValue:= RecipeValue;
+	//rfidHMI.Cam:= Cam;
+	initialized:= TRUE;
+ELSIF STATUS.SIZE.NewSizeLoaded THEN
+	rfidHMI.SizeValue:= RecipeValue;
+	//rfidHMI.Cam:= Cam;
+ELSE
+	RecipeValue:= rfidHMI.SizeValue;
+	//Cam:= rfidHMI.Cam;
+	
+END_IF
+*)
+
+ReadRising(CLK:=ReadMode AND DeviceReadyBB AND TagPresentCP AND NOT InvalidCount > 0 AND ValidCount <= NumTags);
+ReadFalling(CLK:=NOT ReadMode OR InvalidCount > 0 OR ValidCount >= NumTags);
+WriteRising(CLK:=WriteCMode AND DeviceReadyBB AND TagPresentCP);
+WriteFalling(CLK:=NOT WriteCMode);
+ReadModeRising(CLK:=ReadMode);
+
+uStartAddress.Value:= StartAddress;
+uNumberOfBytes.Value:= NumberOfBytes;
+
+IF ReadRising.Q THEN
+	ReadRequest:= TRUE;
+END_IF
+IF ReadFalling.Q THEN
+	ReadRequest:= FALSE;
+END_IF
+IF WriteRising.Q AND WC_Value>0 THEN
+	WriteConstant:=TRUE;
+END_IF
+IF WriteFalling.Q THEN
+	WriteConstant:= FALSE;
+END_IF
+
+//+++++++++++++++++++++++++++++++++++++++++++
+//Process Error Code
+IF JobErrorAF THEN
+	ErrorCode:= IO.IN.ByteArr[1];
+END_IF
+IF AVRising.Q THEN
+	ErrorCode:=16#00;
+END_IF
+
+//Process Input Buffers
+InputHeader:= IO.IN.ByteArr[0] AND IO.IN.ByteArr[9];
+
+CPRising(CLK:=InputHeader.0);
+CPFalling(CLK:=InputHeader.0);
+TagPresentCP:=InputHeader.0;
+
+AARising(CLK:=InputHeader.1);
+AAFalling(CLK:=InputHeader.1);
+JobAcceptedAA:=InputHeader.1;
+
+AERising(CLK:=InputHeader.2);
+AEFalling(CLK:=InputHeader.2);
+JobEndAE:=InputHeader.2;
+
+AFRising(CLK:=InputHeader.3);
+AFFalling(CLK:=InputHeader.3);
+JobErrorAF:=InputHeader.3;
+
+TORising(CLK:=InputHeader.5);
+TOFalling(CLK:=InputHeader.5);
+ToggleTO:=InputHeader.5;
+
+HFRising(CLK:=InputHeader.6);
+HFFalling(CLK:=InputHeader.6);
+HeadFailureHF:=InputHeader.6;
+
+BBRising(CLK:=InputHeader.7);
+BBFalling(CLK:=InputHeader.7);
+DeviceReadyBB:=InputHeader.7;
+
+//Process Output Buffers
+IO.OUT.ByteArr[0]:=OutputHeader; IO.OUT.ByteArr[9]:=OutputHeader;
+
+AVRising(CLK:=JobPendingAV);
+AVFalling(CLK:=JobPendingAV);
+OutputHeader.0:= JobPendingAV;
+
+GRRising(CLK:=GroundResetGR);
+GRFalling(CLK:=GroundResetGR);
+OutputHeader.2:= GroundResetGR;
+
+KARising(CLK:=HeadShutdownKA);
+KAFalling(CLK:=HeadShutdownKA);
+OutputHeader.5:= HeadShutdownKA;
+
+TIRising(CLK:=ToggleTI);
+TIFalling(CLK:=ToggleTI);
+OutputHeader.6:= ToggleTI;
+
+//Identify the command
+CmdChangeRising(CLK:=ReadRequest OR WriteRequest OR InitCRC OR WriteConstant);
+
+IF ReadRequest THEN
+	CommandIdentifier:=16#01;
+	Command.0:=TRUE;
+END_IF
+IF WriteRequest THEN
+	CommandIdentifier:=16#02;
+	Command.1:=TRUE;
+END_IF
+IF InitCRC THEN
+	CommandIdentifier:=16#12;
+	Command.2:=TRUE;
+END_IF
+IF WriteConstant THEN
+	CommandIdentifier:=16#32;
+	Command.3:=TRUE;
+END_IF
+
+IF CommandIdentifier = 16#01 AND ReadMode THEN
+	ReadModeActive:=TRUE;
+ELSE
+	ReadModeActive:=FALSE;
+END_IF
+IF CommandIdentifier = 16#32 AND WriteCMode THEN
+	WriteCModeActive:=TRUE;
+ELSE
+	WriteCModeActive:=FALSE;
+END_IF
+
+
+// Stationary vs moving tags
+(*IF Cam.On <> 0 AND Cam.Off <> 0 THEN
+	StationaryTag:= FALSE;
+	IF Cam.On < Cam.Off THEN
+		IF STATUS.MACHINE.MachinePos > Cam.On AND STATUS.MACHINE.MachinePos < Cam.Off THEN
+			InCamWindow:= TRUE;
+		ELSE
+			InCamWindow:= FALSE;
+		END_IF
+	ELSE
+		IF STATUS.MACHINE.MachinePos > Cam.On OR STATUS.MACHINE.MachinePos < Cam.Off THEN
+			InCamWindow:= TRUE;
+		ELSE
+			InCamWindow:= FALSE;
+		END_IF
+	END_IF
+ELSE
+	StationaryTag:= TRUE;
+END_IF
+*)
+StationaryTag:= TRUE;
+
+// Stationary Tag - wait ~70 scans before reading ReadData[0]. It will not populate immediately
+IF StationaryTag AND ReadMode THEN
+	StationaryReadWaitCount:= StationaryReadWaitCount + 1;
+ELSIF NOT ReadMode THEN
+	StationaryReadWaitCount:= 0;
+END_IF
+
+
+// moving tag - looking for tag in cam window
+IF InCamWindow AND TagPresentCP THEN
+	TagDetectedInCamWindow:= TRUE;
+ELSIF CamWindowFalling.Q THEN
+	TagDetectedInCamWindow:= FALSE;
+END_IF
+
+
+//set valueread to data from RFID reader
+IF (CPFalling.Q AND TagDetectedInCamWindow) OR (StationaryTag AND (StationaryReadWaitCount > 70))  THEN
+	ValueRead:= ReadData[0];
+	IF ValueRead = RecipeValue AND ValueRead > 0 AND ReadMode THEN
+		ValidCount:= ValidCount + 1;
+	END_IF
+	IF ValueRead <> RecipeValue AND ReadMode THEN
+		InValidCount:= InValidCount + 1;
+	END_IF
+	IF WriteCMode AND WC_Value > 0 THEN
+		WriteCount:= WriteCount + 1;
+	END_IF
+END_IF
+IF ValidCount = NumTags AND NumTags > 0 AND InValidCount = 0 AND ReadMode THEN
+	Verified:= true;
+END_IF
+If ReadModeRising.Q then
+	ValidCount:=0;
+	InValidCount:=0;
+	Verified:=FALSE;
+END_IF
+IF WriteRising.Q THEN
+	WriteCount:= 0;
+END_IF
+
+//Load the Job
+BeginJob:= CmdChangeRising.Q;
+
+JobSetRising(CLK:=BeginJob AND NOT JobPendingAV);
+
+IF BeginJob AND NOT JobPendingAV THEN
+	IO.OUT.ByteArr[1]:= CommandIdentifier;
+	IF Command.0 THEN //Read
+		MEMSET(ADR(ReadData), 0, SIZEOF(ReadData));
+	END_IF
+	IO.OUT.ByteArr[2]:=uStartAddress.Bytes[0];
+	IO.OUT.ByteArr[3]:=uStartAddress.Bytes[1];
+	IO.OUT.ByteArr[4]:=uNumberOfBytes.Bytes[0];
+	IO.OUT.ByteArr[5]:=uNumberOfBytes.Bytes[1];
+	IF Command.3 THEN //Write Constant
+		IO.OUT.ByteArr[6]:= WC_Value;
+	END_IF
+	ToggleTI:=FALSE;
+	ProcessedBytes:=0;
+	Sequence:=0;
+	Index:=0;
+	Length:=0;
+END_IF
+
+//Toggle AV to start the job
+IF JobSetRising.Q THEN
+	JobPendingAV:= TRUE;
+END_IF
+
+//Job accepted or in error clear the request
+IF JobAcceptedAA THEN
+	tDelay(IN:=TRUE, PT:=T#100MS);
+ELSE
+	tDelay(IN:=FALSE);	
+END_IF
+IF JobAcceptedAA OR JobErrorAF THEN
+	ReadRequest:=FALSE;
+	WriteRequest:=FALSE;
+	InitCRC:=FALSE;
+	WriteConstant:=FALSE;	
+END_IF
+
+//compute how many bytes remaining
+RemainingBytes:=NumberOfBytes-ProcessedBytes;
+
+//Compute necessary length of the next read/write cycle
+IF RemainingBytes > 8 THEN
+	Length:=8;
+END_IF
+IF RemainingBytes <=8 THEN
+	Length:=RemainingBytes;
+END_IF
+
+//Create the index that evaluates the start address of the next read/write cycle
+Index:= NumberOfBytes-RemainingBytes;
+IF Index > 255 THEN
+	Index:=255;
+END_IF
+
+IF tDelay.Q AND NOT TOLeading AND NOT TILeading THEN
+	IF ToggleTO THEN
+		TOLeading:=TRUE;
+	END_IF
+	IF NOT ToggleTO THEN
+		TILeading:=TRUE;
+	END_IF
+END_IF
+
+IF TORising.Q THEN
+	Sequence.0:=TRUE;
+END_IF
+IF TOFalling.Q THEN
+	Sequence.1:=TRUE;
+END_IF
+
+//Once the job is accepted and TI is low or on lo-hi/hi-lo transition of TO, copy the data
+IF (Sequence.0 OR Sequence.1 OR (TILeading AND Index = 0)) AND NOT Sequence.2 THEN
+	IF Command.0 AND JobEndAE THEN
+		MEMCPY(ADR(ReadData[Index]), ADR(IO.IN.ByteArr[1]), Length);
+		Sequence.2:= TRUE;
+	END_IF
+	IF Command.1 AND tDelay.Q THEN
+		MEMCPY(ADR(IO.OUT.ByteArr[1]), ADR(WriteData[Index]), Length);
+		Sequence.2:= TRUE;
+	END_IF
+	ProcessedBytes:= Length+ProcessedBytes;
+END_IF
+
+IF Sequence.2 THEN
+	IF TOLeading THEN
+		IF Sequence.0 THEN
+			ToggleTI:=TRUE;
+			Sequence.0:=FALSE;
+			Sequence.3:=TRUE;
+		END_IF
+		IF Sequence.1 THEN
+			ToggleTI:=FALSE;
+			Sequence.1:=FALSE;
+			Sequence.3:=TRUE;
+		END_IF
+	END_IF
+	IF TILeading THEN
+		IF Sequence.0 THEN
+			ToggleTI:=FALSE;
+			Sequence.0:=FALSE;
+			Sequence.3:=TRUE;
+		END_IF
+		IF Sequence.1 OR Index = 0 THEN
+			ToggleTI:=TRUE;
+			Sequence.1:=FALSE;
+			Sequence.3:=TRUE;
+		END_IF
+	END_IF
+END_IF
+
+IF Sequence.3 THEN
+	Sequence.2:=FALSE;
+END_IF
+
+//On the falling edge of the AA bit, transition TI low, compute the size of the operation completed, and clear the working data
+IF (Command.0 AND RemainingBytes = 0) OR (Command.1 OR Command.2 OR Command.3 AND JobEndAE) OR AFRising.Q OR GroundResetGR THEN
+	JobPendingAV:=FALSE;
+	ToggleTI:=FALSE;
+	CompletedSize:=ProcessedBytes;
+	ProcessedBytes:=0;
+	Sequence:=0;
+	Command:=0;
+	Index:=0;
+	RemainingBytes:=0;
+	Length:=0;
+END_IF
+
+//Reset After Job Complete
+IF AAFalling.Q THEN
+	CompletedSize:=ProcessedBytes;
+	ProcessedBytes:=0;
+	Sequence:=0;
+	Command:=0;
+	TOLeading:=FALSE;
+	TILeading:=FALSE;
+	ToggleTI:=FALSE;
+END_IF
+
+//Process Ground State Request
+GroundStateReqRising(CLK:=GroundStateRequest AND NOT ShutdownRequest);
+IF GroundStateReqRising.Q THEN
+	GroundResetGR:=TRUE;
+END_IF
+IF GroundResetGR AND NOT DeviceReadyBB AND NOT GroundStateRequest THEN
+	GroundResetGR:=FALSE;
+END_IF
+ 
+//Process Head Shutdown Request
+ShutdownReqRising(CLK:=ShutdownRequest AND NOT GroundStateRequest);
+IF ShutdownReqRising.Q THEN
+	HeadShutdownKA:=TRUE;
+END_IF
+IF HeadShutdownKA AND HeadFailureHF AND NOT ShutdownRequest THEN
+	HeadShutdownKA:=FALSE;
+END_IF
+
+(*
+Device.Desc:= iDevice.Description;
+Device.Symbol:= iDevice.Symbol;
+
+CamWindowFalling(CLK:=InCamWindow);
+
+ABORT_MissingTag(
+	Trigger:= NOT StationaryTag AND CamWindowFalling.Q AND NOT TagDetectedInCamWindow AND ReadModeActive, 
+	Reset:= STATUS.MACHINE.PrepareToStartPulse, 
+	Code:= 0, 
+	Message:= 'Missing RFID Tag', 
+	Device:= Device, 
+	Location:= iDevice.Location, 
+	Active=> );
+	
+ABORT_WrongTag(
+	Trigger:= ReadModeActive AND CPFalling.Q AND ValueRead <> RecipeValue, 
+	Reset:= STATUS.MACHINE.PrepareToStartPulse, 
+	Code:= 0, 
+	Message:= 'Wrong RFID Tag', 
+	Device:= Device, 
+	Location:= iDevice.Location, 
+	Active=> );
+
+	
+// this will only occur during read mode, reset counters when not a good read
+IF ABORT_MissingTag.Active OR ABORT_WrongTag.Active THEN
+	ValidCount:= 0;
+	InValidCount:= 0;
+END_IF
+*)
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

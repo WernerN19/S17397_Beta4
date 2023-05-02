@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_read_inputs" Id="{a84f89d6-c1de-4f49-aba7-6facc83fbf9a}" SpecialFunc="None">
+    <Declaration><![CDATA[(* Function that updates the feedback sensors states of the
+	analog_actuator specified by the parameter 'this'. *)
+FUNCTION analog_actuator_read_inputs : VOID
+VAR
+	input_active: BOOL;
+END_VAR
+VAR_IN_OUT
+    CONVERSION_this:		analog_actuator;	(*$ analog_actuator reference $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF CONVERSION_this.has_di_active
+THEN
+	input_active := digital_input_is_active(CONVERSION_this.di_active^);
+ELSE
+	input_active := FALSE;
+END_IF
+
+CONVERSION_this.is_active := 	(
+						CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_ACTIVATING
+						AND
+						(
+							input_active
+							OR
+							NOT CONVERSION_this.has_di_active
+						)
+						AND
+						(
+							timer_is_expired(CONVERSION_this.timer)
+							OR
+							CONVERSION_this.has_di_active
+						)
+					)
+					OR
+					CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_ACTIVE
+					;
+
+CONVERSION_this.is_inactive := (
+						CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_DEACTIVATING
+						AND
+						NOT input_active
+						AND
+						(
+							timer_is_expired(CONVERSION_this.timer)
+							OR
+							CONVERSION_this.has_di_active
+						)
+					)
+					OR
+					CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_INACTIVE
+					;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

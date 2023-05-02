@@ -1,0 +1,76 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_case_main_safety_guards" Id="{fd0aac86-427d-4ac2-b903-acfb1379eee2}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_case_main_safety_guards
+VAR
+  delayed_sis_shd : safety_integrated_series_shadow;
+  sio_door_1_shd : safety_integrated_object_shadow;
+  sio_door_2_shd : safety_integrated_object_shadow;
+  sis_shd : safety_integrated_series_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{305ef9b2-483b-4a40-93c5-7e4e405deaf3}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	safety_integrated_series_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_safety_guards.delayed_sis, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= delayed_sis_shd);
+
+	safety_integrated_object_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_safety_guards.sio_door_1, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= sio_door_1_shd);
+
+	safety_integrated_object_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_safety_guards.sio_door_2, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= sio_door_2_shd);
+
+	safety_integrated_series_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_main_safety_guards.sis, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= sis_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	safety_integrated_series_shadow_cycle(delayed_sis_shd);
+	safety_integrated_object_shadow_cycle(sio_door_1_shd);
+	safety_integrated_object_shadow_cycle(sio_door_2_shd);
+	safety_integrated_series_shadow_cycle(sis_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

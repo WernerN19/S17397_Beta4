@@ -1,0 +1,245 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_infeed_metering_jam" Id="{61c78d4d-5396-4eb9-a8af-1cadca93d25f}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_infeed_metering_jam
+VAR
+	
+	prc:									process;
+	prc_path:								STRING;
+
+	jam_flt:								filter;
+	jam_rtrig:      			            R_TRIG;
+	cartons_count:							DINT;
+	
+	jam_sensor_on_dchk:						digital_check;
+	
+	jam_delay:								DINT := 1000;(*$M $*)
+	
+	jam_delay_scaling_factor:				LREAL := 2.5;(*$P $*)
+	
+	active_carton_dim:						LREAL;
+		
+	metering_belt_PE_check_delay:			TON;	
+	metering_in_velocity: 					BOOL;
+	metering_velocity_ramp_complete: 		BOOL;
+	
+	temp: 									BOOL;
+	temp1: 									BOOL;
+	
+END_VAR
+
+VAR_INPUT
+	jam_di:									digital_input;		(* Closer to Conveyor Entry @ Case Infeed Section*)
+	good_carton_count: 						DINT;(*$M $*)
+	waterfall_reject_carton_count: 			DINT;(*$M $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(************************************************************************)
+//Gives metering belt time to get to velocity before checking for a transfer infeed jam
+metering_belt_PE_check_delay(IN:= metering_in_velocity, PT:=T#1.25S , Q=> metering_velocity_ramp_complete , ET=> );
+
+IF csp_transfer_infeed_metering_belt.axis.status =	AXIS_STATUS_IN_VELOCITY
+THEN
+	metering_in_velocity := TRUE;
+ELSE
+	metering_in_velocity := FALSE;
+END_IF
+
+IF 	digital_input_is_active(jam_di) 
+	AND
+	metering_velocity_ramp_complete
+	AND csp_transfer_infeed_metering_belt.axis.actual_velocity > (csp_transfer_infeed_metering_belt.velocity_req_mms - 5)
+THEN
+	digital_check_enable(jam_sensor_on_dchk);
+ELSE
+	digital_check_disable(jam_sensor_on_dchk);
+END_IF
+
+active_carton_dim :=  SEL(csp_main_brand.Rollover_Carton,
+						csp_main_brand.carton_dimension.carton_size_W_mm, 
+						csp_main_brand.carton_dimension.carton_size_L_mm);
+
+jam_delay := LREAL_TO_DINT((active_carton_dim / (MAX(0.01, (csp_transfer_infeed.metering_running_velocity_mmpm * ( 1 + csp_transfer_infeed_metering_belt.override_percentage_par / 100 )) / 60000))  ) * jam_delay_scaling_factor);
+
+
+digital_check_set_alarm_delay(
+	alarm_delay:= jam_delay,
+	CONVERSION_this := jam_sensor_on_dchk);	
+	
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{859e2c2b-b1ae-48d5-b490-2f22bf52131f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{a6f59603-d04f-47d6-918e-2b4f8095e838}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{5593ea9b-a4e3-42dc-8dfd-41c400c63a3e}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			//cartons_count:=0;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{9efffcff-9da5-4e1c-baef-2f0ffdb167f3}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_infeed_metering_jam.prc', 
+		process						:= csp_transfer_infeed_metering.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* INPUTS *)
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_jam_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= jam_di);
+		
+	filter_init(
+		object_name 				:= CONCAT(prc_path, '_jam_flt'),
+		delay_off_on				:= 0,
+		delay_on_off 				:= 1000,
+		process			 			:= prc,
+		CONVERSION_this 			:= jam_flt);
+		
+	digital_check_and_message_init(
+		object_name 				:= CONCAT(prc_path, '_jam_sensor_on_dchk'),
+		alarm_if_input_off			:= FALSE,
+		alarm_delay					:= 1000,
+		enabled_at_powerup			:= TRUE,
+		individual_reset			:= FALSE,
+		machine_reaction 			:= MACHINE_REACTION_STOP_IN_PHASE_ONE,
+		typology 					:= MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:= prc,
+		CONVERSION_this				:= jam_sensor_on_dchk);
+
+	digital_check_add_di(
+		di							:= csp_transfer_infeed_metering_jam.jam_di,
+		CONVERSION_this				:= jam_sensor_on_dchk);
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	filter_cycle(
+		input 	:= digital_input_is_active(jam_di),
+		CONVERSION_this 	:= jam_flt);
+	digital_check_cycle(jam_sensor_on_dchk);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{815e3ad3-4219-42ab-b805-e4c7b6d23eca}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{0d369b75-ecf3-4c9d-ab1f-96973519cc7c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{6b6650b5-e209-462b-abd8-4f04c194fe6a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{d428045b-1574-4cdd-9dcd-3bebb7e0ed6c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_transfer_infeed_metering_jam">
+      <LineId Id="153" Count="58" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed_metering_jam._handle_messages">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed_metering_jam._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed_metering_jam._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed_metering_jam._object_manager">
+      <LineId Id="2" Count="46" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed_metering_jam._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed_metering_jam._read_var_input">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed_metering_jam._set_runtime_properties">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_infeed_metering_jam._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

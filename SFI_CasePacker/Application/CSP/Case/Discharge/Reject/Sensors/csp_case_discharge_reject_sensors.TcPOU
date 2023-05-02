@@ -1,0 +1,422 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_discharge_reject_sensors" Id="{1073ff7d-a08f-4986-a085-5fcff4a42fce}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_discharge_reject_sensors
+VAR
+		
+	prc:											process;
+	prc_path:										STRING;
+	
+	reject_backup_di:								digital_input;
+	downstream_time_blocked_for_hold:				UDINT := 5000;
+	reject_conveyor_time_blocked_for_hold:			UDINT := 5000;
+	reject_backup_blocked_timer:					timer;
+	reject_present_di:								digital_input;
+	reject_trigger_di:								digital_input;
+	downstream_backup_di:							digital_input;
+	
+	downstream_backup_hold_aem:						message;
+		
+	pe_di_check_delay: 								DINT := 3000;
+	reject_present_di_dchk: 						digital_check;
+	reject_backup_di_dchk: 							digital_check;
+	reject_trigger_di_dchk:							digital_check;
+	reject_trigger_inchoerence_chksect:				check_section;
+
+	downstream_backup_di_dchk: 						digital_check;
+	downstream_backup_motcond:						motorization_conditioner;
+	downstream_backup_bypass:						BOOL:=FALSE;
+	
+	
+	status: 										STRING;
+	downstream_backup_blocked_timer: 				timer;
+	hold_condition: 								BOOL;
+	consecutive_blocked_reject_aem: 				message;
+	test_reject: 									BOOL;
+
+	reject_trigger_good_case_chksect: check_section;
+	reject_trigger_begin_phase_deg: 				INT := 220; (*$P $*)
+	reject_trigger_end_phase_deg: 					INT := 240; (*$P $*)
+	reject_trigger_unblocked_begin_phase_deg: 		INT := 30;
+	reject_trigger_unblocked_end_phase_deg: 		INT := 50;
+	temp: 											BOOL;
+	temp1: 											BOOL;
+	
+	detect_next_case_edges: 						BOOL;(*$P desc:= DETECT LEADING AND TRAILING PHASE OF NEXT CASE; $*)
+	eye_test_temp: 									BOOL;
+	detected_case_leading_edge: 					LREAL;(*$P desc:= DETECTED LEADING PHASE OF CASE; $*)
+	detected_case_trailing_edge: 					LREAL;(*$P desc:= DETECTED TRAILING PHASE OF CASE; $*)
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF 	csp.o_machine_is_running//(csp_main_motorization_manager.motm) 
+	AND digital_input_is_active(csp_case_discharge_reject_sensors.reject_backup_di) 
+THEN
+	timer_start(delta_ms := csp_case_discharge_reject_sensors.reject_conveyor_time_blocked_for_hold, CONVERSION_this := csp_case_discharge_reject_sensors.reject_backup_blocked_timer);
+ELSE
+	timer_stop(csp_case_discharge_reject_sensors.reject_backup_blocked_timer);//stops timer when PE goes unblocked
+END_IF
+
+hold_condition := timer_is_expired(csp_case_discharge_reject_sensors.reject_backup_blocked_timer); // holds the case packer motion when reject backup up > 5 min
+
+IF 	hold_condition
+	AND
+	test_reject
+THEN
+	process_message_set(1, 1, 1, consecutive_blocked_reject_aem);
+END_IF
+
+IF 	hold_condition 
+	OR
+	process_message_is_on(consecutive_blocked_reject_aem)
+	AND
+   (machine_is_stopped(csp.mch)
+	OR 
+	machine_is_stop_emergency_active(csp.mch))
+THEN
+	process_message_reset(consecutive_blocked_reject_aem);
+END_IF
+
+
+(* Window for when the box is passing reject_trigger PE *)
+check_section_set_check_window_phases_value(
+	begin_phase := reject_trigger_begin_phase_deg,
+	end_phase   := reject_trigger_end_phase_deg,
+	CONVERSION_this := reject_trigger_good_case_chksect);
+	
+check_section_set_check_window_phases_value(
+	begin_phase := reject_trigger_unblocked_begin_phase_deg,
+	end_phase   := reject_trigger_unblocked_end_phase_deg,
+	CONVERSION_this := reject_trigger_inchoerence_chksect);
+	
+
+(* Always disable message, due to not wanting to stop machine, just want to clear shift register status bits to prevent bad box from being counted in production counter. *)
+check_section_message_disable(reject_trigger_good_case_chksect);
+
+(* Turn on eye_test to capture the leading and trailing edge of the box as it passes reject eye. Use these values to then set appropriate phase window values for box trigger confirmation. *)
+IF 	detect_next_case_edges
+	AND NOT eye_test_temp
+	AND digital_input_is_active(reject_trigger_di)
+then
+	detected_case_leading_edge := csp_case_transport_virtualMaster.axis.actual_position;
+	eye_test_temp := TRUE;
+	detect_next_case_edges := FALSE;
+end_if
+
+IF 	eye_test_temp
+	AND NOT digital_input_is_active(reject_trigger_di)
+then
+	detected_case_trailing_edge := csp_case_transport_virtualMaster.axis.actual_position;
+	eye_test_temp := FALSE;
+end_if
+
+
+IF	message_is_on(csp_case_discharge_reject_sensors.downstream_backup_di_dchk.alarm_asm.message)
+	AND NOT downstream_backup_bypass 
+	AND csp_main_motorization_manager.debug_Enable_new_conditioners (* Selector on HMI while still being tested *)
+THEN
+	motorization_conditioner_hold(downstream_backup_motcond);
+ELSE
+	motorization_conditioner_unhold(downstream_backup_motcond);
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{9daf7c11-e18c-4265-b63a-4f02257fe814}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{c71e3634-caf7-40d6-b04d-245c22b9d9e6}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{77851359-dcb4-402f-b935-24738a8162e9}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{d02769da-79d5-40e7-b841-3770e464b5ee}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_discharge_reject_sensors.prc', 
+		process						:= csp_case_discharge_reject.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* INPUTS *)
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_reject_backup_di'), 
+		polarity_direct				:= FALSE, 
+		process						:= prc, 
+		CONVERSION_this				:= reject_backup_di);
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_reject_present_di'), 
+		polarity_direct				:= FALSE, 
+		process						:= prc, 
+		CONVERSION_this				:= reject_present_di);
+	
+		(* INPUTS *)
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_reject_trigger_di'), 
+		polarity_direct				:= FALSE, 
+		process						:= prc, 
+		CONVERSION_this				:= reject_trigger_di);
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_downstream_backup_di'), 
+		polarity_direct				:= FALSE, 
+		process						:= prc, 
+		CONVERSION_this				:= downstream_backup_di);
+		
+(* Reject Present PE will send out a message if blocked for 3 seconds informing the operator a reject in present*)
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_reject_present_di_check'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= pe_di_check_delay, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:=  MACHINE_REACTION_NO_STOP, 
+		typology:=  MESSAGE_TYPOLOGY_OBLIGATION, 
+		process:= prc, 
+		CONVERSION_this:= reject_present_di_dchk);
+		
+	digital_check_add_di(
+		di:= reject_present_di, 
+		CONVERSION_this:= reject_present_di_dchk);
+
+(* Reject Backup PE will stop the machine if blocked for 3 seconds informing the operator a reject in present*)		
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_reject_backup_di_check'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= pe_di_check_delay, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, // when blocked for >5 seconds,machine goes into holding state until reject cleared "csp_main_motorization"
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= reject_backup_di_dchk);
+		
+	motorization_conditioner_init(
+		object_name := CONCAT(prc_path, '_downstream_backup_motcond'),
+		velocity_limit := 0,
+		velocity_limit_active := FALSE,
+		idle_handshake_active := FALSE,
+		execute_handshake_active := FALSE,
+		hold_handshake_active := FALSE,
+		suspend_handshake_active := FALSE,
+		complete_handshake_active := FALSE,
+		abort_handshake_active := FALSE,
+		stop_handshake_active := FALSE,
+		origin := MOTORIZATION_CONDITIONER_ORIGIN_EXTERNAL_DOWN,
+		manager := csp_main_motorization_manager.motm,
+		process := prc,
+		CONVERSION_this := downstream_backup_motcond);
+		
+		
+	digital_check_add_di(
+		di:= reject_backup_di, 
+		CONVERSION_this:= reject_backup_di_dchk);
+		
+	timer_init(
+		object_name:= CONCAT(prc_path, '_reject_backup_blocked_timer'),
+		process:= prc,
+		CONVERSION_this:= reject_backup_blocked_timer);	
+
+	timer_init(
+		object_name:= CONCAT(prc_path, '_downstream_backup_blocked_timer'),
+		process:= prc,
+		CONVERSION_this:= downstream_backup_blocked_timer);	
+
+	
+		(* Reject Backup PE will stop the machine if blocked for 3 seconds informing the operator a reject in present*)		
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_downstream_backup_di_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= pe_di_check_delay, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_NO_STOP,
+		typology:= MESSAGE_TYPOLOGY_OBLIGATION,  
+		process:= prc, 
+		CONVERSION_this:= downstream_backup_di_dchk);
+		
+	digital_check_add_di(
+		di:= downstream_backup_di, 
+		CONVERSION_this:= downstream_backup_di_dchk);
+
+
+(* Reject Trigger PE will stop the machine if blocked for 3 cycles informing the operator a reject in present*)		
+	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_reject_trigger_inchoerence_chksect'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ALWAYS_OFF, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_NOT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= 0, 
+		status_bits_to_be_false:= 0, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= 0, 
+		status_bits_to_reset:= 0, 
+		reject_bit_to_set:= 0, 
+		_step:= 28, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= reject_trigger_unblocked_begin_phase_deg, 
+		end_phase:= reject_trigger_unblocked_end_phase_deg, 
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 90, 
+		products_for_failed_checks_percentage:= 1000000, //update
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= reject_trigger_inchoerence_chksect );
+
+	check_section_add_di_input(
+		di_input := reject_trigger_di,
+		CONVERSION_this:= reject_trigger_inchoerence_chksect);
+		
+	(* Reject Trigger must be on if a good case is present. If not then reset *)		
+	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_reject_trigger_good_case_chksect'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ON, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_NOT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= 0, 
+		status_bits_to_be_false:= 0, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= 0, 
+		status_bits_to_reset:= ITEM_CASE_FEED + ITEM_HAS_LOAD + ITEM_HAS_LS_LOWER_FLAP + ITEM_HAS_LS_UPPER_FLAP + ITEM_HAS_OS_UPPER_FLAP + ITEM_HAS_OS_LOWER_FLAP, 
+		reject_bit_to_set:= 0, 
+		_step:= 28, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= reject_trigger_begin_phase_deg, 
+		end_phase:= reject_trigger_end_phase_deg, 
+		max_consecutive_failed_checks:= 2, 
+		max_failed_checks_percentage:= 90, 
+		products_for_failed_checks_percentage:= 1000000, //update
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= reject_trigger_good_case_chksect );
+
+	check_section_add_di_input(
+		di_input := reject_trigger_di,
+		CONVERSION_this:= reject_trigger_good_case_chksect);
+		
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_consecutive_blocked_reject_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= consecutive_blocked_reject_aem);
+
+		
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_downstream_backup_hold_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= downstream_backup_hold_aem);		
+
+
+
+
+
+END_IF
+
+IF objects_running()
+THEN
+    process_cycle(prc); 
+	digital_check_cycle(reject_present_di_dchk);
+	digital_check_cycle(reject_backup_di_dchk);
+	digital_check_cycle(downstream_backup_di_dchk);
+	motorization_conditioner_cycle(downstream_backup_motcond);
+
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{ecb2a499-5ea2-411b-8336-24a773af1c24}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{920ab2bb-05ba-4887-bee8-8af46c212c4c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{1d0b6016-25ee-40c2-aad3-888f3b77e410}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{94542c06-d21a-4617-aae5-570001b6f94b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

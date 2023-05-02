@@ -1,0 +1,276 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_kinematic_x" Id="{193e9fe0-19f9-44ab-aaa9-1339881ed626}" SpecialFunc="None">
+    <Declaration><![CDATA[	(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_kinematic_x
+VAR
+		
+	prc:												process;
+	prc_path:											STRING;
+	
+	axis:												axis;
+	axis_actual_position:								LREAL;
+
+	fsm_enable_condition:								BOOL := FALSE;
+	fsm_next_status:									csp_case_feed_kinematic_status_enum;
+	fsm_status:											csp_case_feed_kinematic_status_enum;
+	debug_state_machine:								BOOL := FALSE;
+	debug_state_machine_one_step:						BOOL := FALSE;	
+	
+	in_accu_safe_pos:                                   BOOL := FALSE;
+    accu_tolerance:                                     LREAL := 5.0;
+    accu_safe_pos:                                      LREAL := -745;
+		
+	cam_id:												INT := 2;
+	
+END_VAR
+
+VAR CONSTANT
+	(*Just in case you prefer having constants instead of numbers*)
+	MOTOR_PHASE_VELOCITY_MMPS:							LREAL := 20;
+	
+	MOTOR_MAX_VELOCITY_MMPS:							LREAL := 1000;
+	MOTOR_MAX_ACCELLERATION_MMPS2:						LREAL := 10000;
+	MOTOR_MAX_DECELLERATION_MMPS2:						LREAL := 10000;
+	MOTOR_MAX_JERK_MMPS3:								LREAL := 100000; 
+	MOTOR_MAX_FOLLOWING_ERROR_MM:						LREAL := 10;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+IF (axis.actual_position > (accu_safe_pos - accu_tolerance)) AND axis.actual_position < (accu_safe_pos + accu_tolerance)
+THEN
+	in_accu_safe_pos := TRUE;
+ELSE
+	in_accu_safe_pos := FALSE;   
+END_IF
+
+// Manage the accu change safe position
+fsm_enable_condition := axis_is_ok(FALSE, axis)	
+						AND															
+						(csp_case_feed_kinematic.fsm_status = CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED)
+						AND
+						csp_case_feed_kinematic.cartesian_mode_active
+						AND							
+						csp_main_accuChange.Brand_Change_Occurred;
+										
+IF	NOT fsm_enable_condition
+	AND
+	fsm_status <> CSP_CASE_FEED_KINEMATIC_STATUS_DISABLED	
+THEN
+	fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_DISABLED;
+END_IF
+					
+CASE fsm_status OF
+	
+	CSP_CASE_FEED_KINEMATIC_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_DISABLED;
+        END_IF
+
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_DISABLED:
+	
+		IF	fsm_enable_condition
+			AND
+			motorization_conditioner_is_execute(csp_main_services_towerLamp.buzzer_motcond) 							
+		THEN	
+			IF	in_accu_safe_pos
+			THEN
+				fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_CHANGE_OVER_MODE_DONE;
+			ELSE								
+				fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED;
+			END_IF
+		END_IF;
+
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED:	
+	
+		axis_move_absolute(
+			position 		:= accu_safe_pos,
+			velocity 		:= MOTOR_PHASE_VELOCITY_MMPS,
+			direction		:= AXIS_CURRENT_DIRECTION,
+			acceleration 	:= MOTOR_MAX_ACCELLERATION_MMPS2,
+			deceleration 	:= MOTOR_MAX_DECELLERATION_MMPS2,
+			jerk 			:= MOTOR_MAX_JERK_MMPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := axis);
+			
+		IF 	axis_is_absolute_moving(axis)
+		THEN
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_CHANGE_OVER_MODE;
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_CHANGE_OVER_MODE:
+	
+		IF 	axis_is_standstill(axis)
+		THEN	
+			axis_disable(axis);					
+			fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_CHANGE_OVER_MODE_DONE;
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_CHANGE_OVER_MODE_DONE:
+	
+		;
+		
+END_CASE
+
+IF 	NOT debug_state_machine
+	OR
+	debug_state_machine_one_step
+THEN
+	fsm_status := fsm_next_status;
+	debug_state_machine_one_step := FALSE;
+END_IF
+
+(* TEMPORARY CAM CHANGE *)
+IF csp_main_brand.count = '24Count'
+	THEN
+		cam_id := 302;
+ELSIF csp_main_brand.count = '10Count'
+	THEN
+		cam_id := 571;
+ELSIF csp_main_brand.count = '32Count'
+	THEN
+		cam_id := 2;
+ELSIF csp_main_brand.count = '48Count'
+	THEN
+		cam_id := 38;
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{cb314e8b-b9e7-4700-9e58-268ab9559614}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{36e5a2d8-3cf7-444e-9481-22b66f9b7fc7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{ea774cd0-21cb-4db2-bacf-3ff0d751f7b9}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{1ac3057c-63a1-44c7-954e-85f477c17ed8}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_feed_kinematic_x.prc', 
+		process						:= csp_case_feed_kinematic.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	axis_init(
+		object_name					:= CONCAT(prc_path, '_axis'), 
+		axis_type					:= AXIS_TYPE_VIRTUAL, 
+		encoder_scaling_factor		:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo						:= G_NO_MODULO_DEG, 
+		process						:= prc, 
+		CONVERSION_this				:= axis);
+	
+	axis_set_max_dynamic(
+		reference_velocity			:=	MOTOR_MAX_VELOCITY_MMPS,
+		velocity					:=	MOTOR_MAX_VELOCITY_MMPS,
+		acceleration				:=	MOTOR_MAX_ACCELLERATION_MMPS2,
+		deceleration				:=	MOTOR_MAX_DECELLERATION_MMPS2,
+		jerk						:=	MOTOR_MAX_JERK_MMPS3,
+		following_error				:=	MOTOR_MAX_FOLLOWING_ERROR_MM,
+		CONVERSION_this				:=	axis);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{c44fddfb-1afd-4077-95b1-5537182f21f0}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{b3c24e42-ddf8-4b60-9da7-9e2f2f0d7c82}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{95cc0167-d279-4999-a17e-bf6d2901e75d}">
+      <Implementation>
+        <ST><![CDATA[axis_actual_position := axis_get_actual_incremental_position(axis);]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{cf2a6d54-36a3-4de9-86fe-dd3a651cad65}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

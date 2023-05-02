@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="analog_actuator_status_enum" Id="{4d5b547c-5798-415a-9ecd-c4f546d91179}">
+    <Declaration><![CDATA[(*$ analog_actuator status $*)
+TYPE
+	analog_actuator_status_enum: (
+	ANALOG_ACTUATOR_STATUS_INIT				:= 0,	(*$ analog_actuator initialization $*)
+	ANALOG_ACTUATOR_STATUS_ACTIVE 			:= 4,	(*$ analog_actuator is active $*)
+	ANALOG_ACTUATOR_STATUS_ACTIVATING		:= 5,	(*$ analog_actuator is executing
+														an activation command $*)
+	ANALOG_ACTUATOR_STATUS_INACTIVE			:= 6,	(*$ analog_actuator is inactive $*)
+	ANALOG_ACTUATOR_STATUS_DEACTIVATING		:= 7,	(*$ analog_actuator is executing
+														a deactivation command $*)
+	ANALOG_ACTUATOR_STATUS_FAULTED			:= 8	(*$ analog_actuator is in fault status $*)
+	) := ANALOG_ACTUATOR_STATUS_INIT;
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

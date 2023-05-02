@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="iol_slave_bis00lh_pdo_input" Id="{28655160-9fdc-0fb2-31b9-ad4e40e74369}">
+    <Declaration><![CDATA[TYPE	iol_slave_bis00lh_pdo_input :		
+STRUCT
+	DeviceDiag AT %I*: BOOL;
+	DeviceState AT %I*: BOOL;
+	ChannelState AT %I*: USINT;
+	InfoDataState AT %I*: UINT;
+	ByteArr AT %I*: ARRAY[0..9] OF BYTE;
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

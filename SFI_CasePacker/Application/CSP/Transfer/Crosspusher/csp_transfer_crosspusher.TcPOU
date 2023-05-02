@@ -1,0 +1,765 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_crosspusher" Id="{b92385c2-89fe-48b2-8383-1cf5aa208915}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_crosspusher
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	loader_tolerance:								LREAL := 5; (*$P $*)
+	loader_clear:									BOOL;
+	loader_clear_test:								BOOL := FALSE;
+	loader_home_position:							LREAL := 0;  (*$P $*) // MAYBE PULL VALUE FROM CSP_CASE_LOADER
+	loader_status:									csp_transfer_crosspusher_loader_clear_status;
+	
+	debug_state_machine:							BOOL := FALSE;
+	debug_reject_machine_one_step:					BOOL := FALSE;
+	reject_status:									csp_transfer_crosspusher_reject_status_enum := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_WAITING;
+	reject_status_next:								csp_transfer_crosspusher_reject_status_enum := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_WAITING;
+	reject_done: 									BOOL;
+	reject_running: 								BOOL;
+	reject_dwell_transfer:							BOOL;
+	reject_run_transfer:							BOOL;
+	reject_time_out_tmr:							timer;	
+	reject_status_last_state:						csp_transfer_crosspusher_reject_status_enum;
+	e_stop_during_reject:							BOOL;
+	
+	
+	horiz_to_follower_diff:							LREAL := 48; (*$P $*)
+	horiz_to_follower_tolerance:					LREAL := 10; (*$P $*) // 15 for 10 count. 10 for 24 count
+	
+	calc_distance_between_pushers:					LREAL;
+	distance_limit:									LREAL;
+	distance_limit_tolerance:						LREAL := 50;
+	follower_distance_to_horizontal_zero:			LREAL;
+	pushers_too_close:								boolean;
+	pushers_too_close_dchk:							digital_check;
+	
+	follower_pos_if_horiz_is_neg:					LREAL;
+	follower_calc_pos:								LREAL;
+	
+	crosspusher_horiz_at_reject_low_limit:			LREAL;
+	crosspusher_horiz_at_reject_high_limit:			LREAL;
+	horizontal_reject_position:						LREAL := -400; (*$P $*)
+	
+	crosspusher_foll_at_reject_low_limit:			LREAL;
+	crosspusher_foll_at_reject_high_limit:			LREAL;
+	follower_reject_position:						LREAL := 845; (*$P $*)
+	
+	reject_velocity:								LREAL := 200; (*$P $*)
+	
+	cam_info_transfer:								axis_cam_info_data;
+	cam_info_upstacker:								axis_cam_info_data;
+	
+	consecutive_accumulator_reject_asm:				message;
+	temp1: 											BOOL;
+	estop_occured_in_crosspush_reject: 				BOOL := False;
+	calc_adjustment_for_follower: 					LREAL;
+	
+END_VAR
+VAR_INPUT
+	accumulator_reject_carton_count: 				DINT;(*$M $*)
+	accumulator_reject_count: 						DINT;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(* STARTS REJECT SEQUENCE *)
+crosspusher_horiz_at_reject_low_limit := horizontal_reject_position - 2;
+crosspusher_horiz_at_reject_high_limit := horizontal_reject_position + 2;
+
+crosspusher_foll_at_reject_low_limit := follower_reject_position - 2;
+crosspusher_foll_at_reject_high_limit := follower_reject_position + 2;
+
+IF csp_transfer_crosspusher_sensors.reject_stack
+	AND NOT csp_transfer_upstacker_sensors.debug_active
+THEN
+	IF NOT reject_running
+		THEN
+		  reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_START;
+	END_IF		
+END_IF
+
+(* REJECT POU *)
+reject();
+
+IF reject_running
+	AND NOT temp1
+THEN
+	temp1 := TRUE;
+	accumulator_reject_carton_count := accumulator_reject_carton_count + 4;
+	accumulator_reject_count := accumulator_reject_count +1;  // Added for consecutive crosspusher rejects
+END_IF
+
+//If the reject is not running the accumulator reject count is set to zero
+IF (NOT reject_running
+	AND csp_case_loader.load_ready_at_loader)
+	OR csp_main_motorization.empty_command
+THEN
+	accumulator_reject_count := 0;
+END_IF
+
+//If accumulator is greater than 3 it will set the machine with an error
+IF accumulator_reject_count >= 3
+	AND NOT csp_main_motorization.empty_command
+THEN
+	process_message_set(0,0,0,consecutive_accumulator_reject_asm);
+END_IF
+
+// Clears consecutive accumulator rejects count and alarms once the machine is stopped.
+IF (machine_is_stop_emergency_active(csp.mch)
+	OR machine_is_stopped(csp.mch))
+	AND process_message_is_on(consecutive_accumulator_reject_asm)
+THEN
+	process_message_reset(consecutive_accumulator_reject_asm);
+	accumulator_reject_count := 0;
+END_IF
+
+IF NOT reject_running
+THEN
+	temp1 := FALSE;
+END_IF	
+
+(* JOG MANAGEMENT FO SLAVES *)
+jog_manager_set_all_slave_axis_engaged(
+	index					:= JOG_LIST_TRANSFER_CROSSPUSHER_VIRTUAL, 
+	all_slave_axis_engaged	:= 	axis_is_cam_engaged(csp_transfer_crosspusher_horizontal.axis)
+							   	AND
+							   	axis_is_cam_engaged(csp_transfer_crosspusher_vertical.axis)
+							 	AND
+							 	axis_is_cam_engaged(csp_transfer_crosspusher_follower.axis),							 	
+	CONVERSION_this			:= csp_main_jogManager.jog_manager_virtual);
+ 
+
+(* VERIFIES LOADER IS CLEAR AND WILL NOT RUN *)
+IF loader_clear_test
+	OR ABS(csp_case_loader_pusher.axis.actual_position - loader_home_position) < loader_tolerance (* Loader is behind transfer section *)
+THEN
+	loader_clear := TRUE;
+ELSE
+	loader_clear := FALSE;
+END_IF
+
+(* SETS STATUS OF LOADER CLEAR ON PHASE EDGE *)
+IF phase_edge(csp_transfer_crosspusher_virtualMaster.loader_clear_check_ph)
+THEN
+	loader_status := SEL(loader_clear, csp_transfer_crosspusher_loader_clear_status.NOT_CLEAR, csp_transfer_crosspusher_loader_clear_status.CLEAR);
+ELSE
+	loader_status := csp_transfer_crosspusher_loader_clear_status.NONE;
+END_IF
+
+(* USED FOR REJECT AND DISTANCE BETWEEN PADDLES *)
+(* DISTANCE LIMIT CALCULATED BY THE CASE PATTERN AND CARTON DIMENSION MINUS THE TOLERANCE *)
+distance_limit := csp_main_brand.carton_dimension.carton_size_L_mm * csp_main_brand.case_pattern.case_pattern_L - distance_limit_tolerance;
+follower_distance_to_horizontal_zero := axis_get_actual_incremental_position(csp_transfer_crosspusher_follower.axis) - horiz_to_follower_diff;
+calc_distance_between_pushers := follower_distance_to_horizontal_zero + axis_get_actual_incremental_position(csp_transfer_crosspusher_horizontal.axis);
+calc_adjustment_for_follower := calc_distance_between_pushers - (csp_main_brand.carton_dimension.carton_size_L_mm * csp_main_brand.case_pattern.case_pattern_L + 40); //add 40mm for safety factor to keep distance ok		
+follower_pos_if_horiz_is_neg := ABS(axis_get_actual_incremental_position(csp_transfer_crosspusher_horizontal.axis)) + horiz_to_follower_diff	+ csp_transfer_crosspusher_follower.slave_scaling;
+		
+(* STOPS MACHINE IF PUSHERS COME TOO CLOSE - USES AUTO CALCULATION DIFFERENCE *)
+IF axis_is_moving(csp_main_motorization_virtualManager.axis)
+	AND csp_transfer_crosspusher_follower.connection_done
+	AND csp_transfer_crosspusher_horizontal.connection_done
+	AND calc_distance_between_pushers < distance_limit
+THEN
+	boolean_set(pushers_too_close);
+END_IF
+
+(* CLEARS PUSHERS TOO CLOSE DIGITAL CHECK *)
+IF NOT axis_is_moving(csp_main_motorization_virtualManager.axis)
+THEN
+	boolean_reset(pushers_too_close);
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{b5f90a89-f8cd-4bbb-818d-5ea006f6816d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{95ec01c2-1711-4e49-bf75-0c8574a7a6b3}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{aab4ad1c-a10b-4e33-9713-d55e8ff43381}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{1b0a6363-f59c-41ea-8071-b6726b4a32a3}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_crosspusher.prc', 
+		process						:= csp_transfer.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	
+	boolean_init(
+		object_name:= CONCAT(prc_path, '_pushers_too_close'), 
+		process:= prc, 
+		CONVERSION_this:= pushers_too_close);
+		
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_pushers_too_close_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 0, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_EMERGENCY_STOP, 
+		typology:= MESSAGE_TYPOLOGY_EMERGENCY, 
+		process:= prc, 
+		CONVERSION_this:= pushers_too_close_dchk);
+		
+	digital_check_add_boolean(
+		boolean:= pushers_too_close, 
+		CONVERSION_this:= pushers_too_close_dchk);
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_consecutive_accumulator_reject_aem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL,
+        process:= prc,
+        CONVERSION_this:= consecutive_accumulator_reject_asm);	
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);	
+	digital_check_cycle(pushers_too_close_dchk);
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{cc0bbbd0-02c6-4535-b496-3752cc95b3bf}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{84423ea3-5b4e-46d9-a91a-6c7f79998557}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{faf9a2a3-12be-4210-a8b8-3016a9eec082}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{a3a2aa1c-0fa4-4f7b-be9e-4a194c10005b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="reject" Id="{92449bf7-5157-47b4-9260-730db09c65df}">
+      <Implementation>
+        <ST><![CDATA[(*************** MACHINE STATUS ***************)
+
+
+IF reject_running
+	AND machine_is_stop_emergency_active(csp.mch)
+THEN
+	reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_EMERGENCY_STOP;
+	process_message_set(0,0,0, csp_transfer_crosspusher_reject.remove_cartons_wem); //sets warning message, needs guards open to reset because guards have to be opened to remove the cartons
+	estop_occured_in_crosspush_reject := TRUE;
+ELSIF NOT machine_is_stop_emergency_active(csp.mch) //once machine is reset from the E-Stop fault, reset the estop crosspush bit
+	AND reject_status = CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_EMERGENCY_STOP_FOLLOWER_MOVE
+THEN
+	estop_occured_in_crosspush_reject := FALSE;
+END_IF
+ 
+CASE reject_status OF
+	
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_START:
+	
+		reject_done := FALSE;
+				
+		(* DWELL TRANSFER TO WAIT FOR CROSSPUSHER REJECT TO FINISH *)
+		reject_running := TRUE;
+		reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_DISENGAGE_AXES;
+
+	
+	// TEMPORARILY SKIPPING	
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_DWELL_TRANSFER_VM:
+	
+		(* CHECK THAT TRANSFER IS DWELLING *)
+		IF csp_transfer_virtualMaster.active_cam = DWELL_CAM
+		THEN
+			reject_status_next:= CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_DISENGAGE_AXES;
+		END_IF
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_DISENGAGE_AXES:
+
+		IF csp_transfer_crosspusher_horizontal.at_load
+			AND csp_transfer_crosspusher_horizontal.axis.actual_velocity < 0.2
+		THEN
+			axis_stop(	
+			deceleration:= csp_transfer_crosspusher_horizontal.MOTOR_MAX_DECELLERATION_DEGPS2, 
+			jerk:= csp_transfer_crosspusher_horizontal.MOTOR_MAX_JERK_DEGPS3, 
+			CONVERSION_this:= csp_transfer_crosspusher_horizontal.axis);
+		END_IF
+			
+		IF ABS(csp_transfer_crosspusher_follower.axis.actual_position - csp_transfer_crosspusher_follower.slave_scaling) < 2
+			AND csp_transfer_crosspusher_follower.axis.actual_velocity < 0.2
+		THEN
+			axis_stop(	
+			deceleration:= csp_transfer_crosspusher_follower.MOTOR_MAX_DECELLERATION_DEGPS2, 
+			jerk:= csp_transfer_crosspusher_follower.MOTOR_MAX_JERK_DEGPS3, 
+			CONVERSION_this:= csp_transfer_crosspusher_follower.axis);
+		END_IF
+		
+		(* DOUBLE CHECK THIS - UNSURE IF WORKING *)
+		IF (csp_transfer_crosspusher_vertical.axis.actual_modulo_position < 2 OR csp_transfer_crosspusher_vertical.axis.actual_modulo_position >358)
+			AND csp_transfer_crosspusher_vertical.axis.actual_velocity < 0.2
+		THEN
+			axis_stop(	
+			deceleration:= csp_transfer_crosspusher_vertical.MOTOR_MAX_DECELLERATION_DEGPS2, 
+			jerk:= csp_transfer_crosspusher_vertical.MOTOR_MAX_JERK_DEGPS3, 
+			CONVERSION_this:= csp_transfer_crosspusher_vertical.axis);	
+		END_IF
+		
+		(* VERIFY AXES ARE DISENGAGED AND STANDSTILL *)
+		IF 	axis_is_standstill(csp_transfer_crosspusher_horizontal.axis)
+			AND axis_is_standstill(csp_transfer_crosspusher_follower.axis)
+			AND axis_is_standstill(csp_transfer_crosspusher_vertical.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_GEAR_FOLLOWER;
+		END_IF
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_GEAR_FOLLOWER:
+		// GEAR FOLLOWER TO CROSSPUSHER HORIZONTAL
+		// CHECK GEAR
+		// ADVANCE		
+		(* GEAR FOLLOWER TO HORIZONTAL *)
+		axis_engage_position_gear(
+			ratio:= -1, 
+			acceleration:= csp_transfer_crosspusher_follower.MOTOR_MAX_ACCELLERATION_DEGPS2/4, 
+			deceleration:= csp_transfer_crosspusher_follower.MOTOR_MAX_DECELLERATION_DEGPS2/4, 
+			jerk:= csp_transfer_crosspusher_follower.MOTOR_MAX_JERK_DEGPS3, 
+			master:= csp_transfer_crosspusher_horizontal.axis, 
+			CONVERSION_this:= csp_transfer_crosspusher_follower.axis);
+			
+		(* CHECK GEAR AND ADVANCE *)
+		IF axis_is_gear_engaged(csp_transfer_crosspusher_follower.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_MOVE_TO_REJECT_POS;
+		END_IF
+
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_MOVE_TO_REJECT_POS:
+	
+		// MOVE CROSSSPUSHER HORIZONTAL TO REJECT POSITION - check
+		// ADVANCE ON STANDSTILL - check
+		(* MOVE CORRPUSHER HORIZONTAL TO REJECT POSITION *)
+		(* VERIFY LOADER IS CLEAR *)
+		IF csp_transfer_crosspusher.loader_clear
+			AND NOT digital_actuator_is_active(csp_transfer_crosspusher_reject.reject_sact)
+			//AND csp_case_loader_virtualMaster.active_cam = DWELL_CAM
+		THEN
+			axis_move_absolute(
+			position:= horizontal_reject_position, 
+			velocity:= reject_velocity, 
+			direction:= AXIS_SHORTEST_WAY, 
+			acceleration:= csp_transfer_crosspusher_horizontal.MOTOR_MAX_ACCELLERATION_DEGPS2/2, 
+			deceleration:= csp_transfer_crosspusher_horizontal.MOTOR_MAX_DECELLERATION_DEGPS2/2, 
+			jerk:= csp_transfer_crosspusher_horizontal.MOTOR_MAX_JERK_DEGPS3, 
+			buffer_mode:= AXIS_BUFFER_MODE_ABORTING, 
+			CONVERSION_this:= csp_transfer_crosspusher_horizontal.axis);
+		END_IF
+			
+		(* CHECK THAT AXIS IS MOVING TO REJECT - ADVANCE *)
+		IF axis_is_absolute_moving(csp_transfer_crosspusher_horizontal.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_VERIFY_HORIZONTAL_POS;
+		END_IF
+
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_VERIFY_HORIZONTAL_POS:
+	
+		// CHECK HORIZONTAL IS WITHIN REJECT POSITION PHASE WINDOW - check
+		// CHECK THAT FOLLOWER IS WITHIN REJECT POSITION PHASE WINDOW
+		// ADVANCE - check
+		IF csp_transfer_crosspusher_horizontal.axis.actual_position < crosspusher_horiz_at_reject_high_limit			
+			AND csp_transfer_crosspusher_horizontal.axis.actual_position > crosspusher_horiz_at_reject_low_limit	
+			AND axis_is_standstill(csp_transfer_crosspusher_horizontal.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_UNGEAR_FOLLOWER;
+		END_IF
+		
+	
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_UNGEAR_FOLLOWER:
+		
+		(* BREAK GEAR ON FOLLOWER *)	
+		IF axis_is_gear_engaged(csp_transfer_crosspusher_follower.axis)
+		THEN
+			axis_stop(	
+				deceleration:= csp_transfer_crosspusher_follower.MOTOR_MAX_DECELLERATION_DEGPS2, 
+				jerk:= csp_transfer_crosspusher_follower.MOTOR_MAX_JERK_DEGPS3, 
+				CONVERSION_this:= csp_transfer_crosspusher_follower.axis);
+		END_IF
+	
+		(* CHECK NOT GEARED - ADVANCE *)
+		IF axis_is_standstill(csp_transfer_crosspusher_follower.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_MOVE_FOLLOWER;
+		END_IF
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_MOVE_FOLLOWER:
+		
+		(* MOVE CORRPUSHER HORIZONTAL TO REJECT POSITION *)
+		IF csp_transfer_crosspusher.loader_clear
+		THEN
+			axis_move_absolute(
+				position:= follower_reject_position, 
+				velocity:= reject_velocity, 
+				direction:= AXIS_NEGATIVE_DIRECTION, 
+				acceleration:= csp_transfer_crosspusher_horizontal.MOTOR_MAX_ACCELLERATION_DEGPS2/2, 
+				deceleration:= csp_transfer_crosspusher_horizontal.MOTOR_MAX_DECELLERATION_DEGPS2/2, 
+				jerk:= csp_transfer_crosspusher_horizontal.MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode:= AXIS_BUFFER_MODE_ABORTING, 
+				CONVERSION_this:= csp_transfer_crosspusher_follower.axis);
+		END_IF
+		
+		(* CHECK THAT AXIS IS MOVING TO REJECT - ADVANCE *)
+		IF axis_is_absolute_moving(csp_transfer_crosspusher_follower.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_VERIFY_FOLLOWER_POS;
+		END_IF
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_VERIFY_FOLLOWER_POS:
+		
+		IF csp_transfer_crosspusher_follower.axis.actual_position < crosspusher_foll_at_reject_high_limit			
+			AND csp_transfer_crosspusher_follower.axis.actual_position > crosspusher_foll_at_reject_low_limit	
+			AND axis_is_standstill(csp_transfer_crosspusher_follower.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_REJECT_STACK;
+		END_IF
+		
+	
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_REJECT_STACK:
+	
+	// BEGIN REJECT OF STACK USING csp_transfer_crosspusher_reject PROGRAM
+	// WAIT FOR REJECT EXTENSION AND ADVANCE
+		IF csp_transfer_crosspusher_reject.reject_status > 0
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_VERIFY;
+		END_IF
+	
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_VERIFY:
+	
+		IF csp_transfer_crosspusher_reject.reject_complete 
+			AND digital_actuator_is_inactive(csp_transfer_crosspusher_reject.reject_sact)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_RETURN_HORIZONTAL;
+		END_IF
+		//TODO return follower to previous position and regear
+	
+
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_RETURN_HORIZONTAL:
+	
+		// CALCULATE CROSSPUSHER HORIZONTAL POSITION BASED ON TRANSFER VIRTUAL MASTER - check
+		// ABSOLUTE MOVE TO POSITION - check
+		// ON AXIS MOVING, ADVANCE - check
+		axis_move_absolute(
+			position:= csp_transfer_crosspusher_horizontal.load_position, 
+			velocity:= reject_velocity, 
+			direction:= AXIS_SHORTEST_WAY, 
+			acceleration:= csp_transfer_crosspusher_horizontal.MOTOR_MAX_ACCELLERATION_DEGPS2/2, 
+			deceleration:= csp_transfer_crosspusher_horizontal.MOTOR_MAX_DECELLERATION_DEGPS2/2, 
+			jerk:= csp_transfer_crosspusher_horizontal.MOTOR_MAX_JERK_DEGPS3, 
+			buffer_mode:= AXIS_BUFFER_MODE_ABORTING, 
+			CONVERSION_this:= csp_transfer_crosspusher_horizontal.axis);
+	
+		IF axis_is_absolute_moving(csp_transfer_crosspusher_horizontal.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_HORIZONTAL_RETURNING;
+		END_IF	
+	
+	
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_HORIZONTAL_RETURNING:
+		
+		IF axis_is_absolute_moving(csp_transfer_crosspusher_horizontal.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_RETURN_FOLLOWER;
+		END_IF
+
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_RETURN_FOLLOWER:
+		
+		IF csp_transfer_crosspusher.loader_clear
+			AND NOT digital_actuator_is_active(csp_transfer_crosspusher_reject.reject_sact)
+		THEN
+			axis_move_absolute(
+				position:= csp_transfer_crosspusher_follower.slave_scaling, 
+				velocity:= reject_velocity, 
+				direction:= AXIS_SHORTEST_WAY, 
+				acceleration:= csp_transfer_crosspusher_follower.MOTOR_MAX_ACCELLERATION_DEGPS2/4, 
+				deceleration:= csp_transfer_crosspusher_follower.MOTOR_MAX_DECELLERATION_DEGPS2/4, 
+				jerk:= csp_transfer_crosspusher_follower.MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode:= AXIS_BUFFER_MODE_ABORTING, 
+				CONVERSION_this:= csp_transfer_crosspusher_follower.axis);
+		END_IF
+	
+		IF axis_is_absolute_moving(csp_transfer_crosspusher_follower.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_FOLLOWER_RETURNING;
+		END_IF	
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_FOLLOWER_RETURNING:
+		
+		IF axis_is_absolute_moving(csp_transfer_crosspusher_follower.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_VERIFY_AT_LOAD;
+		END_IF
+	
+	
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_VERIFY_AT_LOAD:
+	
+		IF axis_is_standstill(csp_transfer_crosspusher_horizontal.axis)
+			AND csp_transfer_crosspusher_horizontal.at_load//csp_transfer_crosspusher_horizontal.axis.actual_position < crosspusher_horiz_at_load_high_limit
+			AND axis_is_standstill(csp_transfer_crosspusher_follower.axis)
+			AND ABS(csp_transfer_crosspusher_follower.axis.actual_position - csp_transfer_crosspusher_follower.slave_scaling) < 2 //axis.actual_position < crosspusher_foll_at_reject_high_limit
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_RUN_AXES;
+		END_IF
+	
+	
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_RUN_AXES:
+	
+		// TESTING
+		reject_run_transfer := FALSE;
+		reject_running := FALSE;
+		reject_done := TRUE;
+		
+		IF 	axis_is_cam_engaged(csp_transfer_crosspusher_horizontal.axis)
+			AND axis_is_cam_engaged(csp_transfer_crosspusher_follower.axis)
+			AND axis_is_cam_engaged(csp_transfer_crosspusher_vertical.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_DONE;
+		END_IF
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_DONE:
+	
+		// TESTING
+		reject_dwell_transfer := FALSE;
+		
+		IF csp_transfer_virtualMaster.active_cam = FORWARD_CAM
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_WAITING;
+		END_IF
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_WAITING:
+	
+		;
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_EMERGENCY_STOP:
+	
+		IF machine_is_running(csp.mch)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_EMERGENCY_STOP_ENABLE;
+		END_IF
+		
+
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_EMERGENCY_STOP_ENABLE:
+	
+		axis_enable(csp_transfer_crosspusher_horizontal.axis);
+		axis_enable(csp_transfer_crosspusher_follower.axis);
+		
+		IF 	axis_is_enabled(csp_transfer_crosspusher_horizontal.axis)
+			AND axis_is_enabled(csp_transfer_crosspusher_follower.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_EMERGENCY_STOP_GOTO;
+		END_IF
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_EMERGENCY_STOP_GOTO:
+	
+		(* HAS NOT REJECTED STACK - PHASE THE FOLLOWER TO IT'S POSITION AND REGEAR *)
+		IF 	reject_status_last_state <= CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_VERIFY
+			AND csp_transfer_crosspusher.loader_clear
+			AND NOT digital_actuator_is_active(csp_transfer_crosspusher_reject.reject_sact)
+		THEN			
+			(*IF csp_transfer_crosspusher_horizontal.axis.actual_position < 0
+			THEN
+				follower_calc_pos := follower_pos_if_horiz_is_neg;
+			ELSE
+				follower_calc_pos := calc_distance_between_pushers; // +40 added to fix bug with follower going wrong way
+			END_IF	*)
+			
+			IF calc_adjustment_for_follower > 0
+			THEN
+				follower_calc_pos := csp_transfer_crosspusher_follower.axis.actual_position - ABS(calc_adjustment_for_follower);
+			ELSE
+				follower_calc_pos := csp_transfer_crosspusher_follower.axis.actual_position + ABS(calc_adjustment_for_follower);
+			END_IF	
+			
+			(* VERIFIES CALCULATED POS IS NOT ABOVE 850 *)
+			IF follower_calc_pos > 850 (* HARD CODED INDRAWORKS VALUE IS 865 BUT 850 IS USED FOR A SAFE POSITION *)
+			THEN
+				follower_calc_pos := 850;
+			END_IF
+					
+			(* MOVE FOLLOWER TO CORRECT POSITION FROM HORIZONTAL *)
+			axis_move_absolute(
+				position:= follower_calc_pos, 
+				velocity:= reject_velocity, 
+				direction:= AXIS_SHORTEST_WAY, 
+				acceleration:= csp_transfer_crosspusher_follower.MOTOR_MAX_ACCELLERATION_DEGPS2/4, 
+				deceleration:= csp_transfer_crosspusher_follower.MOTOR_MAX_DECELLERATION_DEGPS2/4, 
+				jerk:= csp_transfer_crosspusher_follower.MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode:= AXIS_BUFFER_MODE_ABORTING, 
+				CONVERSION_this:= csp_transfer_crosspusher_follower.axis);
+				
+			IF axis_is_absolute_moving(csp_transfer_crosspusher_follower.axis)
+			THEN
+				reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_EMERGENCY_STOP_FOLLOWER_MOVE;
+			END_IF
+					
+		(* REJECT COMPLETED - PHASE AXES BACK TO LOAD *)
+		ELSIF reject_status_last_state > CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_VERIFY
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_RETURN_HORIZONTAL;
+		END_IF
+		
+		
+	CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_EMERGENCY_STOP_FOLLOWER_MOVE:
+		
+		IF axis_is_standstill(csp_transfer_crosspusher_follower.axis)
+		THEN
+			reject_status_next := CSP_TRANSFER_CROSSPUSHER_REJECT_STATUS_GEAR_FOLLOWER;
+		END_IF		
+END_CASE
+
+
+IF 	NOT debug_state_machine
+	OR
+	debug_reject_machine_one_step	
+THEN
+	reject_status := reject_status_next;
+	debug_reject_machine_one_step := FALSE;
+END_IF
+
+(* Connection timeout *)
+IF	reject_running
+THEN
+	IF	timer_is_expired(reject_time_out_tmr)
+	THEN
+		//process_message_set(1, reject_status, 0, reject_faulted_aem);
+	END_IF
+ELSE
+	timer_restart(20000, reject_time_out_tmr);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_transfer_crosspusher">
+      <LineId Id="286" Count="135" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_crosspusher._handle_messages">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_crosspusher._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_crosspusher._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_crosspusher._object_manager">
+      <LineId Id="2" Count="47" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_crosspusher._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_crosspusher._read_var_input">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_crosspusher._set_runtime_properties">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_crosspusher._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_transfer_crosspusher.reject">
+      <LineId Id="397" Count="403" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

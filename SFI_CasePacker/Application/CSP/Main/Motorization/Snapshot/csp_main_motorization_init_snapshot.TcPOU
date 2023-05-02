@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="csp_main_motorization_init_snapshot" Id="{bd903356-17f7-4285-9154-d4943ada1936}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main motorization manager snapshot init function
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+
+FUNCTION csp_main_motorization_init_snapshot : VOID
+VAR_INPUT	
+	message_name:			STRING(MAX_OBJ_NAME_LENGTH);
+	behaviour:				message_behaviour_enum;			(* Message type. State or event *)
+	reset_timeout:			UDINT;							(* Timeout of reset attempt valid for messages
+															   with <a href="#message_behaviour_enum"><i>behaviour</i></a>
+															   = MESSAGE_BEHAVIOUR_TRY_AND_CHECK *)
+    disableable:        	BOOL;							(* Indicates the possibility
+																to disable the message by HMI *)
+    individual_reset:   	BOOL;							(* Need explicit reset by
+																HMI for acknowlege the message.
+																TRUE = individual_reset *)
+    machine_reaction:		machine_reaction_enum;			(* Machine stop type.(emergency, normal,
+																on phase, ...) *)
+    typology:				message_typology_enum;			(* <a href="#message_typology_enum"><i>typology</i></a> *)	
+END_VAR
+
+VAR_IN_OUT
+    process:                process;                    	(*$ <a href="#process_object"><i>process</i></a> membership $*)
+	CONVERSION_this:		csp_main_motorization_snapshot;			
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[process_message_init(
+	object_name 		:= message_name,
+	behaviour 			:= behaviour,
+	reset_timeout 		:= reset_timeout,
+	disableable 		:= disableable,
+	individual_reset 	:= individual_reset,
+	machine_reaction 	:= machine_reaction,
+	typology			:= typology,
+	process 			:= process,
+	CONVERSION_this 	:= CONVERSION_this.message);
+
+CONVERSION_this.reason := '';
+CONVERSION_this.connection_status := 0;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

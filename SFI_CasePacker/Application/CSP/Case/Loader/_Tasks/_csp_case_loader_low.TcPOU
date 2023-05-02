@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="_csp_case_loader_low" Id="{07ab4c47-63fb-42c0-adc7-bd479084920c}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_case_loader_low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* CASE *)
+	(* LOADER *)
+		(* GUIDE *)
+			(* ACC-U-CHANGE *)
+			csp_case_loader_guide_accU();
+			csp_case_loader_guide_accU_width();
+			(* DOWNSTREAM *)
+			csp_case_loader_guide_downstream();
+			(* UPSTREAM *)
+			csp_case_loader_guide_upstream();
+			(* LENGTH *)
+			csp_case_loader_guide_length();
+		(* PUSHER *)
+		;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

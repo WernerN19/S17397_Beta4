@@ -1,0 +1,231 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_accumulator_finger_ls" Id="{3f9b22c2-4c0e-48b8-b664-687077efbd06}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_accumulator_finger_ls
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	axis:											axis;	
+	servo_on_condition:								BOOL;
+	axis_actual_position:							LREAL;
+
+	case_presence_phasing_begin_window:				LREAL; (*$P unit := °; desc := Case presence phasing begin window; $*)
+	case_presence_phasing_end_window:				LREAL; (*$P unit := °; desc := Case presence phasing end window; $*)
+	case_presence_phasing:							BOOL; 	
+	
+	master_offset:									LREAL := 0;
+	
+	torque_limit:									INT := 500; (*$P $*)
+	torque_limit_old:								INT;
+	
+	MOTOR_PHASE_VELOCITY_DEGPS:						LREAL := 90; (*$P $*)
+	
+	enable_delay: 									TON;
+	Torque_force_constant: 							LREAL := 0.47;
+END_VAR
+
+VAR CONSTANT
+	(*Just in case you prefer having constants instead of numbers*)
+	MOTOR_MAX_VELOCITY_DEGPS:				LREAL := 9600;
+	MOTOR_MAX_ACCELLERATION_DEGPS2:			LREAL := 4800;
+	MOTOR_MAX_DECELLERATION_DEGPS2:			LREAL := 4800;
+	MOTOR_MAX_JERK_DEGPS3:					LREAL := 100000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:			LREAL := 5;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT:
+		IF axis_get_mode(axis) = MODE_TEST
+		THEN
+			safety_integrated_series_close(csp_transfer_main_safety_drives_SD41200.chB_smes_sis);
+		END_IF
+		RETURN;
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+axis.actual_torque := (axis.actual_current * Torque_force_constant)/1000;
+
+(* Sets torque Limit *)
+IF torque_limit <> torque_limit_old
+THEN
+	 IF soe_drive_channel_write_parameter(
+		channel:=csp_transfer_accumulator_finger_ls.axis.soe_drive_channel, 
+		idn:= S_0_IDN + 92, 
+		data_element:=soe_drive_element_value , 
+		data_source:= ADR(torque_limit), 
+		data_lenght:= SIZEOF(torque_limit), 
+		CONVERSION_this:= csp_transfer_accumulator_finger_ls.axis.soe_drive^)= SOE_DRIVE_RETURN_VALUE_DONE
+	THEN
+		Torque_limit_old := torque_limit;
+	END_IF
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{f1a3a3fb-f090-45dc-a183-60812392086e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{f95cfff0-5c46-4b08-8682-a8af633d27ea}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{84a052fe-896e-4c14-9185-07103ae87d8a}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{f8c9cd75-d0d6-408a-8934-696bbd385f42}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_transfer_accumulator_finger_ls.prc', 
+		process									:= csp_transfer_accumulator_finger.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+	
+	axis_init(
+		object_name								:= CONCAT(prc_path, '_axis'), 
+		axis_type								:= AXIS_TYPE_SERVO, 
+		encoder_scaling_factor					:= G_SERVO_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo									:= G_MODULO_360_DEG, 
+		process									:= prc, 
+		CONVERSION_this							:= axis);
+		
+	axis_init_absolute_encoder_preset(	
+		position								:=	0,
+		CONVERSION_this							:=	axis);	
+	
+	axis_set_max_dynamic(
+		reference_velocity						:=	MOTOR_MAX_VELOCITY_DEGPS,
+		velocity								:=	MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration							:=	MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration							:=	MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk									:=	MOTOR_MAX_JERK_DEGPS3,
+		following_error							:=	MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this							:=	axis);
+	
+	jog_manager_add_axis(
+		list_index								:= SMTR41223_TRANSFER_ACCUMULATOR_FINGER_LS,
+		axis									:= axis,
+		master_axis								:= FALSE,
+		jog_type								:= JOG_TYPE_ROTATIVE,
+		sw_limit_positive						:= 0.0,
+		sw_limit_negative						:= 0.0,
+		CONVERSION_this							:= csp_main_jogManager.jog_manager_real);
+		
+	axis_add_soe_drive(
+		channel									:=	SOE_DRIVE_CHANNEL_B,
+		soe_drive								:=	csp_transfer_main_drives.SD41200_drv,
+		CONVERSION_this							:=	axis);
+
+	IF 	csp_main_configurator.Physical_hw
+	THEN
+		axis_add_safety_integrated_series(
+			safety_integrated_series := csp_transfer_main_safety_drives_SD41200.chB_smes_sis,
+			CONVERSION_this			:= axis);
+	END_IF
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	axis_cycle(axis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{83dfd321-43ce-4111-b07f-adfff8ee3363}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{cb121820-40c0-4d8d-a370-a7a8aca57f3d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{f9db8b60-186b-4b34-8dd5-469aff03fce0}">
+      <Implementation>
+        <ST><![CDATA[axis_actual_position := axis_get_actual_modulo_position(axis);
+
+enable_delay(IN:=axis_is_ready_to_enable(axis) , PT:=T#2S , Q=> servo_on_condition , ET=> );
+
+IF 	(case_presence_phasing_begin_window <= case_presence_phasing_end_window)
+THEN
+	case_presence_phasing := 
+		(axis_actual_position >= case_presence_phasing_begin_window) AND
+		(axis_actual_position <= case_presence_phasing_end_window);
+ELSE
+	case_presence_phasing := 
+		(axis_actual_position >= case_presence_phasing_begin_window) OR
+		(axis_actual_position <= case_presence_phasing_end_window);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{e5c045ae-fa63-45e5-90f6-f09a3a47a705}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,259 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_customerInterfaces_old_2" Id="{b3b2f4d3-7cec-4f72-8c24-9d667741c3d7}" SpecialFunc="None">
+    <Declaration><![CDATA[ (*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Exit unit device declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref:= prc; $*)
+
+PROGRAM csp_customerInterfaces_old_2
+
+VAR
+	prc:								process;
+	prc_path:							STRING;
+	
+	Order:								csp_customerInterfaces_order;
+	Product:							csp_customerInterfaces_product;
+	Recipe:								csp_customerInterfaces_recipe;														
+	Material:							ARRAY [0..14] OF csp_customerInterfaces_material;
+	Mark:								csp_customerInterfaces_mark;
+	NextOrder:							csp_customerInterfaces_order;	
+	NextProduct:						csp_customerInterfaces_product;	
+	NextRecipe:							csp_customerInterfaces_recipe;		
+	NextMaterial:						ARRAY [0..14] OF csp_customerInterfaces_material;			
+	MES:								csp_customerInterfaces_MES;		
+	CasePacker:							csp_customerInterfaces_casePacker;
+	Palletizer:							csp_customerInterfaces_palletizer;
+	
+
+END_VAR
+
+
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_objects_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+
+(* CSP STATUS *)
+
+CasePacker.Status.Online := machine_is_operational(csp.mch); 
+CasePacker.Status.Job := csp_main_brand.p_carton_format;
+//CasePacker.Status.NextJob := // need to figure out next job
+CasePacker.Status.Running := machine_is_running(csp.mch);
+
+CasePacker.Status.Faulted.Main := machine_is_stopped(csp.mch)
+									AND csp_main_interface.alarm_id_from_python <> 363 // CYCLE STOP FOR CASE SIDE
+									AND csp_main_interface.alarm_id_from_python <> 622; // CYCLE STOP FOR TRANSFER SIDE
+CasePacker.Status.Faulted.CaseBlanks := csp_case_feed_magazine.AML_Faulted;
+
+CasePacker.Status.RunOut := csp_main_motorization.empty_command;
+CasePacker.Status.RunOutComplete := message_is_on(csp_case_virtualMaster.runout_complete);
+
+CasePacker.Status.Rate.Target := LREAL_TO_INT(csp_main_motorization_manager.motm.actual_velocity_setpoint);
+CasePacker.Status.Rate.Actual := LREAL_TO_INT(csp_main_motorization_manager.motm.actual_velocity);
+
+CasePacker.Status.Stop.AutoReason := csp_main_interface.alarm_id; 
+CasePacker.Status.Stop.Estop := machine_is_stop_emergency_active(csp.mch);
+CasePacker.Status.Stop.Guard := NOT safety_integrated_series_is_safely_closed(csp_case_main_safety_guards.sis) OR NOT safety_integrated_series_is_safely_closed(csp_transfer_main_safety_guards.sis);
+CasePacker.Status.Stop.Operator := message_is_on(csp_case_main_services_pushbuttons.stop_dchk.alarm_asm.message);
+
+CasePacker.Status.Starved.CaseBlanks := message_is_on(csp_case_feed_magazine_level_zonemin.magazine_level_zone_min_aem);
+CasePacker.Status.Starved.Glue := NOT digital_input_is_active(csp_case_glue_hotmelt.level_ok_di);
+//CasePacker.Status.Starved.Labels :=
+CasePacker.Status.Starved.Units := csp_transfer_infeed_clamp.min_prime;
+
+CasePacker.Status.Blocked.Downstream := message_is_on(csp_case_discharge_reject_sensors.downstream_backup_hold_aem);
+CasePacker.Status.Blocked.Reject := message_is_on(csp_case_discharge_reject_sensors.consecutive_blocked_reject_aem);
+CasePacker.Status.Blocked.Waste := message_is_on(csp_transfer_crosspusher_reject.backup_di_dchk.alarm_asm.message);
+
+//Flexlink to AMR Dock 1
+CasePacker.Dock[1].DropAvailable:= csp_case_feed_magazine.Flexlink_to_AMR_DropAvailable_1;
+CasePacker.Dock[1].PickAvailable:= csp_case_feed_magazine.Flexlink_to_AMR_PickAvailable_1; 
+CasePacker.Dock[1].Active:= csp_case_feed_magazine.Flexlink_to_AMR_Active_1;
+CasePacker.Dock[1].EntryAck:= csp_case_feed_magazine.Flexlink_to_AMR_EntryAck_1;
+CasePacker.Dock[1].EntryOK:= csp_case_feed_magazine.Flexlink_to_AMR_EntryOK_1;
+
+(*csp_case_feed_magazine.AMR_to_Flexlink_EntryReq_1*) RAJ_to_Flexlink[3].0:= CasePacker.Dock[1].EntryReq;
+(*csp_case_feed_magazine.AMR_to_Flexlink_AmrExited_1*) RAJ_to_Flexlink[3].1:= CasePacker.Dock[1].AmrExited;
+
+//Flexlink to AMR Dock 2
+CasePacker.Dock[2].DropAvailable:= csp_case_feed_magazine.Flexlink_to_AMR_DropAvailable_2;
+CasePacker.Dock[2].PickAvailable:= csp_case_feed_magazine.Flexlink_to_AMR_PickAvailable_2; 
+CasePacker.Dock[2].Active:= csp_case_feed_magazine.Flexlink_to_AMR_Active_2;
+CasePacker.Dock[2].EntryAck:= csp_case_feed_magazine.Flexlink_to_AMR_EntryAck_2;
+CasePacker.Dock[2].EntryOK:= csp_case_feed_magazine.Flexlink_to_AMR_EntryOK_2;
+
+(*csp_case_feed_magazine.AMR_to_Flexlink_EntryReq_2*) RAJ_to_Flexlink[3].2:= CasePacker.Dock[2].EntryReq;
+(*csp_case_feed_magazine.AMR_to_Flexlink_AmrExited_2*) RAJ_to_Flexlink[3].3:= CasePacker.Dock[2].AmrExited;
+
+//Flexlink to AMR Dock 3
+CasePacker.Dock[3].DropAvailable:= csp_case_feed_magazine.Flexlink_to_AMR_DropAvailable_3;
+CasePacker.Dock[3].PickAvailable:= csp_case_feed_magazine.Flexlink_to_AMR_PickAvailable_3; 
+CasePacker.Dock[3].Active:= csp_case_feed_magazine.Flexlink_to_AMR_Active_3;
+CasePacker.Dock[3].EntryAck:= csp_case_feed_magazine.Flexlink_to_AMR_EntryAck_3;
+CasePacker.Dock[3].EntryOK:= csp_case_feed_magazine.Flexlink_to_AMR_EntryOK_3;
+
+(*csp_case_feed_magazine.AMR_to_Flexlink_EntryReq_3*) RAJ_to_Flexlink[3].4:= CasePacker.Dock[3].EntryReq;
+(*csp_case_feed_magazine.AMR_to_Flexlink_AmrExited_3*) RAJ_to_Flexlink[3].5:= CasePacker.Dock[3].AmrExited;
+
+
+
+
+ 
+(*
+
+CasePacker.Start.PeakWait :=
+CasePacker.Start.Ramp:=
+CasePacker.Start.Request:=
+
+CasePacker.Production.GoodCasesNoReset:=
+CasePacker.Production.GoodPods:=
+CasePacker.Production.GoodPodsNoReset:=
+CasePacker.Production.GoodUnits:=
+CasePacker.Production.GoodUnitsNoReset:=
+CasePacker.Production.PercentScrapUnits:=
+CasePacker.Production.Rejects.TBD1:=
+CasePacker.Production.Rejects.TBD2:=
+CasePacker.Production.Rejects.TBD3:=
+CasePacker.Production.Rejects.TBD4:=
+CasePacker.Production.Rejects.TBD5:=
+CasePacker.Production.Rejects.TBD6:=
+CasePacker.Production.TotalScrapUnits:=
+CasePacker.Production.TotalUnits:=
+CasePacker.Production.TotalUnitsNoReset:=
+
+CasePacker.CaseBlanks.ConsumedCart:=
+CasePacker.CaseBlanks.ConsumedTotal:=
+
+CasePacker.Labels.Consumed:=
+
+CasePacker.CtCall.FaultedCaseSupply:=csp_case_feed_magazine.AML_Faulted;
+CasePacker.CtCall.FaultedMain:=machine_is_stopped(csp.mch);
+CasePacker.CtCall.FullScrapBin:=
+CasePacker.CtCall.LowCaseSupply:=csp_case_feed_magazine.Magazine_low_level;
+CasePacker.CtCall.LowGlueSupply:=csp_case_glue_hotmelt.level_ok_di;
+//CasePacker.CtCall.LowLabelSupply:=.
+CasePacker.CtCall.TBD1:=
+CasePacker.CtCall.TBD2:=
+CasePacker.CtCall.TBD3:=
+
+CasePacker.Dock[1].Active:=
+CasePacker.Dock[1].AmrExited:=
+CasePacker.Dock[1].DropAvailable:=
+CasePacker.Dock[1].EntryAck:=
+CasePacker.Dock[1].EntryOK:=
+CasePacker.Dock[1].EntryReq:=
+CasePacker.Dock[1].PickAvailable:=
+
+*)
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{053f6224-6c06-44b4-ae49-fa4c00ac2c4b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{517ed90e-62f5-4c3c-833e-7b82bb719feb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{f4806882-391b-43fe-81ce-a71496f8446c}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{9250e8ff-093b-4a8a-a0a9-5b5e590db110}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	process_init(
+		object_name					:= 'csp_customerInterfaces.prc', 
+		machine						:= csp.mch, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{63aebb6e-7c32-40c2-91a8-c5ee2da94044}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{ea91623b-c3a3-4a48-85c9-a2906cdd8067}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{c80696a3-7959-4ec9-a2f0-bf78dfc863cf}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{28fb2a1d-6735-4c2a-88c2-6ff9e0608ab6}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

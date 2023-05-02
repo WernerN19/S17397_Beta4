@@ -1,0 +1,157 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_main_services" Id="{2d611d6e-d29e-4e8a-a3ce-e3f64ce7ac27}" SpecialFunc="None">
+    <Declaration><![CDATA[(********************* G.D S.p.A. - Technical Department *****************************
+
+Date			Version		Author			Description             
+----------      -------		-----------		----------------------------------------------
+2015/06/30		0000.00		M.Grasso		Initial Release
+
+DESCRIPTION:	
+
+NOTES:        		 
+
+**************************************************************************************)
+(*$R process_ref := prc; $*)
+
+PROGRAM csp_transfer_main_services
+VAR
+	prc:						process;
+	prc_path:					STRING;
+	
+	reset_output_test:			digital_output;
+	
+	lights_on_do:				digital_output;
+	
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+_objects_manager();
+
+IF g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode (CONVERSION_this := prc) OF
+
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+_set_runtime_properties();
+
+(*************************************************************************************
+**************************************************************************************)
+(*BODY*)
+
+IF descriptor_get_reset_edge(prc.descriptor)
+THEN
+	digital_output_set(reset_output_test);
+ELSE
+	digital_output_reset(reset_output_test);
+END_IF
+
+(* TEMP LIGHTS ON *)
+IF csp_case_main_services.lights_toggle
+THEN
+	digital_output_set(lights_on_do);
+ELSE
+	digital_output_reset(lights_on_do);
+END_IF
+
+(*************************************************************************************
+**************************************************************************************)
+
+_handle_messages();
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{a4679b7c-bb35-4288-a4e6-6d102c6357f9}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{5ab6b235-7a7b-4e83-83b7-eba695b16414}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{42890067-cb4d-4ff4-9b41-6818ec69f345}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(CONVERSION_this := prc)
+THEN
+    process_apply_mode_req_first_step(CONVERSION_this := prc);
+    CASE process_get_mode(CONVERSION_this := prc) OF
+        MODE_TO_ABSENT:
+            ;
+        MODE_TO_INACTIVE:
+            ;
+        MODE_TO_TEST:
+            ;
+        MODE_TO_OPERATIONAL:
+            ;
+    END_CASE
+    process_apply_mode_req_second_step(CONVERSION_this := prc);
+END_IF;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{fb28d724-a80c-46de-b19e-8c081d03e8fc}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+    sub_process_init(
+	    object_name 	:= 'csp_transfer_main_services.prc',
+        process			:= csp_transfer_main.prc,
+        CONVERSION_this			:= prc);
+
+	prc_path 			:= process_get_path(prc);
+
+	digital_output_init(
+		object_name		:= CONCAT(prc_path, '_reset_output_test'),
+		polarity_direct	:= TRUE,
+		process			:= prc,
+		CONVERSION_this			:= reset_output_test);
+		
+	digital_output_init(
+		object_name				:= CONCAT(prc_path, '_lights_on_do'),
+		polarity_direct			:= TRUE,
+		process					:= prc,
+		CONVERSION_this			:= lights_on_do);
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{fd0a7db0-3234-4160-b18f-cd46774a641b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{08c2e8d3-98bc-49c7-8a72-c7da4d361e8f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{4fd56b47-dedf-4c7c-85a2-d56b207fbb47}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{a18f32a2-d332-4a57-9efc-4b5f64e8becd}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

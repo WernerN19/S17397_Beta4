@@ -1,0 +1,1063 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_loader_pusher" Id="{4cd05ad2-6c4d-4a59-9bcd-6e8415450d6b}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_loader_pusher
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	axis:											axis;
+	
+	fsm_next_status: 								CSP_CASE_LOADER_STATUS_ENUM;
+	axis_calculate_cam_slave_master_position_deg: 	LREAL;
+	axis_calculated_cam_slave_position_deg: 		LREAL;
+	cam_id:											INT := CASE_LOADER_PUSHER_RUN_CAM;
+	slave_scaling:									LREAL := 807; (*$P $*) //orginally 360
+	master_scaling:									LREAL := 1; 
+	master_offset:									LREAL := 240;(*$P $*)
+	slave_offset: 									LREAL := 0;
+	debug_state_machine: 							BOOL :=FALSE;
+	debug_state_machine_one_step: 					BOOL := FALSE;
+	fsm_status: 									CSP_CASE_LOADER_STATUS_ENUM;
+	phase_velocity_degps: 							LREAL := 50;
+	slave_position_has_been_calculated: 			BOOL := FALSE;
+	fsm_enable_condition: 							BOOL := FALSE;
+	disable_req: 									BOOL := FALSE;
+	phase_enable:									BOOL:=TRUE;
+	torque_limit:									INT := 2000;    (*$P $*)
+	torque_limit_old:								INT;
+	
+    in_accu_safe_pos:                               BOOL := FALSE;
+    accu_tolerance:                                 LREAL := 5;
+    accu_safe_pos:                                  LREAL := 0;	
+	
+	direction_FWD: 									BOOL;
+	CAM_CHANGE_CHECK_DEG:							LREAL := 5;
+	cam_change_check_ph:							phase;
+	
+	
+	(* RFID *)
+	rfid_check_pos:									LREAL := 0; (*$P $*)
+	check_pls_tolerance:							LREAL := 2;
+	rfid_value:										BYTE;
+	rfid_value_to_write:							BYTE;
+	
+	rfid_input_buffer:								iol_slave_bis00lh_pdo_input;
+	rfid_input_bitheader_1:							iol_slave_bis00lh_bitheader_input;
+	rfid_input_bitheader_2:							iol_slave_bis00lh_bitheader_input;
+			
+	rfid_output_buffer:								iol_slave_bis00lh_pdo_output;
+	rfid_output_bitheader_1:						iol_slave_bis00lh_bitheader_output;
+	rfid_output_bitheader_2:						iol_slave_bis00lh_bitheader_output;
+	
+	RFID_read_write_status:							csp_case_loader_rfid_status_enum;
+	RFID_read_write_status_next:					csp_case_loader_rfid_status_enum;
+	RFID_read_write_debug:							BOOL := FALSE;
+	RFID_read_write_one_step:						BOOL := FALSE;
+	RFID_read_write_running:						BOOL;
+	RFID_read_write_tmr:							timer;
+	RFID_read_write_error_msg:						message;
+	
+	rfid_start_toggle:								BOOL := FALSE;
+	rfid_shutdown_toggle:							BOOL := FALSE;
+	rfid_write_toggle:								BOOL := FALSE;
+	rfid_write_done:								BOOL := FALSE;
+	rfid_read_toggle:								BOOL := FALSE;
+	rfid_read_done:									BOOL := FALSE;
+
+	servo_on_condition: 							BOOL;
+	enable_delay: 									TON;
+	Torque_force_constant: 							LREAL := 1.2;
+	RisingEdgeRFIDSelect:							R_Trig;
+END_VAR
+
+VAR CONSTANT
+	(*Just in case you prefer having constants instead of numbers*)
+	MOTOR_MAX_VELOCITY_DEGPS:				LREAL := 9600;
+	MOTOR_MAX_ACCELLERATION_DEGPS2:			LREAL := 4800;
+	MOTOR_MAX_DECELLERATION_DEGPS2:			LREAL := 4800;
+	MOTOR_MAX_JERK_DEGPS3:					LREAL := 100000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:			LREAL := 2;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT:
+		IF axis_get_mode(axis) = MODE_TEST
+		THEN
+			safety_integrated_series_close(csp_case_main_safety_drives_SD8500.chA_smes_sis);
+		END_IF
+		RETURN;
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+axis.actual_torque := (axis.actual_current * Torque_force_constant)/1000;
+
+RisingEdgeRFIDSelect(
+					CLK := (csp_main_accuChange.RFID_reader_list_accuchange = LOADER_PUSHER_READER) 
+					);
+				
+IF RisingEdgeRFIDSelect.Q
+THEN
+	RFID_read_write_status := CSP_CASE_LOADER_RFID_STATUS_START;
+END_IF
+
+IF 	csp_main_accuChange.RFID_reader_list_accuchange = LOADER_PUSHER_READER
+THEN
+	RFID();
+END_IF
+
+(*FSM Control*)
+
+phase_set_data(
+	phase				:= CAM_CHANGE_CHECK_DEG,
+	delay				:= 0,			
+	max_compensation	:= 0,			
+	CONVERSION_this		:= cam_change_check_ph);
+	
+	
+(*disable_req *) //read_var_input
+				
+IF 	ABS(axis.actual_position - accu_safe_pos)  < accu_tolerance
+THEN
+	in_accu_safe_pos := TRUE;
+ELSE
+	in_accu_safe_pos := FALSE;   
+END_IF		
+
+(* VERIFIES LOADER IS CLEAR AND WILL NOT RUN *)
+		
+				
+fsm_enable_condition := axis_is_ok(FALSE, axis)
+						AND
+						process_is_ready(prc)
+						AND
+						process_subtree_is_ready(prc)
+						AND
+						servo_on_condition
+						AND						
+						(csp_main_motorization.motorization_axis_redefined_at_powerup OR csp_main_accuchange.Brand_Change_Occurred)
+						//AND
+						//NOT jog_manager_is_jog_axis_active(SMTR8503_CASE_LOADER_PUSHER, csp_main_jogManager.jog_manager_real)
+						AND
+						NOT disable_req;
+
+IF	NOT fsm_enable_condition
+	AND
+	fsm_status <> CSP_CASE_LOADER_STATUS_DISABLED
+	AND
+	fsm_status < CSP_CASE_LOADER_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_CASE_LOADER_STATUS_DISABLE_REQUEST;
+END_IF;
+
+IF torque_limit <> Torque_limit_old
+	THEN
+	IF soe_drive_channel_write_parameter(
+		channel:=csp_case_loader_pusher.axis.soe_drive_channel, 
+		idn:= S_0_IDN + 92, 
+		data_element:=soe_drive_element_value , 
+		data_source:= ADR(torque_limit), 
+		data_lenght:= SIZEOF(torque_limit), 
+		CONVERSION_this:= csp_case_loader_pusher.axis.soe_drive^)= SOE_DRIVE_RETURN_VALUE_DONE 
+		THEN
+		torque_limit_old := Torque_limit;
+	END_IF	
+END_IF
+	
+CASE fsm_status OF
+	
+	CSP_CASE_LOADER_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_next_status := CSP_CASE_LOADER_STATUS_DISABLED;
+        END_IF
+
+	CSP_CASE_LOADER_STATUS_DISABLED:
+
+		IF	fsm_enable_condition
+			AND
+			(
+				(motorization_manager_is_starting(csp_main_motorization_manager.motm))
+				OR
+				jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_LOADER_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+				//OR
+				//jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)	
+			)
+		THEN
+			debug_state_machine := FALSE;
+			fsm_next_status := CSP_CASE_LOADER_STATUS_ENABLE_REQUEST;
+		END_IF;
+
+	CSP_CASE_LOADER_STATUS_ENABLE_REQUEST:
+	
+		axis_enable(axis);
+		IF axis_is_standstill(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_LOADER_STATUS_ENABLED;
+		END_IF;		
+
+	CSP_CASE_LOADER_STATUS_ENABLED:
+
+		IF 	NOT csp_main_accuChange.machine_size_complete
+		THEN
+			fsm_next_status	:= CSP_CASE_LOADER_STATUS_CHANGE_OVER_MODE;
+		ELSE	
+			fsm_next_status	:=	CSP_CASE_LOADER_STATUS_HOME_REQUEST;
+		END_IF
+		
+
+	CSP_CASE_LOADER_STATUS_CHANGE_OVER_MODE:
+		
+		IF 	NOT in_accu_safe_pos
+		THEN
+			fsm_next_status	:=	CSP_CASE_LOADER_STATUS_ENABLE_CROSSPUSHERS;			
+		END_IF;		
+				
+
+	CSP_CASE_LOADER_STATUS_ENABLE_CROSSPUSHERS:
+	
+		axis_enable(csp_transfer_crosspusher_horizontal.axis);
+		axis_enable(csp_transfer_crosspusher_follower.axis);
+		IF 	axis_is_enabled(csp_transfer_crosspusher_horizontal.axis)
+			AND
+			axis_is_enabled(csp_transfer_crosspusher_follower.axis)
+		THEN
+			fsm_next_status := CSP_CASE_LOADER_STATUS_MOVE_CROSSPUSHERS;
+		END_IF
+
+	
+	CSP_CASE_LOADER_STATUS_MOVE_CROSSPUSHERS:
+		
+		IF 	axis_is_standstill(csp_transfer_crosspusher_horizontal.axis)
+			AND
+			axis_is_standstill(csp_transfer_crosspusher_follower.axis)
+		THEN
+			axis_move_absolute(
+				position 		:= csp_transfer_crosspusher_horizontal.load_position,
+				velocity 		:= phase_velocity_degps,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2, 
+				jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_transfer_crosspusher_horizontal.axis
+				); 
+				
+			axis_move_absolute(
+				position 		:= 500,
+				velocity 		:= phase_velocity_degps,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2, 
+				jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_transfer_crosspusher_follower.axis
+				); 
+		END_IF
+			
+		IF	axis_is_absolute_moving(csp_transfer_crosspusher_follower.axis) 
+			OR
+			axis_is_absolute_moving(csp_transfer_crosspusher_horizontal.axis) 
+		THEN
+			fsm_next_status := CSP_CASE_LOADER_STATUS_VERIFY_CROSSPUSHERS_CLEAR;
+		END_IF
+		
+	CSP_CASE_LOADER_STATUS_VERIFY_CROSSPUSHERS_CLEAR:
+	
+		IF 	csp_transfer_crosspusher_horizontal.axis.actual_position >= csp_transfer_crosspusher_horizontal.load_position
+			AND csp_transfer_crosspusher_follower.axis.actual_position >= (csp_transfer_crosspusher_follower.slave_scaling-1)
+			OR
+			(
+				rfid_input_bitheader_1.CP 
+				AND rfid_input_bitheader_2.CP
+			)
+		THEN
+			fsm_next_status := CSP_CASE_LOADER_STATUS_MOVE_AXIS_TO_POS;
+		END_IF
+	
+		
+	CSP_CASE_LOADER_STATUS_MOVE_AXIS_TO_POS:
+
+		
+		IF 	axis_is_standstill(axis)
+			AND
+			axis_is_standstill(csp_transfer_crosspusher_horizontal.axis)
+			AND
+			axis_is_standstill(csp_transfer_crosspusher_follower.axis)
+		THEN
+			axis_move_absolute(
+				position 		:= accu_safe_pos,
+				velocity 		:= motorization_manager_get_nominal_velocity(csp_main_motorization_manager.motm)*6,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2,
+				jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := axis); 
+		END_IF
+	
+		IF 	csp_main_accuChange.Motion_Motors_New_Size_Req
+		THEN
+			fsm_next_status	:=	CSP_CASE_LOADER_STATUS_HOME_REQUEST;
+		END_IF;
+		
+
+	CSP_CASE_LOADER_STATUS_HOME_REQUEST: 
+
+		fsm_next_status	:=	CSP_CASE_LOADER_STATUS_HOME_DONE;
+
+	CSP_CASE_LOADER_STATUS_HOMING:
+
+		axis.home.done := TRUE;
+
+		IF 	axis_home_done(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_LOADER_STATUS_HOME_DONE;
+		END_IF
+
+	CSP_CASE_LOADER_STATUS_HOME_DONE:
+	
+		IF 	phase_enable
+			THEN
+			fsm_next_status	:= CSP_CASE_LOADER_STATUS_CALCULATE_SLAVE_POSITION_REQUEST;
+		END_IF
+		
+	CSP_CASE_LOADER_STATUS_CALCULATE_SLAVE_POSITION_REQUEST:
+		
+		(*Calculate a desired master axis position.
+		Function used  LMOD: Ex. LMOD(400.56, 360) = 40.56
+		home_position_master_offset_deg is helpful for changing the 1st term of LMOD*)
+		
+		axis_calculate_cam_slave_master_position_deg := 
+		LMOD	(axis_get_actual_modulo_position(csp_case_loader_virtualMaster.axis) (*master axis*)
+							+
+				master_offset, (*initialized at 0° position*)
+					G_MODULO_360_DEG											);
+		(*master_scaling and slave_scaling initialized at 360° since the cams are normed in a range equal to 0-1.*)
+		
+			IF axis_calculate_cam_slave_dynamics_data(
+					cam_id := cam_id,
+					master_scaling := master_scaling,
+					master_position := axis_calculate_cam_slave_master_position_deg,
+					slave_scaling := slave_scaling,
+					CONVERSION_this := axis)
+			THEN
+				fsm_next_status := CSP_CASE_LOADER_STATUS_CALCULATING_SLAVE_POSITION;
+			END_IF
+
+	CSP_CASE_LOADER_STATUS_CALCULATING_SLAVE_POSITION:
+	
+		IF	axis_cam_slave_dynamics_data_calculated(axis)
+		THEN
+		(*The “axis_get_cam_slave_dynamics_position” method returns the position of the slave within the cam plate table at the master position calculated for the instance specified: *)
+			axis_calculated_cam_slave_position_deg :=(axis_get_cam_slave_dynamics_position(axis)+ slave_offset);
+			slave_position_has_been_calculated := TRUE;
+			
+			IF 	axis.actual_position > axis_calculated_cam_slave_position_deg
+			THEN 
+				direction_FWD := FALSE;	// backward
+			ELSIF axis.actual_position < axis_calculated_cam_slave_position_deg
+			THEN
+				direction_FWD := TRUE; //forward
+			END_IF
+	
+			fsm_next_status := CSP_CASE_LOADER_STATUS_PHASE_REQUEST;
+		END_IF
+
+
+	CSP_CASE_LOADER_STATUS_PHASE_REQUEST:
+
+		IF	axis_is_standstill(axis)
+			AND csp_case_loader.follower_clear (* FOLLOWER IS CLEAR MEANING IT IS AT LOAD POSITION *)
+			AND csp_case_loader.horizontal_clear (* HORIZONTAL IS CLEAR MEANING AT LOAD OR IN DIRECTION OF UPSTACK *)
+		THEN
+
+			axis_move_absolute(
+				position 		:= axis_calculated_cam_slave_position_deg,(*calculated above, the slave is moved*)
+				velocity 		:= phase_velocity_degps/2,
+				direction		:= SEL(direction_FWD, AXIS_NEGATIVE_DIRECTION, AXIS_POSITIVE_DIRECTION),
+				acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2,
+				jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this 			:= axis
+				); 
+			
+		END_IF
+
+		IF 	axis_is_absolute_moving(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_LOADER_STATUS_PHASING;
+		END_IF
+
+	CSP_CASE_LOADER_STATUS_PHASING:
+
+		IF 	axis_is_standstill(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_LOADER_STATUS_PHASED;
+		END_IF
+
+	CSP_CASE_LOADER_STATUS_PHASED:
+
+		fsm_next_status := CSP_CASE_LOADER_STATUS_CAM_ENGAGED_REQ;
+
+
+	CSP_CASE_LOADER_STATUS_CAM_ENGAGED_REQ:
+
+		axis_engage_cam(
+			cam_id 			:= cam_id,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE, 
+			activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY, 
+			activation_position	:= 0,
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			master_offset 		:= master_offset,			//axis_calculate_cam_slave_master_position_deg, (*moved right  respect to the original Y axis of the cam profile*)
+			slave_offset 		:= slave_offset,	//- axis_calculated_cam_slave_position_deg,  (*slave moved down of the same quantity already used in CSP_MACHINE_STATUS_PHASE_REQUEST via axis_move_absolute(..) *)
+			master_scaling 		:= master_scaling,
+			slave_scaling 		:= slave_scaling,
+			interpolation_type 		:= AXIS_CAM_INTERPOLATION_SYSTEM_DEFAULT,
+			master 			:= csp_case_loader_virtualMaster.axis,
+			CONVERSION_this 	:= axis);		
+	
+		IF	axis_is_cam_engaged(axis)
+		THEN
+			fsm_next_status := CSP_CASE_LOADER_STATUS_CAM_ENGAGED;
+		END_IF
+
+	
+	CSP_CASE_LOADER_STATUS_AXIS_ENGAGE_VERIFY :
+		;
+		
+	CSP_CASE_LOADER_STATUS_CAM_ENGAGED:
+	
+		IF 	machine_is_stop_emergency_active(csp.mch)
+			AND motorization_manager_is_stopped(csp_main_motorization_manager.motm)
+		THEN
+			fsm_next_status := CSP_CASE_LOADER_STATUS_DISENGAGE_REQUEST;
+		END_IF
+		
+		IF 	phase_edge(cam_change_check_ph) (* CROSSPUSHER VIRTUAL AT CHECK PHASE DEG *)
+			AND axis_is_cam_engaged(axis)
+			AND NOT csp_case_loader.follower_clear
+			AND NOT csp_case_loader.horizontal_clear
+		THEN
+			fsm_next_status := CSP_CASE_LOADER_STATUS_DISENGAGE_REQUEST;
+		END_IF
+		
+	CSP_CASE_LOADER_STATUS_RUNNING:
+
+		;
+		
+	CSP_CASE_LOADER_STATUS_DISENGAGE_REQUEST:
+
+		fsm_next_status := CSP_CASE_LOADER_STATUS_DISENGAGING;
+		
+	CSP_CASE_LOADER_STATUS_DISENGAGING:
+	
+		IF 	axis_disengage(
+				mode:= AXIS_DISENGAGE_AND_ON_PHASE_STOP, 
+				position:= 0, 
+				velocity:= 0, 
+				acceleration:= MOTOR_MAX_ACCELLERATION_DEGPS2, 
+				deceleration:= MOTOR_MAX_DECELLERATION_DEGPS2, 
+				jerk:= MOTOR_MAX_JERK_DEGPS3, 
+				CONVERSION_this:= axis)
+		THEN
+			fsm_next_status := CSP_CASE_LOADER_STATUS_CAM_ENGAGED_REQ;
+		END_IF
+	
+	CSP_CASE_LOADER_STATUS_STOP_REQUEST:
+
+		axis_stop(
+		    deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2,
+		    jerk 			:= MOTOR_MAX_JERK_DEGPS3,
+		    CONVERSION_this 			:= axis);
+
+		IF 	axis_is_standstill(axis)
+			OR
+			NOT axis_is_ok(FALSE, axis)
+			OR
+			axis_is_disabled(axis)
+		THEN
+			fsm_next_status := CSP_CASE_LOADER_STATUS_DISABLE_REQUEST;
+		END_IF
+
+	CSP_CASE_LOADER_STATUS_DISABLE_REQUEST:
+	
+   		axis_disable(axis);
+   		fsm_next_status := CSP_CASE_LOADER_STATUS_DISABLING;
+
+	CSP_CASE_LOADER_STATUS_DISABLING:
+	
+        IF	axis_is_disabled(axis)
+        THEN
+            fsm_next_status := CSP_CASE_LOADER_STATUS_DISABLED;
+        END_IF
+
+END_CASE;
+
+IF 	NOT debug_state_machine
+	OR
+	debug_state_machine_one_step
+THEN
+	fsm_status := fsm_next_status;
+	debug_state_machine_one_step := FALSE;
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{dba3938c-5cf7-43ac-897f-fe34b02e81d7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{7229cdf2-44b8-4d92-9152-53875ce4239f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{6235cd45-c95e-4fc5-ad7c-0aec554dab5d}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{93bba1cd-1bc3-49fa-b917-3d8032f33412}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_loader_pusher.prc', 
+		process						:= csp_case_loader.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+(* axis smes *)
+	IF csp_main_configurator.Physical_hw
+	THEN
+	
+		axis_init(
+			object_name								:= CONCAT(prc_path, '_axis'), 
+			axis_type								:= AXIS_TYPE_SERVO, 
+			encoder_scaling_factor					:= G_SERVO_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo									:= G_NO_MODULO_DEG, 
+			process									:= prc, 
+			CONVERSION_this							:= axis);
+			
+		axis_add_safety_integrated_series(
+			safety_integrated_series 	:= csp_case_main_safety_drives_SD8500.chA_smes_sis,
+			CONVERSION_this				:= axis);
+			
+		axis_init_absolute_encoder_preset(
+			position                                := 0.0,
+			CONVERSION_this                         := axis);
+			
+	ELSE
+		axis_init(
+			object_name								:= CONCAT(prc_path, '_axis'), 
+			axis_type								:= AXIS_TYPE_VIRTUAL, 
+			encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo									:= G_MODULO_1080_DEG, 
+			process									:= prc, 
+			CONVERSION_this							:= axis);		
+				
+	END_IF
+	
+	axis_set_max_dynamic(
+		reference_velocity						:=	MOTOR_MAX_VELOCITY_DEGPS,
+		velocity								:=	MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration							:=	MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration							:=	MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk									:=	MOTOR_MAX_JERK_DEGPS3,
+		following_error							:=	MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this							:=	axis);
+		
+	axis_add_soe_drive(
+		channel									:=	SOE_DRIVE_CHANNEL_A,
+		soe_drive								:=	csp_case_main_drives.SD8500_drv,
+		CONVERSION_this							:=	axis);
+		
+	jog_manager_add_axis(
+		list_index								:= SMTR8503_CASE_LOADER_PUSHER,
+		axis									:= axis,
+		master_axis								:= FALSE,
+		jog_type								:= JOG_TYPE_LINEAR,
+		sw_limit_positive						:= 800,
+		sw_limit_negative						:= 0,
+		CONVERSION_this							:= csp_main_jogManager.jog_manager_real);
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_RFID_read_write_error_msg'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, //MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology:=  MESSAGE_TYPOLOGY_NOT_VISIBLE, //MESSAGE_TYPOLOGY_ABNORMAL,
+        process:= prc,
+        CONVERSION_this:= RFID_read_write_error_msg);
+		
+		
+	phase_init(
+        object_name 				:= CONCAT(prc_path, '_cam_change_check_ph'),
+        phase 						:= 0,	//Set at runtime!
+        delay 						:= 0,
+        max_compensation 			:= 0,
+        generator 					:= csp_case_transport_virtualMaster.transport_vm_phgen,
+        process 					:= prc,
+        CONVERSION_this 			:= cam_change_check_ph);	
+		
+END_IF
+
+IF objects_running()
+THEN
+	phase_cycle(cam_change_check_ph);
+	process_cycle(prc);
+	axis_cycle(axis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{3ee3575b-d62b-4116-b8c2-afb2f3f4c941}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{ea30b9d5-5327-44bd-97f7-397b39134a88}">
+      <Implementation>
+        <ST><![CDATA[disable_req := csp_case.disable_req;
+;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{2de0d697-15a6-4714-8708-53c756f82ebb}">
+      <Implementation>
+        <ST><![CDATA[enable_delay(IN:=axis_is_ready_to_enable(axis) , PT:=T#2S , Q=> servo_on_condition , ET=> );]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{8714f2c7-762e-4f0a-8d33-f0a9b35ae2f5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="RFID" Id="{a5ed30b0-2e83-460b-bbe2-15a9622e344c}">
+      <Implementation>
+        <ST><![CDATA[	(* RMH RFID TEST *)
+rfid_input_bitheader_1.CP := rfid_input_buffer.ByteArr[0].0;
+rfid_input_bitheader_1.AA := rfid_input_buffer.ByteArr[0].1;
+rfid_input_bitheader_1.AE := rfid_input_buffer.ByteArr[0].2;
+rfid_input_bitheader_1.AF := rfid_input_buffer.ByteArr[0].3;
+rfid_input_bitheader_1.Bit4 := rfid_input_buffer.ByteArr[0].4;
+rfid_input_bitheader_1._TO := rfid_input_buffer.ByteArr[0].5;
+rfid_input_bitheader_1.HF := rfid_input_buffer.ByteArr[0].6;
+rfid_input_bitheader_1.BB := rfid_input_buffer.ByteArr[0].7;
+
+rfid_input_bitheader_2.CP := rfid_input_buffer.ByteArr[0].0;
+rfid_input_bitheader_2.AA := rfid_input_buffer.ByteArr[0].1;
+rfid_input_bitheader_2.AE := rfid_input_buffer.ByteArr[0].2;
+rfid_input_bitheader_2.AF := rfid_input_buffer.ByteArr[0].3;
+rfid_input_bitheader_2.Bit4 := rfid_input_buffer.ByteArr[0].4;
+rfid_input_bitheader_2._TO := rfid_input_buffer.ByteArr[0].5;
+rfid_input_bitheader_2.HF := rfid_input_buffer.ByteArr[0].6;
+rfid_input_bitheader_2.BB := rfid_input_buffer.ByteArr[0].7;
+
+rfid_output_buffer.ByteArr[0].0 := rfid_output_bitheader_1.AV ;
+rfid_output_buffer.ByteArr[0].1 := rfid_output_bitheader_1.Bit1;
+rfid_output_buffer.ByteArr[0].2 := rfid_output_bitheader_1.GR;
+rfid_output_buffer.ByteArr[0].3 := rfid_output_bitheader_1.Bit3;
+rfid_output_buffer.ByteArr[0].4 := rfid_output_bitheader_1.Bit4;
+rfid_output_buffer.ByteArr[0].5 := rfid_output_bitheader_1.KA;
+rfid_output_buffer.ByteArr[0].6 := rfid_output_bitheader_1.TI;
+rfid_output_buffer.ByteArr[0].7 := rfid_output_bitheader_1.Bit7;
+
+rfid_output_buffer.ByteArr[9].0 := rfid_output_bitheader_2.AV ;
+rfid_output_buffer.ByteArr[9].1 := rfid_output_bitheader_2.Bit1;
+rfid_output_buffer.ByteArr[9].2 := rfid_output_bitheader_2.GR;
+rfid_output_buffer.ByteArr[9].3 := rfid_output_bitheader_2.Bit3;
+rfid_output_buffer.ByteArr[9].4 := rfid_output_bitheader_2.Bit4;
+rfid_output_buffer.ByteArr[9].5 := rfid_output_bitheader_2.KA;
+rfid_output_buffer.ByteArr[9].6 := rfid_output_bitheader_2.TI;
+rfid_output_buffer.ByteArr[9].7 := rfid_output_bitheader_2.Bit7;
+
+
+IF rfid_start_toggle
+THEN
+	rfid_output_bitheader_1.GR := FALSE;
+	rfid_output_bitheader_1.KA := FALSE;
+	rfid_output_bitheader_1.AV := FALSE;
+	rfid_output_bitheader_2.GR := FALSE;
+	rfid_output_bitheader_2.KA := FALSE;
+	rfid_output_bitheader_2.AV := FALSE;
+	
+	rfid_start_toggle := FALSE;
+END_IF
+
+
+IF 	rfid_shutdown_toggle
+THEN
+	rfid_output_bitheader_1.KA := TRUE;
+	rfid_output_bitheader_2.KA := TRUE;
+	
+	IF 	rfid_input_bitheader_1.HF
+		AND rfid_input_bitheader_2.HF
+		AND NOT rfid_input_bitheader_1.CP
+		AND NOT rfid_input_bitheader_2.CP
+	THEN
+		rfid_output_bitheader_1.KA := FALSE;
+		rfid_output_bitheader_2.KA := FALSE;
+		rfid_shutdown_toggle := FALSE;
+	END_IF
+		
+END_IF
+
+
+IF 	rfid_write_toggle //OR i_rfid_write_from_hmi
+THEN	
+	rfid_output_buffer.ByteArr[1] := 16#0032;
+	rfid_output_buffer.ByteArr[2] := 16#00;
+	rfid_output_buffer.ByteArr[3] := 16#00;
+	rfid_output_buffer.ByteArr[4] := 16#0001;
+	rfid_output_buffer.ByteArr[5] := 16#00;
+	rfid_output_buffer.ByteArr[6] := rfid_value_to_write;
+	
+	rfid_output_bitheader_1.AV := TRUE;
+	rfid_output_bitheader_2.AV := TRUE;
+		
+	IF 	rfid_input_bitheader_1.AA 
+		AND rfid_input_bitheader_2.AA 
+		AND rfid_input_bitheader_1.AE
+		AND rfid_input_bitheader_2.AE
+	THEN
+		rfid_output_bitheader_1.AV := FALSE;
+		rfid_output_bitheader_2.AV := FALSE;
+		rfid_write_toggle := FALSE;
+	END_IF
+		
+END_IF
+
+
+IF 	rfid_read_toggle 
+THEN	
+	rfid_output_buffer.ByteArr[1] := 16#0001;
+	rfid_output_buffer.ByteArr[2] := 16#00;
+	rfid_output_buffer.ByteArr[3] := 16#00;
+	rfid_output_buffer.ByteArr[4] := 16#0001;
+	rfid_output_buffer.ByteArr[5] := 16#00;
+	
+	rfid_output_bitheader_1.AV := TRUE;
+	rfid_output_bitheader_2.AV := TRUE;
+	
+	
+	IF 	rfid_input_bitheader_1.AA 
+		AND rfid_input_bitheader_2.AA 
+		AND rfid_input_bitheader_1.AE
+		AND rfid_input_bitheader_2.AE
+	THEN
+		// SAVE VALUES IN INPUT BUFFER [1...8] - CHECK WITH BRAND FOR WHAT VALUE SHOULD BE PRESENT
+		rfid_value := rfid_input_buffer.ByteArr[1];
+		rfid_output_bitheader_1.AV := FALSE;
+		rfid_output_bitheader_2.AV := FALSE;
+		rfid_read_toggle := FALSE;
+	END_IF
+	
+END_IF
+
+
+
+(* STATE MACHINE FOR READING AND WRITING TO RFID *)
+CASE RFID_read_write_status OF
+			
+	CSP_CASE_LOADER_RFID_STATUS_START:
+	
+		IF csp_main_accuChange.RFID_read_write_running (* Use this value within brand change to start the check *)
+		THEN
+			rfid_write_done := FALSE;
+			rfid_read_done := FALSE;
+			rfid_read_write_running := TRUE;
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_CHECK_AXIS_POS;
+		END_IF
+		
+		
+	CSP_CASE_LOADER_RFID_STATUS_CHECK_AXIS_POS:
+	
+		IF 	ABS(axis.actual_position - rfid_check_pos) < check_pls_tolerance
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_CHECK_READ_WRITE;
+		ELSE
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_DISABLE_AXIS;
+		END_IF
+		
+	
+	CSP_CASE_LOADER_RFID_STATUS_DISABLE_AXIS:
+	
+		axis_disable(axis);
+		IF 	axis_is_disabled(axis)
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_ENABLE_AXIS;
+		END_IF
+		
+		
+	CSP_CASE_LOADER_RFID_STATUS_ENABLE_AXIS:
+	
+		IF servo_on_condition
+		THEN
+			axis_enable(axis);
+		END_IF
+		
+		IF 	axis_is_enabled(axis)
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_ENABLE_CROSSPUSHERS;
+		END_IF
+		
+	CSP_CASE_LOADER_RFID_STATUS_ENABLE_CROSSPUSHERS:
+	
+		axis_enable(csp_transfer_crosspusher_horizontal.axis);
+		axis_enable(csp_transfer_crosspusher_follower.axis);
+		IF 	axis_is_enabled(csp_transfer_crosspusher_horizontal.axis)
+			AND
+			axis_is_enabled(csp_transfer_crosspusher_follower.axis)
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_MOVE_CROSSPUSHERS;
+		END_IF
+	
+	CSP_CASE_LOADER_RFID_STATUS_MOVE_CROSSPUSHERS:
+	
+		IF 	axis_is_standstill(csp_transfer_crosspusher_horizontal.axis)
+			AND
+			axis_is_standstill(csp_transfer_crosspusher_follower.axis)
+		THEN
+			axis_move_absolute(
+				position 		:= csp_transfer_crosspusher_horizontal.load_position,
+				velocity 		:= phase_velocity_degps,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2, 
+				jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_transfer_crosspusher_horizontal.axis
+				); 
+				
+			axis_move_absolute(
+				position 		:= 500,
+				velocity 		:= phase_velocity_degps,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2, 
+				jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_transfer_crosspusher_follower.axis
+				); 
+		END_IF
+			
+		IF	axis_is_absolute_moving(csp_transfer_crosspusher_follower.axis) 
+			OR
+			axis_is_absolute_moving(csp_transfer_crosspusher_horizontal.axis) 
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_VERIFY_CROSSPUSHERS_CLEAR;
+		END_IF
+	
+		
+	CSP_CASE_LOADER_RFID_VERIFY_CROSSPUSHERS_CLEAR:
+	
+		IF 	csp_transfer_crosspusher_horizontal.axis.actual_position >= csp_transfer_crosspusher_horizontal.load_position
+			AND csp_transfer_crosspusher_follower.axis.actual_position >= (csp_transfer_crosspusher_follower.slave_scaling-1)
+			OR
+			(
+				rfid_input_bitheader_1.CP 
+				AND rfid_input_bitheader_2.CP
+			)
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_MOVE_AXIS_TO_POS;
+		END_IF
+	
+		
+	CSP_CASE_LOADER_RFID_STATUS_MOVE_AXIS_TO_POS:
+
+		
+		IF 	axis_is_standstill(axis)
+			AND
+			axis_is_standstill(csp_transfer_crosspusher_horizontal.axis)
+			AND
+			axis_is_standstill(csp_transfer_crosspusher_follower.axis)
+		THEN
+			axis_move_absolute(
+				position 		:= rfid_check_pos,
+				velocity 		:= phase_velocity_degps,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+				deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2, 
+				jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := axis
+				); 
+		END_IF
+	
+		IF 	axis_is_absolute_moving(axis) OR axis.actual_position <= rfid_check_pos
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_VERIFY_AXIS_POS;
+		END_IF
+		
+		
+	CSP_CASE_LOADER_RFID_STATUS_VERIFY_AXIS_POS:
+	
+		IF 	axis_is_standstill(axis)
+			AND ABS(axis.actual_position - rfid_check_pos) < check_pls_tolerance
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_CHECK_READ_WRITE;
+		END_IF
+		
+		
+	(* CHECK IF IT IS SUPPOSED TO READ OR WRITE *)
+	CSP_CASE_LOADER_RFID_STATUS_CHECK_READ_WRITE:
+	
+		rfid_start_toggle := TRUE;
+		IF 	csp_main_accuChange.RFID_reading (* Use this value also within brand change *)
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_READ_START;
+		ELSIF csp_main_accuChange.RFID_writing
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_WRITE_START;
+		END_IF
+			
+		
+		
+	(* RFID READ START *)	
+	CSP_CASE_LOADER_RFID_STATUS_READ_START:
+	
+		IF 	rfid_input_bitheader_1.CP
+			AND rfid_input_bitheader_2.CP
+		THEN
+			rfid_read_toggle := TRUE;
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_READ_CHECK_RESULT;
+		END_IF
+
+	CSP_CASE_LOADER_RFID_STATUS_READ_CHECK_RESULT:
+	
+		IF 	NOT rfid_read_toggle 
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_READ_DONE;
+		END_IF
+		
+	CSP_CASE_LOADER_RFID_STATUS_READ_DONE:
+	
+		rfid_read_done := TRUE;
+		rfid_read_write_running := FALSE;
+		RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_WAITING;
+		
+		
+	(* RFID WRITING START *)
+	CSP_CASE_LOADER_RFID_STATUS_WRITE_START:
+	
+		rfid_value_to_write := csp_main_accuChange.RFID_Setup_write_value;
+		
+		IF	rfid_input_bitheader_1.CP
+			AND rfid_input_bitheader_2.CP
+		THEN
+			rfid_write_toggle := TRUE;
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_WAIT_WRITE;
+		END_IF
+		
+		
+	CSP_CASE_LOADER_RFID_STATUS_WAIT_WRITE:
+	
+		IF 	NOT rfid_write_toggle
+		THEN	
+				RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_WRITE_DONE;
+		END_IF
+		
+	CSP_CASE_LOADER_RFID_STATUS_WRITE_DONE:
+	
+		rfid_write_done := TRUE;
+		rfid_read_write_running := FALSE;
+		RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_WAITING;
+		
+		
+	CSP_CASE_LOADER_RFID_STATUS_WAITING:
+	
+		RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_START;
+		
+	
+END_CASE
+
+
+(* ADVANCES TO NEXT STEP *)
+IF 	NOT RFID_read_write_debug
+	OR
+	RFID_read_write_one_step	
+THEN
+	RFID_read_write_status := RFID_read_write_status_next;
+	RFID_read_write_one_step := FALSE;
+END_IF
+
+
+(* Connection timeout *)
+IF	RFID_read_write_running
+	AND NOT RFID_read_write_debug
+THEN
+	IF	timer_is_expired(RFID_read_write_tmr)
+	THEN
+		rfid_start_toggle := TRUE;
+		process_message_set(1, RFID_read_write_status, 0, RFID_read_write_error_msg);
+	END_IF
+ELSE
+	timer_restart(10000, RFID_read_write_tmr);
+END_IF
+
+
+]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

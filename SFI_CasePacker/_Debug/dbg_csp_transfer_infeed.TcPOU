@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="dbg_csp_transfer_infeed" Id="{edef4e00-08a0-4daa-ae1d-7f387cb47a25}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_transfer_infeed
+VAR
+  run_do_shd : digital_output_shadow;
+  running_di_shd : digital_input_shadow;
+  speed_ao_shd : analog_output_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{7edda746-25df-4c5a-ade2-adcc2bf31499}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_infeed.run_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= run_do_shd);
+
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	digital_output_shadow_cycle(run_do_shd);
+	digital_input_shadow_cycle(running_di_shd);
+	analog_output_shadow_cycle(speed_ao_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

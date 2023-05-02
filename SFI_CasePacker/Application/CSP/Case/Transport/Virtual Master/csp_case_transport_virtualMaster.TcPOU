@@ -1,0 +1,1177 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_transport_virtualMaster" Id="{fe3aeadf-c31b-4399-a9fa-e96b23e0a52a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_transport_virtualMaster
+VAR
+	
+	prc:												process;
+	prc_path:											STRING;
+	test_pb:											BOOL:= FALSE;
+	disable_pb:											BOOL:= FALSE;
+	fsm_enable_condition:								BOOL := FALSE;
+	fsm_next_status:									csp_case_transport_status_enum;
+	fsm_status:											csp_case_transport_status_enum;
+	phase_enable:										BOOL  := TRUE;
+	axis: 												axis;
+	phase_position_deg:									LREAL := 0;
+	phase_velocity_degps:								LREAL := 20.0;
+	axis_calculate_cam_slave_master_position_deg:		LREAL := 0.0;
+	axis_calculated_cam_slave_position_deg:				LREAL := 0.0;
+	axis_calculate_cam_master_slave_position_deg: 		LREAL := 0.0;
+	axis_calculated_cam_master_position_deg: 			LREAL := 0.0;
+	slave_position_has_been_calculated:					BOOL  := FALSE;
+	master_position_has_been_calculated:				BOOL  := FALSE;
+	engage_enable:										BOOL:=TRUE;
+	target_position:									LREAL:=0;
+	disable_req:										BOOL:=FALSE;
+	debug_state_machine:								BOOL:=FALSE;
+	debug_state_machine_one_step:						BOOL:=FALSE;
+	os_minor_plow_phgen:								phase_generator;
+	os_minor_plow_phwin:								phase_window;
+	major_flap_phgen:									phase_generator;
+	major_flap_phwin:									phase_window;
+	
+	transport_vm_phgen:									phase_generator;
+	os_trailing_lug_pos:								LREAL;
+	cam_id:												INT := LINEAR_CAM;
+	slave_scaling_mm:									LREAL := 360; (*$P $*)
+	master_scaling_deg:									LREAL := 360; (*$P $*)
+	slave_scaling:										LREAL := 360; (*$P $*)
+	master_scaling:										LREAL := 360; (*$P $*)
+	home_position_master_offset_deg: 					LREAL := 0;
+	running_cam:										BOOL;
+	minor_plow_on: 										LREAL:=0; (*$P $*)
+	minor_plow_off: 									LREAL:=100; (*$P $*)
+	
+	FLAG: 												STRING;
+	transport_slaves_cammed:							BOOL:=FALSE;
+	activation_position:    							LREAL:=0.001111;
+	ls_flap_phgen:										phase_generator;
+	ls_flap_on: 										LREAL := 110;
+	ls_flap_off: 										LREAL := 125;
+	ls_flap_phwin: 										phase_window;
+	os_flap_phgen: 										phase_generator;
+	os_flap_on: 										LREAL;
+	os_flap_off: 										LREAL;
+	os_flap_phwin: 										phase_window;
+	debug: 												STRING;
+	major_flap_check_on: 								LREAL:=352; (*$P $*)
+	major_flap_check_off: 								LREAL:=357; (*$P $*)
+	stop_for_reject: 									BOOL:=FALSE;
+	PE_check: 											BOOL:=TRUE;	//initialized as true so transport virtual will run; toggle false to simulate case reject operation
+	recovery_cycle:										BOOL:= FALSE;
+	step_1: 											BOOL;
+	step_2: 											BOOL;
+	push_loader: 										BOOL;
+	step_3: 											BOOL;
+	step_4: 											BOOL;
+	disengage_pos:										LREAL := 345;   
+	latch: 												BOOL:= False;
+	transport_request_latch: 							BOOL := FALSE;
+	engage_after_estop: 								BOOL;
+	Check_request_latch: 								BOOL := FALSE;
+	Good_case_detected:									BOOL:= FALSE;
+	Bad_case_detected:									BOOL:= FALSE;
+	startup_follower_at_start_position:					BOOL:=FALSE;
+	Startup_Good_case_detected:							BOOL := false;
+	act_pos: 											LREAL := 0.995;
+	reject_complete_test: 								BOOL := FALSE;
+	test19:												BOOL := TRUE;
+	
+	PE_TEST: 											BOOL := TRUE;
+	phase_done: 										BOOL := TRUE;
+	Reject_again: 										BOOL := FALSE;
+	pe_off: 											BOOL := TRUE;
+	PE_Bypass_request:                                  BOOL:=FALSE;(*$P $*)
+	consecutive_rejects_aem:							message;
+	
+	Abs_moved: 											BOOL;
+	temp1: 												BOOL;
+
+	Flap_control_engaged: 								BOOL;
+	Reject_engaged: 									BOOL;
+	Reject_disengaging: 								BOOL;
+	Reject_disengaged: 									BOOL;
+	Ready_to_collapse_bad_case: 						BOOL;
+	Re_engaged_to_Case_Virtual: 						BOOL;
+	detect_next_flaps: 									BOOL;(*$P desc:= DETECT START AND END PHASE OF FLAP EYES ON NEXT CASE; $*)
+	eye_test_temp: 										BOOL;
+	detected_start_phase: 								LREAL;(*$P desc:= DETECTED START PHASE OF FLAP EYES ON CASE; $*)
+	detected_end_phase: 								LREAL;(*$P desc:= DETECTED END PHASE OF FLAP EYES ON CASE; $*)
+	
+	missing_os_fc_lower_pe_wem:							message;
+	missing_os_fc_upper_pe_wem: 						message;
+	missing_ls_fc_lower_pe_wem:							message;
+	missing_ls_fc_upper_pe_wem: 						message;
+	missing_flap: 										BOOL;
+	transport_vm_ph: 									phase;
+	Good_Case_For_SR: 									BOOLean;
+	feed_chksect: 										check_section;
+	boolean_is_resetting: 								BOOL;
+	boolean_is_set: 									BOOL;
+	reject_reset_boolean: 								BOOL;
+	new_set: 											BOOL;
+	axis_tolerance: 									INT := 30;
+	phase_direction: 									BOOL;
+END_VAR
+
+VAR CONSTANT
+	
+	CONSTANTS:											csp_case_transport_constant_struct;
+
+END_VAR
+VAR_INPUT
+	feed_reject_case_count: 							DINT;(*$M $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+				
+IF  axis_is_cam_engaged(csp_case_transport_os_trailing.axis)
+	AND axis_is_cam_engaged(csp_case_transport_os_leading.axis)
+	AND axis_is_cam_engaged(csp_case_transport_ls_trailing.axis)
+	AND axis_is_cam_engaged(csp_case_transport_ls_leading.axis)
+	AND axis_is_cam_engaged(csp_case_tr_squaring_ls_leading.axis) 
+	AND axis_is_cam_engaged(csp_case_tr_squaring_ls_trailing.axis)
+	AND axis_is_cam_engaged(csp_case_tr_squaring_os_leading.axis)
+	AND axis_is_cam_engaged(csp_case_tr_squaring_os_trailing.axis)
+	AND axis_is_cam_engaged(csp_case_closing_os_horizontal.axis)
+	AND axis_is_cam_engaged(csp_case_closing_os_upper.axis)
+	AND axis_is_cam_engaged(csp_case_closing_os_lower.axis)
+	AND axis_is_cam_engaged(csp_case_closing_ls_horizontal.axis)
+	AND axis_is_cam_engaged(csp_case_closing_ls_upper.axis)
+	AND axis_is_cam_engaged(csp_case_closing_ls_lower.axis)
+	AND axis_is_cam_engaged(csp_case_discharge_speedbelt_ls.axis)
+	AND axis_is_cam_engaged(csp_case_discharge_speedbelt_os.axis)
+THEN
+	transport_slaves_cammed := TRUE;
+ELSE
+	transport_slaves_cammed := FALSE;	
+END_IF
+
+IF axis_is_cam_engaged(csp_case_fc_os_lower_follower.axis)
+	AND axis_is_cam_engaged(csp_case_fc_os_upper_follower.axis)
+	AND axis_is_cam_engaged(csp_case_fc_os_lower_spreader.axis)
+	AND axis_is_cam_engaged(csp_case_fc_os_upper_spreader.axis)
+	AND axis_is_cam_engaged(csp_case_fc_ls_lower_follower.axis)
+	AND axis_is_cam_engaged(csp_case_fc_ls_upper_follower.axis)
+	AND axis_is_cam_engaged(csp_case_fc_ls_lower_spreader.axis)
+	AND axis_is_cam_engaged(csp_case_fc_ls_upper_spreader.axis)
+THEN
+	Flap_control_engaged := TRUE;
+ELSE
+	Flap_control_engaged := FALSE;
+END_IF
+
+
+
+phase_window_set_phases_data(
+	begin_phase:=  major_flap_check_on,
+	end_phase:=  major_flap_check_off,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= major_flap_phwin);
+
+IF	(
+	digital_input_is_active(csp_case_fc_os_upper_sensors.flap_di)
+	AND digital_input_is_active(csp_case_fc_os_lower_sensors.flap_di)
+	AND digital_input_is_active(csp_case_fc_ls_upper_sensors.flap_di)
+	AND digital_input_is_active(csp_case_fc_ls_lower_sensors.flap_di)
+	AND NOT PE_Bypass_request
+	)
+	OR csp_case_main_services.dry_cycle_mode
+	OR csp_main_jogManager.jog_is_active
+THEN
+	PE_check := TRUE;
+ELSE
+	Pe_check := FALSE;
+END_IF
+
+IF  ( phase_window_is_in_window(major_flap_phwin) OR (stop_for_reject AND (axis.actual_position > major_flap_check_on AND axis.actual_position < major_flap_check_off) AND axis_is_cam_engaged(axis) ))//phase_window_falling_edge(major_flap_phwin)/ 
+	AND (csp_case_feed_arm_sensors.major_vacuum_sact.status = DIGITAL_ACTUATOR_STATUS_ACTIVATING OR digital_actuator_is_active(csp_case_feed_arm_sensors.major_vacuum_sact))
+	AND (
+		NOT PE_check
+		OR NOT digital_input_is_active(csp_case_feed_arm_sensors.case_check_di)
+		)
+	AND csp_main_motorization_virtualManager.o_machine_is_moving 
+	AND NOT csp_case_main_services.dry_cycle_mode
+	AND NOT csp_case_feed_arm_sensors.mispicked_case 
+THEN
+	target_position := 358;
+	stop_for_reject := TRUE;
+	Bad_case_detected := TRUE;		
+	boolean_reset(Good_Case_For_SR);
+	boolean_is_resetting := TRUE;
+	boolean_is_set := FALSE;
+ELSIF (phase_window_is_in_window(major_flap_phwin) OR (stop_for_reject AND (axis.actual_position > major_flap_check_on AND axis.actual_position < major_flap_check_off) AND axis_is_cam_engaged(axis) ))//phase_window_falling_edge(major_flap_phwin)/ //AMR 9/1/2021
+	AND PE_check
+	AND (csp_case_feed_arm_sensors.major_vacuum_sact.status = DIGITAL_ACTUATOR_STATUS_ACTIVATING OR digital_actuator_is_active(csp_case_feed_arm_sensors.major_vacuum_sact))
+	AND digital_input_is_active(csp_case_feed_arm_sensors.case_check_di)
+	AND csp_main_motorization_virtualManager.o_machine_is_moving 
+	OR csp_case_main_services.dry_cycle_mode
+THEN
+	boolean_set(Good_Case_For_SR);
+	boolean_is_resetting := FALSE;
+	boolean_is_set := TRUE;
+END_IF
+
+IF phase_edge(transport_vm_ph)//resetting at next index of shift register
+THEN
+	boolean_reset(Good_Case_For_SR);
+END_IF
+
+IF phase_window_falling_edge(major_flap_phwin)
+	AND NOT PE_check
+	AND digital_input_is_active(csp_case_feed_arm_sensors.case_check_di)
+	AND NOT csp_case_main_services.dry_cycle_mode
+THEN
+	missing_flap := TRUE;
+	ELSIF NOT digital_input_is_active(csp_case_fc_os_upper_sensors.flap_di)	AND missing_flap THEN
+			process_message_set(1, 1, 1, missing_os_fc_upper_pe_wem); //message for missing fc os upper pe
+	ELSIF NOT digital_input_is_active(csp_case_fc_os_lower_sensors.flap_di)	AND missing_flap THEN
+			process_message_set(1, 1, 1, missing_os_fc_lower_pe_wem); //message for missing fc os lower pe
+	ELSIF NOT digital_input_is_active(csp_case_fc_ls_upper_sensors.flap_di)	AND missing_flap 	THEN
+			process_message_set(1, 1, 1, missing_ls_fc_upper_pe_wem); //message for missing fc ls upper pe
+	ELSIF NOT digital_input_is_active(csp_case_fc_ls_lower_sensors.flap_di)	AND missing_flap 	THEN
+			process_message_set(1, 1, 1, missing_ls_fc_lower_pe_wem); //message for missing fc ls lower pe
+END_IF
+
+IF(process_message_is_on(missing_os_fc_upper_pe_wem)
+		OR process_message_is_on(missing_os_fc_lower_pe_wem)
+		OR process_message_is_on(missing_ls_fc_upper_pe_wem)
+		OR process_message_is_on(missing_ls_fc_lower_pe_wem))
+		AND phase_edge(transport_vm_ph)
+THEN
+	process_message_reset(missing_os_fc_upper_pe_wem);
+	process_message_reset(missing_os_fc_lower_pe_wem);
+	process_message_reset(missing_ls_fc_upper_pe_wem);
+	process_message_reset(missing_ls_fc_lower_pe_wem);
+	missing_flap := FALSE;
+END_IF
+
+IF stop_for_reject
+	AND csp_case_feed_virtualMaster.stop_during_reject
+THEN
+	stop_for_reject := FALSE;
+END_IF
+
+IF 	NOT csp_case_feed_virtualMaster.check_request
+	AND csp_case_feed_virtualMaster.fsm_status <> CSP_CASE_FEED_STATUS_CAM_ENGAGED
+THEN
+	Bad_case_detected := FALSE;
+	Good_case_detected := FALSE;
+END_IF
+
+IF csp_case_transport.transport_request 
+THEN
+	transport_request_latch := TRUE;
+END_IF
+
+IF transport_request_latch 
+THEN
+	IF axis.actual_modulo_position > 0 AND axis.actual_modulo_position < 5 OR stop_for_reject 
+	THEN
+		transport_request_latch := FALSE;
+	END_IF
+END_IF
+
+IF 	csp_case_feed_virtualMaster.fsm_status = 157
+THEN
+	Startup_Good_case_detected := TRUE;
+	startup_follower_at_start_position := TRUE;
+ELSE
+	Startup_Good_case_detected := FALSE;
+	startup_follower_at_start_position := FALSE;	
+END_IF
+
+(* Turn on eye_test to capture the leading and trailing edge pe_check(when all flaps are opened successful). Use these values to then troubleshoot when eyes were lost or missed *)
+IF 	detect_next_flaps
+	AND NOT eye_test_temp
+	AND pe_check
+then
+	detected_start_phase := csp_case_transport_virtualMaster.axis.actual_position;
+	eye_test_temp := True;
+	detect_next_flaps := False;
+end_if
+
+IF 	eye_test_temp
+	AND NOT pe_check
+then
+	detected_end_phase := csp_case_transport_virtualMaster.axis.actual_position;
+	eye_test_temp := False;
+end_if
+
+(* If stop occurs in reject operation, reset all reject bits to abort sequence and phase all axes back to starting to run *)
+IF (
+    machine_is_stop_emergency_active(csp.mch)
+    OR machine_is_stop_normal_active(csp.mch)
+    )
+    AND STOP_FOR_REJECT
+	OR csp_case_feed_virtualMaster.stop_during_reject
+THEN
+	Good_case_detected := FALSE;
+	Check_request_latch :=FALSE;
+	STOP_FOR_REJECT := FALSE;
+	Check_request_latch :=FALSE;
+	Bad_case_detected := FALSE;
+	Reject_again := FALSE;
+END_IF
+
+IF (stop_for_reject 
+	OR 
+	reject_again)
+	AND NOT temp1
+THEN
+	temp1 := TRUE;
+	feed_reject_case_count := feed_reject_case_count + 1;
+END_IF
+
+IF 	NOT stop_for_reject 
+	AND NOT reject_again
+THEN
+	temp1 := FALSE;
+END_IF	
+
+IF NOT csp_case_main_safety_emergency.sis.safely_closed_input.status 
+	AND axis_is_cam_engaged(axis) 
+THEN
+	engage_after_estop := TRUE;
+ELSIF csp_case_main_safety_emergency.sis.safely_closed_input.status 
+	AND fsm_status = CSP_CASE_TRANSPORT_STATUS_CAM_ENGAGED 
+THEN
+	engage_after_estop := FALSE;
+END_IF
+
+fsm_enable_condition := axis_is_ok(FALSE, axis)
+						AND
+						process_is_ready(prc)
+						AND
+						NOT jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_TRANSPORT_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+						AND
+						process_subtree_is_ready(prc)
+						AND 
+						NOT disable_req;
+						
+IF NOT fsm_enable_condition
+	OR
+	disable_req
+	AND
+	fsm_status <> CSP_CASE_TRANSPORT_STATUS_DISABLED
+	AND
+	fsm_status < CSP_CASE_TRANSPORT_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_CASE_TRANSPORT_STATUS_STOP_REQUEST;	
+END_IF
+
+CASE fsm_status OF
+	
+	CSP_CASE_TRANSPORT_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_next_status := CSP_CASE_TRANSPORT_STATUS_DISABLED;
+        END_IF
+
+		
+	CSP_CASE_TRANSPORT_STATUS_DISABLED:
+
+		IF	fsm_enable_condition
+			AND
+			(
+				(motorization_manager_is_starting(csp_main_motorization_manager.motm))
+				OR
+				jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)	
+			)
+		THEN
+			boolean_reset(csp_case_feed_virtualMaster.case_feed_reject_active);
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_ENABLE_REQUEST;
+		END_IF;
+
+		
+	CSP_CASE_TRANSPORT_STATUS_ENABLE_REQUEST:
+	
+		axis_enable(axis);
+		IF axis_is_standstill(axis)
+		THEN
+	 			fsm_next_status	:=	CSP_CASE_TRANSPORT_STATUS_ENABLED;
+		END_IF;		
+
+		
+	CSP_CASE_TRANSPORT_STATUS_ENABLED:
+
+
+		fsm_next_status	:=	CSP_CASE_TRANSPORT_STATUS_HOME_REQUEST;
+
+		
+	CSP_CASE_TRANSPORT_STATUS_HOME_REQUEST: 
+
+		fsm_next_status	:=	CSP_CASE_TRANSPORT_STATUS_HOME_DONE;
+
+		
+	CSP_CASE_TRANSPORT_STATUS_HOMING:
+
+		axis.home.done := TRUE;
+		IF axis_home_done(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_TRANSPORT_STATUS_HOME_DONE;
+		END_IF
+
+		
+	CSP_CASE_TRANSPORT_STATUS_HOME_DONE:
+	
+		IF phase_enable
+		THEN
+			fsm_next_status	:=	CSP_CASE_TRANSPORT_STATUS_CALCULATE_SLAVE_POSITION_REQUEST;
+		END_IF
+	
+		
+	CSP_CASE_TRANSPORT_STATUS_CALCULATE_SLAVE_POSITION_REQUEST:
+	
+		slave_position_has_been_calculated := FALSE;
+		(* Gets the position of the master axis *)
+		axis_calculate_cam_slave_master_position_deg := 
+			LMOD(axis_get_actual_modulo_position(csp_case_virtualMaster.axis)
+			+ home_position_master_offset_deg, G_MODULO_360_DEG);
+		(* Gets cam data for slave axis to master *)
+		IF axis_calculate_cam_slave_dynamics_data(
+			cam_id := cam_id,
+			master_scaling := master_scaling,
+			master_position := axis_calculate_cam_slave_master_position_deg,
+			slave_scaling := slave_scaling,
+			CONVERSION_this := axis)
+		THEN
+				fsm_next_status := CSP_CASE_LOADER_STATUS_CALCULATING_SLAVE_POSITION;
+		END_IF
+		
+		
+	CSP_CASE_TRANSPORT_STATUS_CALCULATING_MASTER_POSITION:
+	
+		IF axis_cam_master_dynamics_data_calculated(csp_case_transport_os_trailing.axis)
+		THEN
+			axis_calculated_cam_master_position_deg := axis_get_cam_master_dynamics_master_axis_position_lower(axis);//csp_case_transport_os_trailing.axis
+			master_position_has_been_calculated := TRUE;
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_PHASE_REQUEST;
+		END_IF
+		
+		
+	CSP_CASE_TRANSPORT_STATUS_CALCULATING_SLAVE_POSITION:
+	
+		IF axis_cam_slave_dynamics_data_calculated(axis)//csp_case_virtualMaster.axis
+		THEN
+			axis_calculated_cam_slave_position_deg := axis_get_cam_slave_dynamics_position(axis);
+			slave_position_has_been_calculated := TRUE;
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_PHASE_REQUEST;
+				
+		END_IF
+		
+		
+	CSP_CASE_TRANSPORT_STATUS_PHASE_REQUEST:
+
+    	IF  LMOD((axis_calculated_cam_slave_position_deg + axis_tolerance+G_MODULO_360_DEG),G_MODULO_360_DEG)> LMOD((axis.actual_position + 360),G_MODULO_360_DEG)
+        	OR
+        	LMOD((axis_calculated_cam_slave_position_deg - axis_tolerance+G_MODULO_360_DEG),G_MODULO_360_DEG)< LMOD((axis.actual_position + 360),G_MODULO_360_DEG)
+		THEN
+			phase_direction := FALSE;    // shortest path
+        ELSE
+			phase_direction := TRUE; //forward
+    	END_IF
+
+		IF	axis_is_standstill(axis)(* Waits for slave axes to phase and cammed *)
+			AND transport_slaves_cammed
+		THEN			
+			 axis_move_absolute(
+				position 		:= axis_calculated_cam_slave_position_deg,
+				velocity 		:= phase_velocity_degps,
+				direction        := SEL(phase_direction, AXIS_SHORTEST_WAY, AXIS_POSITIVE_DIRECTION),//AXIS_SHORTEST_WAY,
+				acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2/2,
+				deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2/2,
+				jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3/2, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this 			:= axis
+				); 
+		END_IF
+
+		IF axis_is_absolute_moving(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_TRANSPORT_STATUS_PHASING;
+		END_IF
+	
+	
+	
+	CSP_CASE_TRANSPORT_STATUS_PHASING:
+
+		IF axis_is_standstill(axis)
+		THEN
+			phase_done := TRUE;
+			fsm_next_status	:=	CSP_CASE_TRANSPORT_STATUS_PHASED;
+		END_IF
+
+		
+	CSP_CASE_TRANSPORT_STATUS_PHASED:
+
+		IF engage_enable	
+		THEN
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_CAM_ENGAGED_REQ;
+		END_IF
+
+
+	CSP_CASE_TRANSPORT_STATUS_CAM_ENGAGED_REQ:
+		 
+		IF transport_slaves_cammed
+		THEN	
+			IF axis_get_command_velocity(csp_case_virtualMaster.axis) <1      
+			THEN
+				target_position :=0;
+				axis_engage_cam(
+					cam_id 				:= cam_id,
+					master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+					slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE, 
+					activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+					activation_position	:= 0,
+					master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+					slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+					master_offset 		:= 0,
+					slave_offset 		:= 0,
+					master_scaling 		:= master_scaling,
+					slave_scaling 		:= slave_scaling,
+					interpolation_type 	:= AXIS_CAM_INTERPOLATION_SYSTEM_DEFAULT,
+					master 				:= csp_case_virtualMaster.axis,
+					CONVERSION_this 	:= axis);
+			ELSE	
+				axis_engage_cam(
+					cam_id 				:= cam_id,
+					master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+					slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE, 
+					activation_mode 	:= AXIS_CAM_ACTIVATION_AT_MASTER_CAM_POSITION,  
+					activation_position	:= 0,
+					master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+					slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+					master_offset 		:= 0,
+					slave_offset 		:= 0,
+					master_scaling 		:= master_scaling,
+					slave_scaling 		:= slave_scaling,
+					interpolation_type 	:= AXIS_CAM_INTERPOLATION_SYSTEM_DEFAULT,
+					master 				:= csp_case_virtualMaster.axis,
+					CONVERSION_this 	:= axis);
+			END_IF
+		END_IF	
+			
+		IF	axis_is_cam_engaged(axis)
+		THEN
+	   		fsm_next_status := CSP_CASE_TRANSPORT_STATUS_CAM_ENGAGED;
+		END_IF;
+		
+		
+	CSP_CASE_TRANSPORT_STATUS_AXIS_ENGAGE_VERIFY :
+	
+		;
+		
+		
+	CSP_CASE_TRANSPORT_STATUS_CAM_ENGAGED:
+		
+		IF 	NOT transport_request_latch 
+			AND axis.actual_modulo_position > disengage_pos
+		THEN
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_DISENGAGE_REQUEST;	
+		END_IF
+	
+		IF NOT axis_is_enabled(axis)
+		THEN
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_STOP_REQUEST;
+		END_IF
+	
+		
+	CSP_CASE_TRANSPORT_STATUS_RUNNING:
+
+		IF motorization_manager_is_aborted(csp_main_motorization_manager.motm)
+		THEN
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_STOP_REQUEST;
+		END_IF
+		
+		
+	CSP_CASE_TRANSPORT_STATUS_DISENGAGE_REQUEST:
+	
+		IF stop_for_reject 
+		THEN
+			target_position :=359.5; 
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_DISENGAGING;
+		ELSE
+			target_position :=0;
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_DISENGAGING;
+		END_IF		
+		
+		
+	CSP_CASE_TRANSPORT_STATUS_DISENGAGING:
+	
+	IF 	axis.actual_modulo_position >= disengage_pos 
+		OR latch 
+	THEN
+		latch := TRUE;
+		IF axis_disengage(
+			mode:= AXIS_DISENGAGE_AND_ON_PHASE_STOP, 
+			position:= target_position, 
+			velocity:= 1000, 
+			acceleration:= CONSTANTS.MAX_ACCELERATION_MMpSEC2, 
+			deceleration:= CONSTANTS.MAX_DECELERATION_MMpSEC2, 
+			jerk:= CONSTANTS.MAX_JERK_MMpSEC3, 
+			CONVERSION_this:= axis)
+		THEN
+			IF  stop_for_reject 
+			THEN
+				latch := FALSE;				
+				fsm_next_status := CSP_CASE_TRANSPORT_STATUS_REJECT_ABS_STEP_1;
+			ELSE
+				latch := FALSE;
+				fsm_next_status := CSP_CASE_TRANSPORT_STATUS_CAM_ENGAGED_REQ;
+			END_IF
+		END_IF
+	END_IF
+	
+	
+	CSP_CASE_TRANSPORT_STATUS_STOP_REQUEST:
+
+		axis_stop(
+		    deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		    jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3,
+		    CONVERSION_this 			:= axis);
+
+		IF 	axis_is_standstill(axis)
+			OR
+			NOT axis_is_ok(FALSE, axis)
+			OR
+			axis_is_disabled(axis)
+		THEN
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_DISABLE_REQUEST;
+		END_IF
+
+		
+	CSP_CASE_TRANSPORT_STATUS_DISABLE_REQUEST:
+	
+   		axis_disable(axis);
+   		fsm_next_status := CSP_CASE_TRANSPORT_STATUS_DISABLING;
+
+		
+	CSP_CASE_TRANSPORT_STATUS_DISABLING:
+	
+        IF	axis_is_disabled(axis)
+        THEN
+            fsm_next_status := CSP_CASE_TRANSPORT_STATUS_DISABLED;
+        END_IF;
+
+
+	CSP_CASE_TRANSPORT_STATUS_REJECT_ABS_STEP_1:    //follower and spreaders move to zero
+	
+		Ready_to_collapse_bad_case := FALSE;
+		
+		IF stop_for_reject //AND csp_case_transport.flap_control_axes_standstill 
+		THEN
+			 reject_complete_test := FALSE;
+			 Bad_case_detected := FALSE;
+			 Reject_again := FALSE;
+			 Check_request_latch := FALSE;
+		END_IF
+		
+		IF axis_is_standstill(axis)
+		THEN
+			reject_complete_test := FALSE;
+			Bad_case_detected := FALSE;
+			Reject_again := FALSE;
+			Check_request_latch := FALSE;
+			axis_move_absolute(
+				position 		:= csp_case_feed_virtualMaster.virtual_reject_disengage_position,
+				velocity 		:= motorization_manager_get_nominal_velocity(csp_main_motorization_manager.motm),
+				direction		:= AXIS_NEGATIVE_DIRECTION,
+				acceleration 	:= csp_case_feed_virtualMaster.reject_accel,//CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration 	:= csp_case_feed_virtualMaster.reject_accel,//CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := axis); 
+		END_IF
+			
+		IF 	axis_is_absolute_moving(axis)
+		THEN
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_REJECT_ABS_STEP_2;
+		END_IF
+ 
+		
+    CSP_CASE_TRANSPORT_STATUS_REJECT_ABS_STEP_2:    
+
+		IF 	axis_is_standstill(axis) AND TRUNC(axis.actual_position) = 268
+		THEN
+			Ready_to_collapse_bad_case := TRUE;		
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_REJECT_ABS_STEP_3;
+	 	END_IF
+		
+			 
+	CSP_CASE_TRANSPORT_STATUS_REJECT_ABS_STEP_3:	
+		
+		IF csp_case_feed_virtualMaster.New_Case_Pick
+		THEN	
+			axis_engage_cam(
+				cam_id 				:= cam_id,
+				master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+				slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE, 
+				activation_mode 	:= AXIS_CAM_ACTIVATION_AT_MASTER_POSITION, 
+				activation_position	:= csp_case_feed_virtualMaster.virtual_reject_disengage_position,
+				master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+				master_offset 		:= 0,
+				slave_offset 		:= 0,
+				master_scaling 		:= master_scaling,
+				slave_scaling 		:= slave_scaling,
+				interpolation_type 	:= AXIS_CAM_INTERPOLATION_SYSTEM_DEFAULT,
+				master 				:= csp_case_feed_virtualMaster.axis,
+				CONVERSION_this 	:= axis);
+		END_IF
+			
+		IF 	axis_is_cam_engaged(axis)
+		THEN
+			fsm_next_status := CSP_CASE_TRANSPORT_STATUS_REJECT_ABS_STEP_4;
+		END_IF
+		
+		
+	CSP_CASE_TRANSPORT_STATUS_REJECT_ABS_STEP_4:      
+
+		 (* Determines if shift register will be set *)
+		IF (axis.actual_position > major_flap_check_on AND axis.actual_position < major_flap_check_off) AND pe_check
+			THEN 
+				boolean_set(Good_Case_For_SR);
+				new_set := TRUE;
+		END_IF
+		 
+		IF 	axis_is_cam_engaged(axis) 
+			AND	NOT pe_check  
+			AND csp_case_feed_virtualMaster.follower_check_request							
+		THEN
+			Check_request_latch := FALSE;
+			Bad_case_detected := TRUE;
+			Reject_again := TRUE;
+			process_message_set(1, 1, 1, consecutive_rejects_aem); //stop for consecutive reject 
+		END_IF
+
+
+        IF 	pe_check 
+			AND axis_is_cam_engaged(axis)(*NOT bad_case_detected*) 
+			AND csp_case_feed_virtualMaster.follower_check_request 
+		THEN
+			 Good_case_detected := TRUE;
+			 Check_request_latch :=FALSE;
+			 boolean_set(Good_Case_For_SR);
+			 reject_reset_boolean := TRUE;
+			 STOP_FOR_REJECT := FALSE;
+			 Re_engaged_to_Case_Virtual := FALSE;
+			 fsm_next_status := CSP_CASE_TRANSPORT_STATUS_RECOVERY_CAM_ENGAGED_REQ;
+         END_IF
+	
+		
+	CSP_CASE_TRANSPORT_STATUS_RECOVERY_CAM_ENGAGED_REQ:
+		
+		IF 	axis_is_cam_engaged(axis) 
+			AND NOT Re_engaged_to_Case_Virtual
+		THEN
+			axis_disengage(
+				mode:= AXIS_DISENGAGE_AND_STOP, 
+				position 		:= 0,
+				velocity:= 1000, 
+				acceleration:= CONSTANTS.MAX_ACCELERATION_MMpSEC2, 
+				deceleration:= CONSTANTS.MAX_DECELERATION_MMpSEC2, 
+				jerk:= CONSTANTS.MAX_JERK_MMpSEC3, 
+				CONVERSION_this 			:= axis ); 
+			Reject_disengaging := TRUE;
+		END_IF
+		
+		IF 	Reject_disengaging 
+			AND axis_is_disengaged(axis)
+		THEN
+			Reject_disengaged := TRUE;
+		END_IF
+		
+
+	IF 	csp_case_feed.feed_request
+		AND axis_is_standstill(axis)
+		AND TRUNC(axis.actual_position) = 0
+		AND Reject_disengaged
+	THEN
+		
+		axis_engage_cam(
+				cam_id 				:= cam_id,
+				master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+				slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE, 
+				activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY, 
+				activation_position	:= 0,
+				master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+				master_offset 		:= 0,
+				slave_offset 		:= 0,
+				master_scaling 		:= master_scaling,
+				slave_scaling 		:= slave_scaling,
+				interpolation_type 	:= AXIS_CAM_INTERPOLATION_SYSTEM_DEFAULT,
+				master 				:= csp_case_virtualMaster.axis,
+				CONVERSION_this 	:= axis);	
+		Re_engaged_to_Case_Virtual := TRUE;
+	END_IF			
+		
+	IF 	axis_is_cam_engaged(axis) 
+		AND Re_engaged_to_Case_Virtual 
+	THEN
+		step_4:= FALSE;
+		Abs_moved := FALSE; //Resets bit for reject again
+		reject_complete_test := TRUE;
+		Good_case_detected := FALSE;
+		Reject_disengaged := FALSE;
+		Reject_disengaging := FALSE;
+		fsm_next_status := CSP_CASE_TRANSPORT_STATUS_CAM_ENGAGED;
+	
+		IF pe_check (*NOT bad_case_detected*) 
+			AND Stop_for_reject
+			AND axis_is_cam_engaged(csp_case_fc_os_lower_follower.axis)
+			AND axis_is_cam_engaged(csp_case_fc_os_upper_follower.axis)
+			AND axis_is_cam_engaged(csp_case_fc_ls_lower_follower.axis)
+			AND axis_is_cam_engaged(csp_case_fc_ls_upper_follower.axis)
+			AND csp_case_transport.Spreaders_Extended
+			AND axis_is_cam_engaged(csp_case_feed_virtualMaster.axis)	
+		THEN
+			STOP_FOR_REJECT := FALSE;
+		END_IF
+	END_IF
+		
+END_CASE;
+
+IF NOT debug_state_machine
+	OR
+	debug_state_machine_one_step
+THEN
+	fsm_status := fsm_next_status;
+	debug_state_machine_one_step := FALSE;
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{0825a5ba-d54b-459f-a114-4e7585e72f75}">
+      <Implementation>
+        <ST><![CDATA[IF (
+	machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+	)
+	AND process_message_is_on(consecutive_rejects_aem)
+THEN
+	bad_case_detected := FALSE;
+	Good_case_detected := FALSE;
+	process_message_reset(consecutive_rejects_aem);
+		
+END_IF;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{72ef790b-6a41-4da1-bcee-3d965dcc85a9}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{23739ef4-5133-4abb-9438-c7c2ec585cb8}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{044443ed-9bb3-4627-a5d5-7e8f209d183b}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_case_transport_virtualMaster.prc', 
+		process									:= csp_case_transport.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+	
+	axis_init(
+		object_name								:= CONCAT(prc_path, '_axis'), 
+		axis_type								:= AXIS_TYPE_VIRTUAL, 
+		encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo									:= G_MODULO_360_DEG, 
+		process									:= prc, 
+		CONVERSION_this							:= axis);
+	
+	axis_set_max_dynamic(
+		reference_velocity						:=	CONSTANTS.MAX_VELOCITY_MMpSEC,
+		velocity								:=	CONSTANTS.MAX_VELOCITY_MMpSEC,
+		acceleration							:=	CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+		deceleration							:=	CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		jerk									:=	CONSTANTS.MAX_JERK_MMpSEC3,
+		following_error							:=	CONSTANTS.MAX_FOLLOWING_ERROR_MM,
+		CONVERSION_this							:=	axis);
+		
+	jog_manager_add_axis(
+		list_index								:= JOG_LIST_CSP_CASE_TRANSPORT_VIRTUAL,
+		axis									:= axis,
+		master_axis								:= TRUE,
+		jog_type								:= JOG_TYPE_ROTATIVE_PLUS,
+		sw_limit_positive						:= 0.0,
+		sw_limit_negative						:= 0.0,
+		CONVERSION_this							:= csp_main_jogManager.jog_manager_virtual);
+
+//Created to be the axis for the shift registers	
+	phase_generator_init(
+		object_name								:=CONCAT(PRC_PATH, '_transport_vm_phgen'), 
+		modulo									:=360 , 
+		resolution								:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis									:=axis, 
+		process									:=prc , 
+		CONVERSION_this							:= transport_vm_phgen);
+//Upper major flap check cam and phase generator	
+
+//Lower major flap check cam and phase generator		
+	
+	phase_window_init(
+		object_name								:=CONCAT(PRC_PATH, '_major_lower_flap_phwin'), 
+		begin_phase								:=major_flap_check_on, 
+		end_phase								:=major_flap_check_off, 
+		begin_delay								:=0, 
+		end_delay								:=0, 
+		begin_max_compensation					:=0, 
+		end_max_compensation					:=0, 
+		generator								:=transport_vm_phgen , 
+		process									:=prc , 
+		CONVERSION_this							:=major_flap_phwin);	
+
+//OS minor plow cam window and phase generator
+	
+	phase_window_init(
+		object_name								:=CONCAT(PRC_PATH, '_os_minor_plow_phwin'), 
+		begin_phase								:=minor_plow_on, 
+		end_phase								:=minor_plow_off, 
+		begin_delay								:=0, 
+		end_delay								:=0, 
+		begin_max_compensation					:=0, 
+		end_max_compensation					:=0, 
+		generator								:=transport_vm_phgen , 
+		process									:=prc , 
+		CONVERSION_this							:=os_minor_plow_phwin);	
+
+
+
+//LS open flap cam window and phase generator
+	
+	
+	phase_window_init(
+		object_name								:=CONCAT(PRC_PATH, '_ls_flap_phwin'), 
+		begin_phase								:=ls_flap_on, 
+		end_phase								:=ls_flap_off, 
+		begin_delay								:=0, 
+		end_delay								:=0, 
+		begin_max_compensation					:=0, 
+		end_max_compensation					:=0, 
+		generator								:=transport_vm_phgen , 
+		process									:=prc , 
+		CONVERSION_this							:=ls_flap_phwin);	
+
+//OS open flap cam window and phase generator		
+	
+	phase_window_init(
+		object_name								:=CONCAT(PRC_PATH, '_os_flap_phwin'), 
+		begin_phase								:=os_flap_on, 
+		end_phase								:=os_flap_off, 
+		begin_delay								:=0, 
+		end_delay								:=0, 
+		begin_max_compensation					:=0, 
+		end_max_compensation					:=0, 
+		generator								:=transport_vm_phgen , 
+		process									:=prc , 
+		CONVERSION_this							:=os_flap_phwin);
+		
+//transport vm phase edge		
+	 phase_init(
+        object_name               				:= CONCAT(prc_path, '_transport_vm_ph'),
+        phase                         			:= 0,    //Set at runtime!
+        delay                         			:= 0,
+        max_compensation             			:= 0,
+        generator                    			:= transport_vm_phgen, 
+        process                     			:= prc,
+        CONVERSION_this             			:= transport_vm_ph);
+
+		
+		process_message_init(
+		object_name:= CONCAT(prc_path, '_consecutive_reject_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= consecutive_rejects_aem);
+		
+		process_message_init(
+        object_name:= CONCAT(prc_path, '_missing_os_fc_lower_pe_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_EVENT,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP,
+        typology:=  MESSAGE_TYPOLOGY_NORMAL,
+        process:= prc,
+        CONVERSION_this:= missing_os_fc_lower_pe_wem);       
+       
+       
+        process_message_init(
+        object_name:= CONCAT(prc_path, '_missing_os_fc_upper_pe_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_EVENT,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP,
+        typology:=  MESSAGE_TYPOLOGY_NORMAL,
+        process:= prc,
+        CONVERSION_this:= missing_os_fc_upper_pe_wem);       
+       
+        process_message_init(
+        object_name:= CONCAT(prc_path, '_missing_ls_fc_lower_pe_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_EVENT,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP,
+        typology:=  MESSAGE_TYPOLOGY_NORMAL,
+        process:= prc,
+        CONVERSION_this:= missing_ls_fc_lower_pe_wem);       
+       
+       
+        process_message_init(
+        object_name:= CONCAT(prc_path, '_missing_ls_fc_upper_pe_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_EVENT,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP,
+        typology:=  MESSAGE_TYPOLOGY_NORMAL,
+        process:= prc,
+        CONVERSION_this:= missing_ls_fc_upper_pe_wem);       
+
+	boolean_init(
+		object_name					:= CONCAT(prc_path, '_Good_Case_For_SR'), 
+		process						:= prc, 
+		CONVERSION_this				:= Good_Case_For_SR);		
+		
+		//AMR 9/1/2021
+	check_section_phase_mode_init(
+		object_name								:= CONCAT(prc_path, '_feed_chksect'), 
+		check_enable							:= TRUE, 
+		event_to_check							:= CHECK_SECTION_EVENT_INPUT_ON, 
+		execution_mode							:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable						:= FALSE, 
+		status_bits_to_be_true					:= common_global_variables.NONE, 
+		status_bits_to_be_false					:= common_global_variables.NONE, 
+		_step_status_conditioning_execution		:= FALSE, 
+		status_bits_to_set						:= ITEM_CASE_FEED + ITEM_HAS_LS_LOWER_FLAP + ITEM_HAS_LS_UPPER_FLAP + ITEM_HAS_OS_UPPER_FLAP + ITEM_HAS_OS_LOWER_FLAP, //+ ITEM_CASE_FEED,  
+		status_bits_to_reset					:= common_global_variables.NONE, 
+		reject_bit_to_set						:= 0, 
+		_step									:= 25, 
+		first_step_to_write_offset				:= 0, 
+		number_of_steps_to_write				:= 1, 
+		check_phase								:= 359, 
+		max_consecutive_failed_checks			:= 0, 
+		max_failed_checks_percentage			:= 0, 
+		products_for_failed_checks_percentage	:= 0, 
+		shift_register							:= csp_case_main_statistics.sr , 
+		process									:= prc, 
+		CONVERSION_this							:= feed_chksect);
+		
+	check_section_add_boolean_input(
+		boolean_input:= Good_Case_For_SR, 
+		CONVERSION_this:= feed_chksect);	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+	
+	phase_generator_cycle(transport_vm_phgen);
+	phase_window_cycle(major_flap_phwin);
+	phase_cycle(transport_vm_ph);	
+	phase_window_cycle(os_minor_plow_phwin);
+	phase_window_cycle(os_flap_phwin);
+	phase_window_cycle(ls_flap_phwin);
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{ccc69971-add4-4d62-ac47-874db85f405b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{92f7a169-c27a-4307-8ec9-bcc4c2983acf}">
+      <Implementation>
+        <ST><![CDATA[disable_req := csp_case.disable_req;
+;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{3d743fae-6a3f-46c8-904a-32b4c033e235}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{eb77f4e7-08fc-4c66-afc2-d11569aa1702}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

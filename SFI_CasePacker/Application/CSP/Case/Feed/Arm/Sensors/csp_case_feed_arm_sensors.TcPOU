@@ -1,0 +1,827 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_arm_sensors" Id="{a352af1c-37f7-4b40-8de9-10ac8bae23b1}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_arm_sensors
+VAR
+		
+	prc:											process;
+	prc_path:										STRING;
+	case_feed_pb_di:								digital_input;	
+	major_vacuum_do:								digital_output;
+	minor_vacuum_do:								digital_output;
+	mispick_req:									BOOL:=false; (*$P $*)
+	case_check_di:									digital_input;
+	case_check_inchoerence_chksect:					check_section;
+	case_check_bool:								boolean;
+	major_vacuum_sact: 								digital_actuator;
+	minor_vacuum_sact: 								digital_actuator;
+	case_fill_chksect:								check_section;
+	Case_Requested:									BOOL:=TRUE;
+	case_check_active_time:							UDINT:=10000;
+	
+	jog_feed_latch:									BOOL;
+	
+	rfid_value:										BYTE;
+	rfid_value_to_write:							BYTE;
+	
+	rfid_input_buffer:								iol_slave_bis00lh_pdo_input;
+	rfid_input_bitheader_1:							iol_slave_bis00lh_bitheader_input;
+	rfid_input_bitheader_2:							iol_slave_bis00lh_bitheader_input;
+			
+	rfid_output_buffer:								iol_slave_bis00lh_pdo_output;
+	rfid_output_bitheader_1:						iol_slave_bis00lh_bitheader_output;
+	rfid_output_bitheader_2:						iol_slave_bis00lh_bitheader_output;
+	
+	RFID_read_write_status:							csp_case_feed_arm_sensors_rfid_status_enum;
+	RFID_read_write_status_next:					csp_case_feed_arm_sensors_rfid_status_enum;
+	RFID_read_write_debug:							BOOL := FALSE;
+	RFID_read_write_one_step:						BOOL := FALSE;
+	RFID_read_write_running:						BOOL;
+	RFID_read_write_tmr:							timer;
+	RFID_read_write_error_msg:						message;
+	
+	rfid_start_toggle:								BOOL := FALSE;
+	rfid_shutdown_toggle:							BOOL := FALSE;
+	rfid_write_toggle:								BOOL := FALSE;
+	rfid_write_done:								BOOL := FALSE;
+	rfid_read_toggle:								BOOL := FALSE;
+	rfid_read_done:									BOOL := FALSE;
+	
+	Case_check_begin_phase: 						LREAL := 345;
+	Case_check_end_phase: 							LREAL := 355;
+	Case_incoherence_begin_phase: 					LREAL := 70;
+	Case_incoherence_end_phase: 					LREAL := 90;
+	Case_picked: 									BOOL := FALSE;
+	mispick_count:									INT := 0;
+	Mispicked_Case_aem:								message;
+	mispicked_case: 								BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+IF csp_main_accuChange.RFID_reader_list_accuchange = CASE_FEED_EOAT_READER
+THEN
+	RFID();
+END_IF
+
+(* CASE INCOHERENCE CHECK SECTION PHASES AND ENABLE/DISABLE *)
+check_section_set_check_window_phases_value(
+    begin_phase         :=  Case_incoherence_begin_phase,
+    end_phase           :=  Case_incoherence_end_phase,
+    conversion_THIS     :=  case_check_inchoerence_chksect);
+
+IF 	csp_case_main_services.dry_cycle_mode
+	OR csp_main_motorization.empty_command
+THEN
+	check_section_disable(case_check_inchoerence_chksect);
+ELSE
+	check_section_enable(case_check_inchoerence_chksect);
+END_IF	
+
+(* CASE FILL CHECK SECTION PHASES AND ENABLE/DISABLE *)
+check_section_set_check_window_phases_value(
+    begin_phase         :=  csp_case_feed_virtualMaster.case_pick_main_sol_on,
+    end_phase           :=  350,
+    conversion_THIS     :=  case_fill_chksect);
+
+IF 	csp_case_main_services.dry_cycle_mode
+	OR csp_main_motorization.empty_command
+THEN
+	check_section_disable(case_fill_chksect);
+ELSE
+	check_section_enable(case_fill_chksect);
+END_IF	
+
+IF (csp_case_feed_virtualMaster.case_fed_major_phwin.status 
+	AND ((
+			(( (* NORMAL RUN MODE *)
+				Case_Requested
+				AND NOT csp_case_main_services.dry_cycle_mode
+				AND NOT jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+				AND NOT csp_main_motorization.empty_command
+				AND (
+						( (* ALLOWS VACUUM TO COME ON IF AXIS IS MOVING OR AXIS IS NOT AT PLACE POSITION *)
+						axis_is_moving(csp_case_virtualMaster.axis) 
+						OR NOT (
+									csp_case_virtualMaster.axis.actual_position > 358
+									OR 
+									csp_case_virtualMaster.axis.actual_position < 1
+								) 
+						)
+					OR
+					csp_case_transport_virtualmaster.stop_for_reject
+					)
+			)
+			OR 
+			( (* JOG MODE WITH CASE FEED *)
+				jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+				AND jog_feed_latch
+			)
+			OR 
+			(
+			csp_main_motorization.empty_command (* Cleanout Mode handling. Machine always index but only turns on air to pick Case when a full load of cartons is ready. *)
+				AND 
+				(
+					(csp_transfer_upstacker.stack_at_loader AND NOT csp_case_loader.cases_primed AND NOT csp_case_loader.case_at_loader) (* Stack is ready at loader, and no cases to prevent picking extra *)
+					OR 
+					(digital_actuator_is_active(major_vacuum_sact) OR major_vacuum_sact.status = DIGITAL_ACTUATOR_STATUS_ACTIVATING) (* Latches the air output on until the window is lost to prevent dropping a case *)
+				)
+			)
+		))
+	)
+	OR csp_case_feed_virtualMaster.turn_ON_vaccuum_for_reject)					
+	AND NOT mispick_req 
+THEN
+	digital_actuator_activate(major_vacuum_sact);
+ELSE
+	digital_actuator_deactivate(major_vacuum_sact);
+END_IF
+
+IF (csp_case_feed_virtualMaster.case_fed_minor_phwin.status 
+	AND	(((
+			( (* NORMAL RUN MODE *)
+				Case_Requested
+				AND NOT csp_case_main_services.dry_cycle_mode
+				AND NOT jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+				//AND NOT (csp_transfer_upstacker_sensors.dwell_transfer_empty)
+				AND NOT csp_main_motorization.empty_command
+				AND (
+						( (* ALLOWS VACUUM TO COME ON IF AXIS IS MOVING OR AXIS IS NOT AT PLACE POSITION *)
+						axis_is_moving(csp_case_virtualMaster.axis) 
+						OR (
+							NOT (csp_case_virtualMaster.axis.actual_position > 358)
+							OR 
+							NOT (csp_case_virtualMaster.axis.actual_position < 1)
+							) 
+						)
+					OR
+					csp_case_transport_virtualmaster.stop_for_reject
+					)
+			)
+			OR 
+			( (* JOG MODE WITH CASE FEED *)
+				jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+				AND jog_feed_latch
+			)
+			OR 
+			(
+			csp_main_motorization.empty_command (* Cleanout Mode handling. Machine always index but only turns on air to pick Case when a full load of cartons is ready. *)
+				AND 
+				(
+					(csp_transfer_upstacker.stack_at_loader AND NOT csp_case_loader.cases_primed AND NOT csp_case_loader.case_at_loader) (* Stack is ready at loader, and no cases to prevent picking extra *)
+					OR 
+					(digital_actuator_is_active(minor_vacuum_sact) OR minor_vacuum_sact.status = DIGITAL_ACTUATOR_STATUS_ACTIVATING) (* Latches the air output on until the window is lost to prevent dropping a case *)
+				)
+			)
+		)
+		)
+	)
+	OR csp_case_feed_virtualMaster.turn_ON_vaccuum_for_reject)
+	AND NOT mispick_req
+THEN
+	digital_actuator_activate(minor_vacuum_sact);
+ELSE
+	digital_actuator_deactivate(minor_vacuum_sact);
+END_IF
+
+
+(* Sets the Case_picked true if the prox is made during the minor vacuum cam window with virtual master window*)
+IF (digital_actuator_is_active(minor_vacuum_sact) OR mispick_req OR minor_vacuum_sact.status = DIGITAL_ACTUATOR_STATUS_ACTIVATING)
+THEN
+	Case_picked := TRUE;
+END_IF
+
+IF mispicked_case
+	AND case_picked
+	AND csp_case_feed_virtualmaster.axis.actual_position < 30  //holds the mispicked_case throught the next cycle to prevent additional mispick stops
+THEN
+	mispicked_case := FALSE;
+END_IF
+
+(* Sets the Case_picked true if the prox is made during the minor vacuum cam window*)
+IF csp_case_feed_virtualmaster.axis.actual_position > 300
+	AND NOT mispicked_case
+	AND Case_picked
+	AND NOT csp_case_main_services.dry_cycle_mode
+	AND NOT csp_main_motorization.empty_command
+THEN
+	IF digital_input_is_active(case_check_di)
+		THEN
+			mispick_count := 0;
+			Case_picked := FALSE;
+	ELSE
+		mispick_count := mispick_count + 1;
+		//process_message_set(1, 1, 1, Mispicked_Case_aem);
+		Case_picked := FALSE;
+	END_IF
+ELSIF Case_picked
+	AND csp_main_motorization.empty_command
+	AND csp_case_feed_virtualmaster.axis.actual_position > 300
+THEN
+	Case_picked := FALSE;
+END_IF
+
+IF mispick_count >= 1
+	AND NOT csp_case_main_services.dry_cycle_mode
+	AND NOT csp_main_motorization.empty_command
+	AND csp.o_machine_is_running
+THEN
+	process_message_set(1, 1, 1, Mispicked_Case_aem);
+	Case_picked := FALSE;
+	mispick_count := 0;
+	mispicked_case := TRUE;
+END_IF
+
+IF csp_case_transport_virtualMaster.PE_Bypass_request
+THEN
+	mispick_count := 0;
+END_IF
+
+IF machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	process_message_reset(Mispicked_Case_aem);
+END_IF
+
+
+IF (csp_case_feed_virtualMaster.case_fed_minor_phwin.status 
+	OR csp_case_feed_virtualMaster.case_fed_major_phwin.status)
+	AND  digital_input_is_active(case_feed_pb_di) 
+THEN
+	jog_feed_latch := TRUE;
+END_IF
+
+IF NOT csp_case_feed_virtualMaster.case_fed_major_phwin.status 
+THEN
+		jog_feed_latch := FALSE;
+END_IF
+
+check_section_message_disable(case_fill_chksect);
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{57a6cf19-1514-4b24-9334-0ca02540bd4f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{135f80de-daee-4bb6-8bc0-02589e034a25}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{e37e222c-e096-4ef9-96c4-d658e9c6f590}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{8a9a2c0e-401f-441b-8455-af7bdf4a5bf3}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_feed_arm_sensors.prc', 
+		process						:= csp_case_feed_arm.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	digital_actuator_init(
+		object_name := CONCAT(prc_path, '_major_vacuum_sact'),
+		_type := DIGITAL_ACTUATOR_TYPE_IN_xx,
+		fault_reaction := DIGITAL_ACTUATOR_FAULT_REACTION_IGNORE,
+		active_time := case_check_active_time,
+		inactive_time := 100000,
+		dout := major_vacuum_do,
+		process := prc,
+		CONVERSION_this:= major_vacuum_sact);
+		
+  	digital_actuator_init(
+		object_name := CONCAT(prc_path, '_minor_vacuum_sact'),
+		_type := DIGITAL_ACTUATOR_TYPE_IN_xx,
+		fault_reaction := DIGITAL_ACTUATOR_FAULT_REACTION_IGNORE,
+		active_time := 1000,
+		inactive_time := 2000,
+		dout := minor_vacuum_do,
+		process := prc,
+		CONVERSION_this:= minor_vacuum_sact);
+	
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_major_vacuum_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 					:= major_vacuum_do);
+		
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_minor_vacuum_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 			:= minor_vacuum_do);
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_case_check_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= case_check_di);
+	
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_case_feed_pb_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= case_feed_pb_di);
+		
+	boolean_init(
+		object_name:=CONCAT(prc_path, '_case_check_bool') ,
+		process:= prc, 
+		CONVERSION_this:= case_check_bool);
+
+	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_case_fill_chksect'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ALWAYS_Off, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= common_global_variables.none, 
+		status_bits_to_be_false:= common_global_variables.none, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= common_global_variables.none,
+		status_bits_to_reset:= common_global_variables.none, 
+		reject_bit_to_set:= 0, 
+		_step:= 24, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= 1, 
+		end_phase:= 50, 
+		max_consecutive_failed_checks:= 0, 
+		max_failed_checks_percentage:= 0, 
+		products_for_failed_checks_percentage:= 0, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= case_fill_chksect );
+	
+	check_section_add_boolean_input(
+		boolean_input:=case_check_bool, 
+		CONVERSION_this:= case_fill_chksect);		
+		
+	
+ 	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_case_check_inchoerence_chksect'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ALWAYS_OFF, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_NOT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= 0, 
+		status_bits_to_be_false:= 0, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= 0, 
+		status_bits_to_reset:= 0, 
+		reject_bit_to_set:= 0, 
+		_step:= 25, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= Case_incoherence_begin_phase, 
+		end_phase:= Case_incoherence_end_phase, 
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 100, 
+		products_for_failed_checks_percentage:= 99, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= case_check_inchoerence_chksect );
+
+	check_section_add_di_input(
+		di_input := case_check_di,
+		CONVERSION_this:= case_check_inchoerence_chksect);
+
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_RFID_read_write_error_msg'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NOT_VISIBLE, 
+        process:= prc,
+        CONVERSION_this:= RFID_read_write_error_msg);
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_Mispicked_Case_aem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= FALSE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_EMERGENCY_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL, 
+        process:= prc,
+        CONVERSION_this:= Mispicked_Case_aem);
+		
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	digital_actuator_cycle(CONVERSION_this:= major_vacuum_sact);
+	digital_actuator_cycle(CONVERSION_this:= minor_vacuum_sact);
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{a1653272-0683-4e37-809a-532fae72d8eb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{15b9113d-8013-4717-aebe-27c46b8f3271}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{3c871905-4762-4df8-b21d-909e0b43d2ac}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{6135fdb7-92bb-4f97-8bac-c0f28df5a0fb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="RFID" Id="{c7f264ff-f491-0bc1-2136-bba3112b40dd}">
+      <Implementation>
+        <ST><![CDATA[	(* RMH RFID TEST *)
+rfid_input_bitheader_1.CP := rfid_input_buffer.ByteArr[0].0;
+rfid_input_bitheader_1.AA := rfid_input_buffer.ByteArr[0].1;
+rfid_input_bitheader_1.AE := rfid_input_buffer.ByteArr[0].2;
+rfid_input_bitheader_1.AF := rfid_input_buffer.ByteArr[0].3;
+rfid_input_bitheader_1.Bit4 := rfid_input_buffer.ByteArr[0].4;
+rfid_input_bitheader_1._TO := rfid_input_buffer.ByteArr[0].5;
+rfid_input_bitheader_1.HF := rfid_input_buffer.ByteArr[0].6;
+rfid_input_bitheader_1.BB := rfid_input_buffer.ByteArr[0].7;
+
+rfid_input_bitheader_2.CP := rfid_input_buffer.ByteArr[0].0;
+rfid_input_bitheader_2.AA := rfid_input_buffer.ByteArr[0].1;
+rfid_input_bitheader_2.AE := rfid_input_buffer.ByteArr[0].2;
+rfid_input_bitheader_2.AF := rfid_input_buffer.ByteArr[0].3;
+rfid_input_bitheader_2.Bit4 := rfid_input_buffer.ByteArr[0].4;
+rfid_input_bitheader_2._TO := rfid_input_buffer.ByteArr[0].5;
+rfid_input_bitheader_2.HF := rfid_input_buffer.ByteArr[0].6;
+rfid_input_bitheader_2.BB := rfid_input_buffer.ByteArr[0].7;
+
+rfid_output_buffer.ByteArr[0].0 := rfid_output_bitheader_1.AV ;
+rfid_output_buffer.ByteArr[0].1 := rfid_output_bitheader_1.Bit1;
+rfid_output_buffer.ByteArr[0].2 := rfid_output_bitheader_1.GR;
+rfid_output_buffer.ByteArr[0].3 := rfid_output_bitheader_1.Bit3;
+rfid_output_buffer.ByteArr[0].4 := rfid_output_bitheader_1.Bit4;
+rfid_output_buffer.ByteArr[0].5 := rfid_output_bitheader_1.KA;
+rfid_output_buffer.ByteArr[0].6 := rfid_output_bitheader_1.TI;
+rfid_output_buffer.ByteArr[0].7 := rfid_output_bitheader_1.Bit7;
+
+rfid_output_buffer.ByteArr[9].0 := rfid_output_bitheader_2.AV ;
+rfid_output_buffer.ByteArr[9].1 := rfid_output_bitheader_2.Bit1;
+rfid_output_buffer.ByteArr[9].2 := rfid_output_bitheader_2.GR;
+rfid_output_buffer.ByteArr[9].3 := rfid_output_bitheader_2.Bit3;
+rfid_output_buffer.ByteArr[9].4 := rfid_output_bitheader_2.Bit4;
+rfid_output_buffer.ByteArr[9].5 := rfid_output_bitheader_2.KA;
+rfid_output_buffer.ByteArr[9].6 := rfid_output_bitheader_2.TI;
+rfid_output_buffer.ByteArr[9].7 := rfid_output_bitheader_2.Bit7;
+
+
+IF rfid_start_toggle
+THEN
+	rfid_output_bitheader_1.GR := FALSE;
+	rfid_output_bitheader_1.KA := FALSE;
+	rfid_output_bitheader_1.AV := FALSE;
+	rfid_output_bitheader_2.GR := FALSE;
+	rfid_output_bitheader_2.KA := FALSE;
+	rfid_output_bitheader_2.AV := FALSE;
+	
+	rfid_start_toggle := FALSE;
+END_IF
+
+
+IF rfid_shutdown_toggle
+THEN
+	rfid_output_bitheader_1.KA := TRUE;
+	rfid_output_bitheader_2.KA := TRUE;
+	
+	IF 	rfid_input_bitheader_1.HF
+		AND rfid_input_bitheader_2.HF
+		AND NOT rfid_input_bitheader_1.CP
+		AND NOT rfid_input_bitheader_2.CP
+	THEN
+		rfid_output_bitheader_1.KA := FALSE;
+		rfid_output_bitheader_2.KA := FALSE;
+		rfid_shutdown_toggle := FALSE;
+	END_IF
+		
+	
+END_IF
+
+
+(* RFID Write for Small RFID Sensor; New firmware expected for fix *)
+IF rfid_write_toggle
+THEN   
+	rfid_output_buffer.ByteArr[1] := 16#0032;
+	rfid_output_buffer.ByteArr[2] := 16#00;
+	rfid_output_buffer.ByteArr[3] := 16#00;
+	rfid_output_buffer.ByteArr[4] := 16#0001;
+	rfid_output_buffer.ByteArr[5] := 16#00;
+	rfid_output_buffer.ByteArr[6] := rfid_value_to_write;
+   
+	rfid_output_bitheader_1.AV := TRUE;
+	rfid_output_bitheader_2.AV := TRUE;
+   
+	IF 	rfid_input_bitheader_1.AA
+		AND rfid_input_bitheader_2.AA //watch TO then set TI
+		AND rfid_input_bitheader_1._TO
+		AND rfid_input_bitheader_2._TO
+	THEN
+		// SAVE VALUES IN INPUT BUFFER [1...8] - CHECK WITH BRAND FOR WHAT VALUE SHOULD BE PRESENT
+		rfid_output_buffer.ByteArr[1] := rfid_value_to_write ;
+		rfid_output_bitheader_1.TI := 1;   
+		rfid_output_bitheader_2.TI := 1;
+		IF	rfid_input_bitheader_1.AE
+			AND rfid_input_bitheader_2.AE
+		THEN
+			rfid_output_bitheader_1.TI := 0;   
+			rfid_output_bitheader_2.TI := 0;
+			rfid_output_bitheader_1.AV := FALSE;
+			rfid_output_bitheader_2.AV := FALSE;
+			rfid_write_toggle := FALSE;
+		END_IF
+	END_IF   
+END_IF
+
+IF rfid_read_toggle 
+THEN	
+	rfid_output_buffer.ByteArr[1] := 16#0001;
+	rfid_output_buffer.ByteArr[2] := 16#00;
+	rfid_output_buffer.ByteArr[3] := 16#00;
+	rfid_output_buffer.ByteArr[4] := 16#0001;
+	rfid_output_buffer.ByteArr[5] := 16#00;
+	
+	rfid_output_bitheader_1.AV := TRUE;
+	rfid_output_bitheader_2.AV := TRUE;
+	
+	IF rfid_input_bitheader_1.AA 
+		AND rfid_input_bitheader_2.AA 
+		AND rfid_input_bitheader_1.AE
+		AND rfid_input_bitheader_2.AE
+	THEN
+		// SAVE VALUES IN INPUT BUFFER [1...8] - CHECK WITH BRAND FOR WHAT VALUE SHOULD BE PRESENT
+		rfid_value := rfid_input_buffer.ByteArr[1];
+		rfid_output_bitheader_1.AV := FALSE;
+		rfid_output_bitheader_2.AV := FALSE;
+		rfid_read_toggle := FALSE;
+	END_IF	
+END_IF
+
+(* STATE MACHINE FOR READING AND WRITING TO RFID *)
+CASE RFID_read_write_status OF
+			
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_START:
+	
+		IF csp_main_accuChange.RFID_read_write_running (* Use this value within brand change to start the check *)
+		THEN
+			rfid_write_done := FALSE;
+			rfid_read_done := FALSE;
+			rfid_read_write_running := TRUE;
+			RFID_read_write_status_next := CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_CHECK_READ_WRITE;			
+		END_IF
+		
+			
+	(* CHECK IF KINEMATIC MUST MOVE TO READ THE RFID *)
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_CHECK_AXIS_POS:
+		
+		(* IMMEDIATE CHECK IF TAG IS ALREADY PRESENT *)
+		IF rfid_input_bitheader_1.CP
+			AND rfid_input_bitheader_2.CP
+		THEN
+			RFID_read_write_status_next := CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_CHECK_READ_WRITE;
+		ELSE
+			RFID_read_write_status_next := CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_DISABLE_AXIS;
+		END_IF
+		
+		
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_DISABLE_AXIS:
+	
+		;
+	
+	
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_ENABLE_AXIS:
+	
+		;
+	
+	
+	CSP_CASE_FEED_ARM_SENSORS_RFID_VERIFY_AXES_CLEAR:
+	
+		;
+		
+		
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_MOVE_AXIS_TO_POS:
+	
+		;
+		
+		
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_VERIFY_AXIS_POS:
+	
+		;
+		
+		
+	(* CHECKS IF IT WILL BE DOING A READ OR WRITE *)
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_CHECK_READ_WRITE:
+	
+		rfid_start_toggle := TRUE;
+		IF csp_main_accuChange.RFID_reading (* Use this value also within brand change *)
+		THEN
+			RFID_read_write_status_next := CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_READ_START;
+		ELSIF csp_main_accuChange.RFID_writing
+		THEN
+			RFID_read_write_status_next := CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_WRITE_START;
+		END_IF
+			
+				
+	(* RFID READ START *)	
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_READ_START:
+	
+		IF rfid_input_bitheader_1.CP
+			AND rfid_input_bitheader_2.CP
+		THEN
+			rfid_read_toggle := TRUE;
+			RFID_read_write_status_next := CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_READ_CHECK_RESULT;
+		END_IF
+	
+		
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_READ_CHECK_RESULT:
+	
+		IF NOT rfid_read_toggle 
+		THEN
+			RFID_read_write_status_next := CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_READ_DONE;
+		ELSIF rfid_input_bitheader_1.AF
+			AND rfid_input_bitheader_2.AF
+		THEN
+			RFID_read_write_status_next := CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_ERROR;
+		END_IF
+		
+		
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_READ_DONE:
+	
+		rfid_read_done := TRUE;
+		rfid_read_write_running := FALSE;
+		RFID_read_write_status_next := CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_WAITING;
+		
+		
+	(* RFID WRITING START *)
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_WRITE_START:
+	
+		rfid_value_to_write := csp_main_accuChange.RFID_Setup_write_value;		
+		IF rfid_input_bitheader_1.CP
+			AND rfid_input_bitheader_2.CP
+		THEN
+			rfid_write_toggle := TRUE;
+			RFID_read_write_status_next := CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_WAIT_WRITE;
+		END_IF
+		
+		
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_WAIT_WRITE:
+	
+		IF NOT rfid_write_toggle
+		THEN	
+			RFID_read_write_status_next := CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_WRITE_DONE;
+		END_IF
+		
+		
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_WRITE_DONE:
+	
+		rfid_write_done := TRUE;
+		rfid_read_write_running := FALSE;
+		RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_WAITING;
+		
+	
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_WAITING:
+	
+		IF csp_main_accuchange.RFID_read_write_running
+		THEN
+			RFID_read_write_status_next := CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_START;
+		END_IF
+		
+		
+	CSP_CASE_FEED_ARM_SENSORS_RFID_STATUS_ERROR:
+	
+		;
+		
+END_CASE
+
+
+(* ADVANCES TO NEXT STEP *)
+IF 	NOT RFID_read_write_debug
+	OR
+	RFID_read_write_one_step	
+THEN
+	RFID_read_write_status := RFID_read_write_status_next;
+	RFID_read_write_one_step := FALSE;
+END_IF
+
+
+(* Connection timeout *)
+IF	RFID_read_write_running
+	AND NOT RFID_read_write_debug
+THEN
+	IF	timer_is_expired(RFID_read_write_tmr)
+	THEN
+		rfid_start_toggle := TRUE;
+		process_message_set(1, RFID_read_write_status, 0, RFID_read_write_error_msg);
+	END_IF
+ELSE
+	timer_restart(10000, RFID_read_write_tmr);
+END_IF
+
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_case_feed_arm_sensors">
+      <LineId Id="291" Count="218" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_arm_sensors._handle_messages">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_arm_sensors._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_arm_sensors._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_arm_sensors._object_manager">
+      <LineId Id="2" Count="146" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_arm_sensors._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_arm_sensors._read_var_input">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_arm_sensors._set_runtime_properties">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_arm_sensors._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_arm_sensors.RFID">
+      <LineId Id="2" Count="288" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

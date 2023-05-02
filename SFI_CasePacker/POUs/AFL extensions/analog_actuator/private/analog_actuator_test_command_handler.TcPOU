@@ -1,0 +1,71 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_test_command_handler" Id="{126c3789-3b7a-4059-8093-ea59fa619476}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION analog_actuator_test_command_handler : analog_actuator_command_enum
+VAR_IN_OUT
+    CONVERSION_this:	analog_actuator;	(* Instance to which the method applies *)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[analog_actuator_test_command_handler := ANALOG_ACTUATOR_CMD_NONE;
+IF descriptor_is_ready(CONVERSION_this.descriptor)
+THEN
+	(*Test command info handling*)
+	IF	CONVERSION_this.status <> ANALOG_ACTUATOR_STATUS_FAULTED
+	THEN
+	    CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_ACTIVATE].available := TRUE;
+	ELSE
+	    CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_ACTIVATE].available := FALSE;
+	END_IF
+	IF  CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_ACTIVATING
+	THEN
+	    CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_ACTIVATE].status := TEST_COMMAND_STATUS_RUNNING;
+	ELSIF CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_ACTIVE
+	THEN
+		CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_ACTIVATE].status := TEST_COMMAND_STATUS_DONE;
+	ELSE
+		CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_ACTIVATE].status := TEST_COMMAND_STATUS_NOT_DONE;
+	END_IF
+
+	IF	CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_ACTIVE
+	THEN
+	    CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_DEACTIVATE].available := TRUE;
+	ELSE
+	    CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_DEACTIVATE].available := FALSE;
+	END_IF
+	IF  CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_DEACTIVATING
+	THEN
+	    CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_DEACTIVATE].status := TEST_COMMAND_STATUS_RUNNING;
+	ELSIF CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_INACTIVE
+	THEN
+		CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_DEACTIVATE].status := TEST_COMMAND_STATUS_DONE;
+	ELSE
+		CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_DEACTIVATE].status := TEST_COMMAND_STATUS_NOT_DONE;
+	END_IF
+	IF	CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_INIT
+	THEN
+	    CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_ACTIVATE].available := TRUE;
+		CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_DEACTIVATE].available := TRUE;
+		CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_ACTIVATE].status := TEST_COMMAND_STATUS_NOT_DONE;
+		CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_DEACTIVATE].status := TEST_COMMAND_STATUS_NOT_DONE;
+	END_IF
+
+	(*Enumerative convertion from analog_actuator_test_command_enum to analog_actuator_command_enum *)
+	CASE CONVERSION_this.test.command OF
+		ANALOG_ACTUATOR_TEST_CMD_ACTIVATE:
+		IF CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_ACTIVATE].available
+		THEN
+			CONVERSION_this.analog_physical_command := CONVERSION_this.test.physical_value;
+			analog_actuator_test_command_handler := ANALOG_ACTUATOR_CMD_ACTIVATE;
+		END_IF
+
+		ANALOG_ACTUATOR_TEST_CMD_DEACTIVATE:
+		IF CONVERSION_this.test.command_info[ANALOG_ACTUATOR_TEST_CMD_DEACTIVATE].available
+		THEN
+			CONVERSION_this.analog_physical_command := 0;
+			analog_actuator_test_command_handler := ANALOG_ACTUATOR_CMD_DEACTIVATE;
+		END_IF
+	END_CASE
+END_IF]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

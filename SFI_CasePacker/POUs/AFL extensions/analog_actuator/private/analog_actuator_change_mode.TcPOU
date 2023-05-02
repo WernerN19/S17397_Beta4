@@ -1,0 +1,71 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_change_mode" Id="{932223fb-1d64-4292-aaba-a30cd268785d}" SpecialFunc="None">
+    <Declaration><![CDATA[(* Function that allows to change the analog_actuator mode. <br/>
+	(ACTIVE, INACTIVE, ABSENT etc.....) *)
+FUNCTION analog_actuator_change_mode : VOID
+
+VAR
+	i:		DINT;
+END_VAR
+(*All VAR_IN_OUT variables have been moved to the end of the declaration due to compatibility reasons*)
+VAR_IN_OUT
+    CONVERSION_this:	analog_actuator;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[descriptor_apply_mode_req_first_step(CONVERSION_this.descriptor);
+
+IF  descriptor_get_mode(CONVERSION_this.descriptor) = MODE_TO_ABSENT
+    OR
+    descriptor_get_mode(CONVERSION_this.descriptor) = MODE_TO_INACTIVE
+    OR
+    descriptor_get_mode(CONVERSION_this.descriptor) = MODE_TO_OPERATIONAL
+    OR
+    descriptor_get_mode(CONVERSION_this.descriptor) = MODE_TO_TEST
+THEN
+	CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_INIT;
+	CONVERSION_this.operational_command := ANALOG_ACTUATOR_CMD_NONE;
+	IF CONVERSION_this.has_do_activate
+	THEN
+		digital_output_reset(CONVERSION_this.do_activate^);
+	END_IF
+	analog_output_physical_write(physical_value := 0, CONVERSION_this := CONVERSION_this.ao_setpoint^);
+END_IF
+
+IF 	CONVERSION_this.light_test_active = TRUE
+	AND
+	descriptor_get_mode(CONVERSION_this.descriptor) = MODE_TO_TEST
+THEN
+	IF	analog_actuator_is_active(CONVERSION_this)
+	THEN
+		CONVERSION_this.operational_command := ANALOG_ACTUATOR_CMD_ACTIVATE;
+	END_IF
+
+	IF	analog_actuator_is_inactive(CONVERSION_this)
+	THEN
+		CONVERSION_this.operational_command := ANALOG_ACTUATOR_CMD_DEACTIVATE;
+	END_IF
+
+END_IF
+
+IF  descriptor_get_mode(CONVERSION_this.descriptor) <> MODE_TO_OPERATIONAL
+	AND
+	descriptor_get_mode(CONVERSION_this.descriptor) <> MODE_TO_TEST
+THEN
+	CONVERSION_this.operational_command := ANALOG_ACTUATOR_CMD_NONE;
+END_IF
+
+
+CONVERSION_this.test.command := ANALOG_ACTUATOR_TEST_CMD_IDLE;
+CONVERSION_this.command := ANALOG_ACTUATOR_CMD_NONE;
+
+FOR i := 0 TO ANALOG_ACTUATOR_MAX_TEST_COMMANDS
+DO
+	CONVERSION_this.test.command_info[i].available := FALSE;
+	CONVERSION_this.test.command_info[i].status := TEST_COMMAND_STATUS_NOT_DONE;
+END_FOR
+
+descriptor_apply_mode_req_second_step(CONVERSION_this.descriptor);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

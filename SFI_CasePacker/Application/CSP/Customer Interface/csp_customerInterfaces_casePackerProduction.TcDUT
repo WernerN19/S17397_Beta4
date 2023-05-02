@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_casePackerProduction" Id="{6777b477-cb63-412a-ae2b-4a83efa87718}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_casePackerProduction :
+STRUCT
+	
+	TotalUnits:			DINT;									(*$H_R desc := Real time total number of cartons received for this order; $*)
+	GoodPods:			DINT;									(*$H_R desc := Real time total number of good pods packed for this order; $*)
+	GoodUnits:			DINT;									(*$H_R desc := Real time total number of good cartons made for this order; $*)
+	GoodCases:			DINT;									(*$H_R desc := Real time total number of good cases made for this order; $*)
+	TotalUnitsNoReset:	DINT;									(*$H_R desc := Real time total number of cartons received, reset to 1 after 4294967295; $*)
+	GoodPodsNoReset:	DINT;									(*$H_R desc := Real time total number of good pods, reset to 1 after 4294967295; $*)
+	GoodUnitsNoReset:	DINT;									(*$H_R desc := Real time total number of good cartons, reset to 1 after 4294967295; $*)
+	GoodCasesNoReset:	DINT;									(*$H_R desc := Real time total number of good cases, reset to 1 after 4294967295; $*)
+	TotalScrapUnits:	DINT;									(*$H_R desc := Real time total number of scrap cartons rejected; $*)
+	TotalOrderTime:		DINT;									(*$H_R desc := Real time total minute counter for current order; $*)
+	TotalRunningTime:	DINT;									(*$H_R desc := Real time total minute counter for running time in current order; $*)
+	PercentScrapUnits:	DINT;									(*$H_R desc := Real time percentage of total cartons rejected; $*)
+	Rejects:			csp_customerInterfaces_casePackerProdRej;
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

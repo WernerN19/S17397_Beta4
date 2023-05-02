@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_mark" Id="{70b344a6-de5a-4c7a-a044-7484aa718fcb}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_mark :
+STRUCT
+	
+	ID:								STRING;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Print job ID FROM MES; $*)
+	BUBD:							csp_customerInterfaces_markBUBD;
+		
+	OriginDate:						STRING;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := DATE the Pod was manufactured; $*)					
+	DestCode:						STRING;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Localization code FOR destination; $*)					
+	PartnerSite:					STRING;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Partner site code; $*)	
+	KdpSite: 						STRING; 			(*$H_RW act_when := IMMEDIATE ;
+															desc := KDP site code; $*)				
+	Template:						csp_customerInterfaces_markTemplate;
+															
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,150 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_reject_sensors" Id="{9e98a39e-74ad-44bd-b58a-a28f894326ee}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_reject_sensors
+VAR
+		
+	prc:											process;
+	prc_path:										STRING;
+	
+	backup_di:										digital_input;
+	backup_jam_dchk:								digital_check;
+	
+END_VAR
+
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{05ca2c38-9885-4a21-85ea-730f27987fc4}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{63ebaa6b-e19e-46b0-a701-5244ee2e028d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{1dffa8bb-21cc-4b0e-854c-6863965ee3c0}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{e549add3-86fe-4ce5-b340-ffabef0e1865}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_feed_reject_sensors.prc', 
+		process						:= csp_case_feed_reject.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_backup_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= backup_di);
+	
+	digital_check_and_message_init(
+		object_name 				:= CONCAT(prc_path, '_backup_jam_dchk'),
+		alarm_if_input_off			:= FALSE,
+		alarm_delay					:= 5000,
+		enabled_at_powerup			:= TRUE,
+		individual_reset			:= FALSE,
+		machine_reaction 			:= MACHINE_REACTION_STOP_IN_PHASE_ONE,
+		typology 					:= MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:= prc,
+		CONVERSION_this				:= backup_jam_dchk);
+
+	digital_check_add_di(
+		di					:= backup_di,
+		CONVERSION_this		:= backup_jam_dchk);	
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	digital_check_cycle(backup_jam_dchk);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{e1cc713e-3557-4a5f-ab46-62ae40e66f2b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{5bb8a371-13f0-42f7-8b40-4d125ae58509}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{5e39266c-a9e5-4c2a-bdf4-402c9ac6ea5e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{f5b04f2d-7d00-4999-9fa2-426ec0b2fe33}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

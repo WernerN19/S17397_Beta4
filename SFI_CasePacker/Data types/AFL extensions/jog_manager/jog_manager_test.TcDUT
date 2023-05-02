@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="jog_manager_test" Id="{cb136fe7-6255-4e57-9d69-2482fdee0887}">
+    <Declaration><![CDATA[(*$T desc := Test structure; $*)
+TYPE
+jog_manager_test:	STRUCT
+	command:			jog_manager_test_command_enum := JOG_MANAGER_TEST_CMD_NONE;
+															(*$H_W desc := Command (the variable
+															  is written by HMI)..; $*)
+	command_info:		ARRAY[0..JOG_MANAGER_MAX_TEST_COMMANDS] OF test_command_info;
+															(*$ Structure that informs the HMI
+																of the availability of every single
+																command and its operational state $*)    
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

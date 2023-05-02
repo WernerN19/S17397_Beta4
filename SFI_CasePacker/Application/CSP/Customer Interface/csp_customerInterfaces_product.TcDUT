@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_product" Id="{52734496-4212-413e-b7f1-741b9b0c0031}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_product :
+STRUCT
+	
+	ID:							STRING;				(*$H_RW	act_when := IMMEDIATE ;
+														desc := Product ID; $*)
+	UPC:						STRING;				(*$H_RW	act_when := IMMEDIATE ;
+														desc := Product UPC; $*)
+	
+	PodsPerCarton: 				INT;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := recipe data, number of cups inside a carton; $*)
+	
+	PodsPerCase:				INT;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := recipe data, number of cups inside a case; $*)
+	CartonsPerCase:				INT;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := recipe data, number of cartons inside a case; $*)
+
+	FillWeight:					csp_customerInterfaces_fillWeight;
+
+	FilterType:					STRING;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Filter type; $*)
+	CaffeinatedFlag:			BOOL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Coffee Caffeinated flag; $*)
+	KosherFlag:					BOOL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Coffee Kosher flag; $*)
+	OrganicFlag:				BOOL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Coffee Organic flag; $*)
+	FlavorFlag:					BOOL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Coffee Flavored flag; $*)
+	FlavorDose:					REAL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Coffee inline flavor dose [future use]; $*)
+	ShelfLife:					INT;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Pod shelf life; $*)
+	
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

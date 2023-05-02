@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_activate_physical_value" Id="{6956edfd-ada4-4fe5-9bfa-d6130df7da84}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Sends an activation command to the instance <b><i>this</i></b>, i.e.
+	requests the instance to activate the linked <a href="#digital_output_object"><i>digital_output</i></a> <br/>	
+	to reach the status <a href="#analog_actuator_status_enum"><i>ANALOG_ACTUATOR_STATUS_ACTIVE</i></a>.
+	The command is accepted only in <a href="#mode_enum"><i>MODE_OPERATIONAL</i></a>, the object is not faulted
+	and the fault reaction is <a href="#analog_actuator_fault_reaction_enum"><i>ANALOG_ACTUATOR_FAULT_REACTION_IGNORE</i></a>.<br/>
+	The method returns <i>TRUE</i> if the command is accepted, otherwise it returns <i>FALSE</i>.
+$*)
+FUNCTION analog_actuator_activate_physical_value : BOOL
+VAR_INPUT
+	physical_value:		REAL;			(*$ Physical writing value $*)
+END_VAR
+VAR_IN_OUT
+    CONVERSION_this:		analog_actuator;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	NOT (descriptor_mode_is_operational(CONVERSION_this.descriptor)
+		OR
+		descriptor_mode_is_test(CONVERSION_this.descriptor))
+	OR	(
+			(	descriptor_is_not_ready(CONVERSION_this.descriptor)
+				AND
+				CONVERSION_this.fault_reaction <> ANALOG_ACTUATOR_FAULT_REACTION_IGNORE	)
+		)
+THEN
+	analog_actuator_activate_physical_value := FALSE;					(* command rejected *)
+  	RETURN;
+END_IF
+
+CONVERSION_this.operational_command := ANALOG_ACTUATOR_CMD_ACTIVATE;
+CONVERSION_this.analog_physical_command := physical_value;
+analog_actuator_activate_physical_value := TRUE;						(* command accepted *)]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

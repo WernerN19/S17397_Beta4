@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_casePacker" Id="{80261589-2469-4596-9a43-859d5e9292ac}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_casePacker :
+STRUCT
+	
+	Status:						csp_customerInterfaces_casePackerStatus;
+	Start:						csp_customerInterfaces_casePackerStart;
+	Production:					csp_customerInterfaces_casePackerProduction;
+	CaseBlanks:					csp_customerInterfaces_casePackerCaseBlanks;	
+	Labels:						csp_customerInterfaces_casePackerLabels;
+	CtCall:						csp_customerInterfaces_casePackerCtCall;
+	Dock:						ARRAY[1..3] OF csp_customerInterfaces_casePackerDock;
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

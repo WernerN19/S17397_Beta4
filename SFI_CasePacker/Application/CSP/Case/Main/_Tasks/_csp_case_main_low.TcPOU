@@ -1,0 +1,70 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_case_main_low" Id="{af08b8fd-846e-4f15-8cec-feffedd6e103}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_case_main_low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*MAIN*)
+csp_case_main();
+
+	
+	(*Safety*)
+	csp_case_main_safety();
+	csp_case_main_safety_token();
+		csp_case_main_safety_guards();
+	
+		csp_case_main_safety_emergency();
+
+		csp_case_main_safety_drives();
+			csp_case_main_safety_drives_commonConfiguration();
+			csp_case_main_safety_accUChange();
+			csp_case_main_safety_conveyor();
+			csp_case_main_safety_air();
+			csp_case_main_safety_drives_PS2000(); 
+			csp_case_main_safety_drives_SD2100(); 
+			csp_case_main_safety_drives_SD2200(); 
+			csp_case_main_safety_drives_SD2300(); 
+			csp_case_main_safety_drives_SD2400(); 
+			csp_case_main_safety_drives_SD2500(); 
+			csp_case_main_safety_drives_SD12000(); 
+			csp_case_main_safety_drives_SD8000(); 
+			csp_case_main_safety_drives_SD8100(); 
+			csp_case_main_safety_drives_SD8200(); 
+			csp_case_main_safety_drives_SD8300(); 
+			csp_case_main_safety_drives_SD8400(); 
+			csp_case_main_safety_drives_SD8500(); 
+			csp_case_main_safety_drives_SD8600(); 
+			csp_case_main_safety_drives_SD10000(); 
+			csp_case_main_safety_drives_SD10100(); 
+			csp_case_main_safety_drives_SD10200(); 
+			csp_case_main_safety_drives_SD10300(); 
+			csp_case_main_safety_drives_SD10400(); 
+			csp_case_main_safety_drives_SD11000(); 
+			csp_case_main_safety_drives_SD15000();  
+			csp_case_main_safety_drives_SD26000();
+			csp_case_main_safety_drives_SD26100(); 
+		
+		csp_case_main_safety_interface(); 
+		
+		csp_case_main_cabinet_sync_unit(
+				parent_prc 				:= csp_case_main_cabinet.prc,
+				cabinet_ethercat_master := csp_main.cabinet_ethercat_master);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_casePackerStStarved" Id="{1453ff81-57f8-4482-921d-f2814a32930f}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_casePackerStStarved :
+STRUCT
+	
+	Units:			BOOL;				(*$H_R desc := Carton infeed is empty due to upstream supply; $*)
+	CaseBlanks:		BOOL;				(*$H_R desc := Case blank infeed is empty due to upstream supply; $*)
+	Glue:			BOOL;				(*$H_R desc := Glue hopper is empty; $*)
+	Labels:			BOOL;				(*$H_R desc := Case labeler reel is empty; $*)
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,509 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_upstacker_sensors" Id="{a342543d-c93d-4fde-bbe4-029443cd74b7}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_upstacker_sensors
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+						
+	carton_backstop_ph:								phase;
+	carton_backstop_bool:							BOOL;
+	carton_backstop_boolean:						boolean;
+	carton_backstop:								csp_transfer_upstacker_carton_backstop;
+	
+	count_stack_ph:									phase;
+	
+	debug_immediate_stop_aem:						message;
+	
+	BACKSTOP_CHECK_DEG:								LREAL := 310; (*$P $*)
+	ACTIVATION_PHASE_DEG:							LREAL := 325; (*$P $*)
+	COUNT_STACK_PHASE_CHECK:						LREAL := 330; (*$P $*)
+	
+	empty_cycle_count:								DINT := 0;
+	empty_cycle_count_max:							DINT := 5;
+	dwell_transfer_empty:							BOOL := FALSE;
+	
+	debug_active:									BOOL; (*$P $*)
+	debug_active_aem:								message;
+	debug_carton_backstop:							BOOL; (*$P $*)
+	debug_carton_backstop_aem:						message;
+	
+	jam_detection_ton: 								TON;
+	jam_detected: 									BOOL;
+	carton_not_at_backstop: 						BOOL;
+	jam_detection_sec: 								TIME := T#20S;
+	cleanout_stack_made_belt_empty: 				BOOL;
+	cleanout_one_stack_TON: 						TON;
+	cleanout_one_stack_timeout_set: 				BOOL;
+	cleanout_one_stack_timeout: 					BOOL;
+	first_cleanout_reject_stack_complete: 			BOOL;
+	second_cleanout_reject_stack_complete: 			BOOL;
+	upstacker_reject_cycles: 						DINT;
+
+	bad_count:										INT;
+	consecutive_blocked_aem:						message;
+	blocked_latch:									BOOL;
+	consecutive_blocked_count:						INT := 1;
+END_VAR
+
+VAR_INPUT
+	
+END_VAR
+
+VAR_INPUT
+	prime_di:										digital_input;
+	carton_backstop_di:								digital_input;
+END_VAR
+
+VAR CONSTANT	
+		
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+
+phase_set_data(
+	phase				:= BACKSTOP_CHECK_DEG,
+	delay				:= 0,			
+	max_compensation	:= 0,			
+	CONVERSION_this		:= carton_backstop_ph);
+		
+	
+phase_set_data(
+	phase				:= COUNT_STACK_PHASE_CHECK,
+	delay				:= 0,			
+	max_compensation	:= 0,			
+	CONVERSION_this		:= count_stack_ph);
+	
+	
+(* Process messages to handle toggles *)
+IF 	debug_active
+THEN
+	process_message_set(1, 1, 1, debug_active_aem);
+ELSE
+	process_message_reset(debug_active_aem);
+END_IF
+
+IF 	debug_carton_backstop
+THEN
+	process_message_set(1, 1, 1, debug_carton_backstop_aem);
+ELSE
+	process_message_reset(debug_carton_backstop_aem);
+END_IF
+	
+	
+(* CHECKS AT PHASE EDGE TO DETERMINE IF CARTON IS PRESENT *)
+IF 	phase_edge(carton_backstop_ph)
+	AND
+	axis_is_moving(csp_main_motorization_virtualManager.axis) 
+	AND 
+	csp_transfer_upstacker_virtualMaster.connection_done						
+THEN			
+	carton_backstop.status := SEL(carton_backstop_bool, csp_transfer_upstacker_carton_backstop_status.ABSENT, csp_transfer_upstacker_carton_backstop_status.PRESENT);
+	carton_backstop.change_cam_phase := ACTIVATION_PHASE_DEG;
+	
+	(* COUNTS EMPTY CYCLES IF EMPTY COMMAND IS ACTIVE AND THE STATUS = ABSENT *)
+	IF csp_main_motorization.empty_command
+	THEN
+		IF (carton_backstop.status = csp_transfer_upstacker_carton_backstop_status.ABSENT)
+		THEN
+			empty_cycle_count := empty_cycle_count + BOOL_TO_DINT(csp_transfer_accumulator_belt.active_cam = TRANSFER_ACCUMULATOR_BELT_RUN);
+		ELSIF (carton_backstop.status = csp_transfer_upstacker_carton_backstop_status.PRESENT) AND csp_transfer_infeed_accumulation_level_min.di_presence
+		THEN
+			empty_cycle_count := 0;
+		ELSE
+			empty_cycle_count := empty_cycle_count + BOOL_TO_DINT(csp_transfer_accumulator_belt.active_cam = TRANSFER_ACCUMULATOR_BELT_RUN);
+		END_IF
+	END_IF
+	
+ELSE
+	carton_backstop.status := csp_transfer_upstacker_carton_backstop_status.NONE;
+	carton_backstop.change_cam_phase := 0.0;
+END_IF	
+
+IF (csp_transfer_upstacker.stack_at_loader OR csp_transfer_upstacker.stack_made OR csp_transfer_upstacker.stack_count = 1)//AMR //9_24_2021
+THEN
+	empty_cycle_count := 0;
+END_IF
+
+(* Starts timer when nothing detected on belts and 1 stack is made *)
+IF 	csp_main_motorization.empty_command //AMR
+	AND 
+		(
+			csp_transfer_upstacker.stack_count = 1
+			AND 
+			(
+				(
+			 		NOT digital_input_is_active(prime_di) 
+					OR NOT digital_input_is_active(carton_backstop_di) 
+			 	) 
+				AND NOT csp_transfer_infeed_accumulation_level_min.di_presence
+			)
+		)
+THEN
+	cleanout_stack_made_belt_empty := TRUE;		
+ELSIF csp_main_motorization.empty_command //AMR
+	AND 
+		(
+			csp_transfer_upstacker.stack_count = 0
+			AND 
+			(
+				(
+			 		NOT digital_input_is_active(prime_di) 
+					AND digital_input_is_active(carton_backstop_di) 
+				) 
+				AND NOT csp_transfer_infeed_accumulation_level_min.di_presence
+			)
+		)
+THEN
+	cleanout_stack_made_belt_empty := TRUE;
+ELSE
+	cleanout_stack_made_belt_empty := FALSE;
+END_IF
+
+(* Timer to set a timeout to then reject remaining cartons *) //AMR
+cleanout_one_stack_TON(IN:= cleanout_stack_made_belt_empty, PT:=T#20S , Q=> cleanout_one_stack_timeout_set , ET=> );
+
+IF 	cleanout_one_stack_timeout_set
+THEN
+	cleanout_one_stack_timeout := TRUE;
+ELSE
+	cleanout_one_stack_timeout := FALSE; //11_22_2021
+END_IF
+
+IF 	cleanout_one_stack_timeout
+	AND NOT first_cleanout_reject_stack_complete
+	AND
+	axis_is_moving(csp_transfer_upstacker_virtualMaster.axis)
+THEN
+	first_cleanout_reject_stack_complete := TRUE;
+	upstacker_reject_cycles := axis_get_actual_modulo_turns(csp_transfer_upstacker_virtualmaster.axis);
+END_IF
+
+
+IF 	cleanout_one_stack_timeout
+	AND ( (axis_get_actual_modulo_turns(csp_transfer_upstacker_virtualmaster.axis) > upstacker_reject_cycles + 1) )
+	AND first_cleanout_reject_stack_complete
+THEN
+	second_cleanout_reject_stack_complete := TRUE;
+END_IF
+
+
+IF 	empty_cycle_count >= empty_cycle_count_max
+	AND NOT digital_output_is_active(csp_case_feed_arm_sensors.major_vacuum_do)
+    AND NOT digital_output_is_active(csp_case_feed_arm_sensors.minor_vacuum_do)
+THEN
+	dwell_transfer_empty := TRUE;
+ELSE
+	dwell_transfer_empty := FALSE;
+END_IF
+
+IF NOT csp_main_motorization.empty_command
+THEN
+	empty_cycle_count := 0;
+	dwell_transfer_empty := FALSE;
+	cleanout_one_stack_timeout := FALSE;
+	first_cleanout_reject_stack_complete := FALSE;
+	second_cleanout_reject_stack_complete := FALSE;
+END_IF
+
+IF 	NOT cleanout_one_stack_timeout //11_22_2021
+THEN
+	first_cleanout_reject_stack_complete := FALSE;
+	second_cleanout_reject_stack_complete := FALSE;
+END_IF
+
+
+IF 	csp_transfer_upstacker_upstream.axis.actual_position < 98
+	AND csp_transfer_upstacker_upstream.axis.actual_position > 92
+	AND csp_transfer_upstacker_downstream.axis.actual_position > 90 //only when upstacking
+THEN
+	IF digital_input_is_active(carton_backstop_di) AND NOT blocked_latch
+	THEN
+		bad_count := bad_count + 1;
+		blocked_latch := TRUE;
+	ELSE
+		bad_count := 0;
+	END_IF
+END_IF
+
+IF 	blocked_latch AND NOT digital_input_is_active(carton_backstop_di)
+THEN
+	blocked_latch := FALSE;
+END_IF
+
+IF 	(bad_count >= consecutive_blocked_count)
+	AND (machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch))
+THEN
+	bad_count := 0;
+	process_message_reset(consecutive_blocked_aem);
+END_IF
+
+IF 	process_message_is_on(consecutive_blocked_aem)
+	AND
+	(machine_is_stopped(csp.mch)
+	OR
+	machine_is_stop_emergency_active(csp.mch))
+THEN
+	bad_count := 0;
+	process_message_reset(consecutive_blocked_aem);
+END_IF
+
+IF 	bad_count >= consecutive_blocked_count
+THEN
+	process_message_set(1, 1, 1, consecutive_blocked_aem);
+END_IF
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{18f6cc6d-4fa1-411b-8fa4-894ee93d9ed0}">
+      <Implementation>
+        <ST><![CDATA[jam_detection_ton(IN:=carton_not_at_backstop , PT:=jam_detection_sec , Q=> jam_detected , ET=> );
+
+IF  NOT carton_backstop_bool
+    AND csp_transfer_infeed_accumulation_level.stop_upstream_belts //stop when the accumulator is filled up 
+    AND csp.o_machine_is_running//machine_is_execute(csp.mch)
+THEN
+    carton_not_at_backstop := TRUE;
+ELSE
+    carton_not_at_backstop := FALSE;    
+END_IF
+    
+IF 	jam_detected
+THEN
+    process_message_set(0, 0, 0, debug_immediate_stop_aem);        
+END_IF
+
+IF 	process_message_is_on(debug_immediate_stop_aem)
+    AND
+   (machine_is_stopped(csp.mch)
+    OR 
+    machine_is_stop_emergency_active(csp.mch))    
+THEN
+    process_message_reset(debug_immediate_stop_aem);
+END_IF
+	
+	]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{78b5bf96-929c-44a5-a56a-7c21f61d0f8c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{f07aa680-9380-4721-920c-ff00d9c62448}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{49194858-4dca-40b7-983b-95d9c2e675e7}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_upstacker_sensors.prc', 
+		process						:= csp_transfer_upstacker.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* INPUTS *)
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_prime_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= prime_di);
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_carton_backstop_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= carton_backstop_di);
+		
+	boolean_init(
+		object_name					:= CONCAT(prc_path, '_carton_backstop_boolean'), 
+		process						:= prc, 
+		CONVERSION_this				:= carton_backstop_boolean);
+	
+	(* PHASE *)	
+	 phase_init(
+        object_name 				:= CONCAT(prc_path, 'backstop_ph'),
+        phase 						:= 0,	//Set at runtime!
+        delay 						:= 0,
+        max_compensation 			:= 0,
+        generator 					:= csp_transfer_accumulator_virtualMaster.phgen,
+        process 					:= prc,
+        CONVERSION_this 			:= carton_backstop_ph);
+		
+	phase_init(
+        object_name 				:= CONCAT(prc_path, 'count_stack_ph'),
+        phase 						:= 0,	//Set at runtime!
+        delay 						:= 0,
+        max_compensation 			:= 0,
+        generator 					:= csp_transfer_accumulator_virtualMaster.phgen,
+        process 					:= prc,
+        CONVERSION_this 			:= count_stack_ph);
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, 'debug_immediate_stop_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NORMAL_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	debug_immediate_stop_aem);
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_debug_active_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NO_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_GENERIC_1,
+		process						:=	prc,
+		CONVERSION_this				:=	debug_active_aem);
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_debug_carton_backstop_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NO_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_GENERIC_1,
+		process						:=	prc,
+		CONVERSION_this				:=	debug_carton_backstop_aem);
+	
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_consecutive_blocked_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:=	0,
+		disableable					:=	FALSE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_STOP_IN_PHASE_ONE,
+		typology					:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	consecutive_blocked_aem);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	phase_cycle(carton_backstop_ph);	
+	phase_cycle(count_stack_ph);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{bf611da9-47b9-4491-b042-b8d4fda2738d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{bd4f2e6f-934b-440c-8d2e-96e07a6a88e0}">
+      <Implementation>
+        <ST><![CDATA[IF	NOT debug_active AND NOT cleanout_one_stack_timeout
+	//OR (NOT csp_main_motorization.empty_command AND  //AMR //9_25_2021
+THEN	
+	carton_backstop_bool := digital_input_is_active(carton_backstop_di) 
+							AND digital_input_is_active(prime_di);
+								
+	IF NOT digital_input_is_active(prime_di) AND csp_main_motorization.empty_command
+	THEN			
+		IF empty_cycle_count >= empty_cycle_count_max
+		THEN
+			carton_backstop_bool := digital_input_is_active(carton_backstop_di);
+		END_IF
+	END_IF
+ELSIF cleanout_one_stack_timeout AND csp_main_motorization.empty_command AND NOT second_cleanout_reject_stack_complete
+THEN
+	carton_backstop_bool := 1; (* Condition to fake out upstacker when in cleanout and removing remaining cartons from infeed *)
+ELSE
+	carton_backstop_bool := debug_carton_backstop;
+END_IF
+
+IF carton_backstop_bool = TRUE
+THEN
+	boolean_set(carton_backstop_boolean);
+ELSE
+	boolean_reset(carton_backstop_boolean);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{e3d24a5a-868c-4d71-9643-86a5a9be3c3e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{fa6fe350-4e46-4f47-aeee-34bb5f52f3c3}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

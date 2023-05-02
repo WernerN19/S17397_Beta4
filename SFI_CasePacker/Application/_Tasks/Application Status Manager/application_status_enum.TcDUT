@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="application_status_enum" Id="{7ed53014-a521-4839-bb1a-ce73b39ff4ef}">
+    <Declaration><![CDATA[TYPE application_status_enum : (
+	APPLICATION_STATUS_NOT_INITIALIZED 					:= 0,	(*$ Initialization at power up to execute $*)
+	APPLICATION_STATUS_1ST_POWERUP_ABSOLUTE				:= 1,
+	APPLICATION_STATUS_1ST_POWERUP 						:= 2,
+	APPLICATION_STATUS_2ND_POWERUP 						:= 3,
+	APPLICATION_STATUS_3RD_POWERUP 						:= 4,
+	APPLICATION_STATUS_RUNNING 							:= 5
+	) := APPLICATION_STATUS_NOT_INITIALIZED;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

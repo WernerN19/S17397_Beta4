@@ -1,0 +1,626 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_openFlap_sensors" Id="{4b79057a-9ad0-4dc6-9eab-afc6f13ed750}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_openFlap_sensors
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	open_flap_ls_di:								digital_input;
+	open_flap_os_di:								digital_input;
+		
+	open_major_flap_os_di_dchk: 					check_section;
+	open_major_flap_ls_di_dchk: 					check_section;
+	
+	
+	open_trailing_minor_di:							digital_input;
+	open_trailing_minor_chksect:					check_section;
+	open_trailing_minor_begin_phase: 				LREAL := 170; (*$P $*)
+	open_trailing_minor_end_phase:					LREAL := 188; (*$P $*)
+	
+	open_leading_minor_chksect:						check_section;
+	open_leading_minor_begin_phase: 				LREAL := 90; (*$P $*)
+	open_leading_minor_end_phase:					LREAL := 110; (*$P $*)
+	
+	quality_reject_dchk: 							check_section;
+	quality_reject_bool: 							boolean;
+	quality_reject_req:								BOOL:= FALSE; (*$P $*)
+	quality_reject_aem:								message;
+	
+	incomplete_glue_reject_dchk: 					check_section;
+	incomplete_glue_reject_bool: 					boolean;
+	incomplete_glue_reject_aem:						message;
+	incomplete_glue_begin_phase: 					LREAL := 10; (*$P $*)
+	incomplete_glue_end_phase:						LREAL := 300; (*$P $*)
+	
+	
+	OpenMajorFlapChkBeginPhase: 					LREAL :=100;(*$P $*)
+	OpenMajorFlapChkEndPhase:						LREAL :=350;(*$P $*)
+	majorFlap_os_inchoerence_chksect: 				check_section;
+	majorFlap_ls_inchoerence_chksect: 				check_section;
+	
+	incomplete_glue_reject: 						BOOL;
+	check_step_nvr: 								DINT := 26;
+	
+	detect_next_case_edges: 						BOOL;(*$P desc:= DETECT LEADING AND TRAILING PHASE OF NEXT CASE; $*)
+	eye_test_temp: 									BOOL;
+	detected_case_leading_edge: 					LREAL;(*$P desc:= DETECTED LEADING PHASE OF CASE; $*)
+	detected_case_trailing_edge: 					LREAL;(*$P desc:= DETECTED TRAILING PHASE OF CASE; $*)
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+check_section_set_check_window_phases_value(
+    begin_phase         :=  OpenMajorFlapChkBeginPhase,
+    end_phase           :=  OpenMajorFlapChkEndPhase,
+    conversion_THIS     :=  open_major_flap_os_di_dchk);
+
+check_section_set_check_window_phases_value(
+    begin_phase         :=  OpenMajorFlapChkBeginPhase,
+    end_phase           :=  OpenMajorFlapChkEndPhase,
+    conversion_THIS     :=  open_major_flap_ls_di_dchk);	
+	
+	
+check_section_set_check_window_phases_value(
+    begin_phase         :=  open_trailing_minor_begin_phase,
+    end_phase           :=  open_trailing_minor_end_phase,
+    conversion_THIS     :=  open_trailing_minor_chksect);	
+
+check_section_set_check_window_phases_value(
+    begin_phase         :=  open_leading_minor_begin_phase,
+    end_phase           :=  open_leading_minor_end_phase,
+    conversion_THIS     :=  open_leading_minor_chksect);		
+	
+IF quality_reject_req //quality check pb on hmi to reject a case for inspection. Uses checksection to look for pb and then trigger the reject
+THEN
+	boolean_set(quality_reject_bool);
+ELSE
+	boolean_reset(quality_reject_bool);
+END_IF
+
+//checks for motion and Emergency stop to reject 
+check_section_set_check_window_phases_value(
+	begin_phase := incomplete_glue_begin_phase,
+	end_phase := incomplete_glue_end_phase,
+	CONVERSION_this := incomplete_glue_reject_dchk); 
+
+IF check_section_get_step(incomplete_glue_reject_dchk) <> check_step_nvr
+THEN
+	check_section_set_step(check_step_nvr, incomplete_glue_reject_dchk);
+END_IF
+
+IF 	axis_get_actual_modulo_position(csp_case_transport_virtualMaster.axis) > incomplete_glue_begin_phase  
+	AND axis_get_actual_modulo_position(csp_case_transport_virtualMaster.axis) < incomplete_glue_end_phase  
+	AND machine_is_stop_emergency_active(csp.mch)
+THEN
+	boolean_set(incomplete_glue_reject_bool);
+	incomplete_glue_reject := TRUE ;
+END_IF
+
+IF axis_get_actual_modulo_position(csp_case_transport_virtualMaster.axis) > 359
+THEN
+	boolean_reset(incomplete_glue_reject_bool);
+	incomplete_glue_reject := FALSE ;
+END_IF
+
+IF csp_case_main_services.dry_cycle_mode
+	OR csp_main_motorization.empty_command
+THEN
+	check_section_disable(majorFlap_os_inchoerence_chksect);
+	check_section_disable(majorFlap_ls_inchoerence_chksect);
+	check_section_disable(open_major_flap_os_di_dchk);
+	check_section_disable(open_major_flap_ls_di_dchk);
+	check_section_disable(open_trailing_minor_chksect);
+	check_section_disable(open_leading_minor_chksect);
+ELSE
+	check_section_enable(majorFlap_os_inchoerence_chksect);
+	check_section_enable(majorFlap_ls_inchoerence_chksect);
+	check_section_enable(open_major_flap_os_di_dchk);
+	check_section_enable(open_major_flap_ls_di_dchk);
+	check_section_enable(open_trailing_minor_chksect);
+	check_section_enable(open_leading_minor_chksect);
+END_IF		
+
+
+IF quality_reject_req
+THEN
+	process_message_set(1, 1, 1, quality_reject_aem);
+ELSE
+	process_message_reset(quality_reject_aem);
+END_IF
+
+(* Turn on eye_test to capture the leading and trailing edge of the box as it passes open-flap eye. Use these values to then set appropriate phase window values for open flap detection. *)
+IF 	detect_next_case_edges
+	AND NOT eye_test_temp
+	AND digital_input_is_active(open_trailing_minor_di)
+then
+	detected_case_leading_edge := csp_case_transport_virtualMaster.axis.actual_position;
+	eye_test_temp := TRUE;
+	detect_next_case_edges := FALSE;
+end_if
+
+IF 	eye_test_temp
+	AND NOT digital_input_is_active(open_trailing_minor_di)
+then
+	detected_case_trailing_edge := csp_case_transport_virtualMaster.axis.actual_position;
+	eye_test_temp := FALSE;
+end_if
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{8c34fdfe-e654-43b4-bb9c-c4970694069a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{a340bd8c-da25-4d65-88e8-f1161287c397}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{dffd1d6e-0c57-4d3f-af61-0259aeea2829}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{cf264a28-65ec-41c7-b2dc-014da9260478}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+    sub_process_init(
+        object_name                    := 'csp_case_openFlap_sensors.prc',
+        process                        := csp_case_openFlap.prc,
+        CONVERSION_this                := prc);
+       
+    prc_path                         := process_get_path(prc);
+   
+    (* INPUTS *)
+    digital_input_init(
+        object_name                    := CONCAT(prc_path, '_open_flap_ls_di'),
+        polarity_direct                := TRUE,
+        process                        := prc,
+        CONVERSION_this                := open_flap_ls_di);
+       
+    digital_input_init(
+        object_name                    := CONCAT(prc_path, '_open_flap_os_di'),
+        polarity_direct                := TRUE,
+        process                        := prc,
+        CONVERSION_this                := open_flap_os_di);
+		
+	digital_input_init(
+        object_name                    := CONCAT(prc_path, '_open_trailing_minor_di'),
+        polarity_direct                := TRUE,
+        process                        := prc,
+        CONVERSION_this                := open_trailing_minor_di);
+  
+		
+	 boolean_init(
+		object_name 				   := CONCAT(prc_path, '_quality_reject_bool'),
+		process 			   		   := prc,
+		CONVERSION_this				   := quality_reject_bool);
+	
+	 boolean_init(
+		object_name 				   := CONCAT(prc_path, '_incomplete_glue_reject_bool'),
+		process 					   := prc,
+		CONVERSION_this				   := incomplete_glue_reject_bool);
+
+		
+		
+(*OPEN FLAP OPERATOR SIDE SENSOR LOGIC*)  
+	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_open_major_flap_os_di_dchk'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_OFF, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= ITEM_CASE_FEED, 
+		status_bits_to_be_false:= 0, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= OPEN_FLAP_OPERATOR_SIDE, 
+		status_bits_to_reset:= 0, 
+		reject_bit_to_set:= OPEN_FLAP_OPERATOR_SIDE, 
+		_step:= 28, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= OpenMajorFlapChkBeginPhase, 
+		end_phase:= OpenMajorFlapChkEndPhase, 
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 100, 
+		products_for_failed_checks_percentage:= 10, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= open_major_flap_os_di_dchk );
+
+	check_section_add_di_input(
+		di_input := open_flap_os_di,
+		CONVERSION_this:= open_major_flap_os_di_dchk);
+	
+	message_configure(
+        individual_reset                    := FALSE,
+        machine_reaction                    := MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology                            := MESSAGE_TYPOLOGY_ABNORMAL,
+        CONVERSION_this                     := open_major_flap_os_di_dchk.too_many_failed_checks_aem.message );	
+	
+	
+ (*OPEN FLAP LOADER SIDE SENSOR LOGIC*)  
+	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_open_major_flap_ls_di_dchk'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_OFF, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= ITEM_CASE_FEED, 
+		status_bits_to_be_false:= 0, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= OPEN_FLAP_LOADER_SIDE, 
+		status_bits_to_reset:= 0, 
+		reject_bit_to_set:= OPEN_FLAP_LOADER_SIDE, 
+		_step:= 28, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= OpenMajorFlapChkBeginPhase, 
+		end_phase:= OpenMajorFlapChkEndPhase, 
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 100, 
+		products_for_failed_checks_percentage:= 10, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= open_major_flap_ls_di_dchk );
+
+	check_section_add_di_input(
+		di_input := open_flap_ls_di,
+		CONVERSION_this:= open_major_flap_ls_di_dchk);	
+    
+	message_configure(
+        individual_reset                    := FALSE,
+        machine_reaction                    := MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology                            := MESSAGE_TYPOLOGY_ABNORMAL,
+        CONVERSION_this                     := open_major_flap_ls_di_dchk.too_many_failed_checks_aem.message );	
+	
+    
+	(*Quality Reject SENSOR LOGIC*)  //added for quality reject push button on hmi
+	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_quality_reject_dchk'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ON, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= ITEM_CASE_FEED, 
+		status_bits_to_be_false:= 0, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= 0, 
+		status_bits_to_reset:= 0, 
+		reject_bit_to_set:= QUALITY_REJECT, 
+		_step:= 28, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= 10, 
+		end_phase:= 340, 
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 100, 
+		products_for_failed_checks_percentage:= 10, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= quality_reject_dchk );
+
+	check_section_add_boolean_input(
+		boolean_input:= quality_reject_bool,
+		CONVERSION_this:= quality_reject_dchk);	
+		
+	message_configure(
+        individual_reset                    := FALSE,
+        machine_reaction                    := MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology                            := MESSAGE_TYPOLOGY_ABNORMAL,
+        CONVERSION_this                     := quality_reject_dchk.too_many_failed_checks_aem.message );		
+		
+	
+check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_majorFlap_os_inchoerence_chksect'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ALWAYS_ON, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_NOT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= ITEM_CASE_FEED, 
+		status_bits_to_be_false:= 0, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= 0, 
+		status_bits_to_reset:= 0, 
+		reject_bit_to_set:= OPEN_FLAP_OPERATOR_SIDE_INCHOERENCE, 
+		_step:= 28, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= csp_case_flapControl.Flap_check_begin_phase, 
+		end_phase:= csp_case_flapControl.Flap_check_end_phase, 
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 100, 
+		products_for_failed_checks_percentage:= 99, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= majorFlap_os_inchoerence_chksect );
+
+	check_section_add_di_input(
+		di_input := open_flap_os_di,
+		CONVERSION_this:= majorFlap_os_inchoerence_chksect);
+
+	message_configure(
+        individual_reset                    := FALSE,
+        machine_reaction                    := MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology                            := MESSAGE_TYPOLOGY_ABNORMAL,
+        CONVERSION_this                     := majorFlap_os_inchoerence_chksect.too_many_failed_checks_aem.message );	
+		
+    check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_majorFlap_ls_inchoerence_chksect'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ALWAYS_ON, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_NOT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= ITEM_CASE_FEED, 
+		status_bits_to_be_false:= 0, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= 0, 
+		status_bits_to_reset:= 0, 
+		reject_bit_to_set:= OPEN_FLAP_LOADER_SIDE_INCHOERENCE, 
+		_step:= 28, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= csp_case_flapControl.Flap_check_begin_phase, 
+		end_phase:= csp_case_flapControl.Flap_check_end_phase, 
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 100, 
+		products_for_failed_checks_percentage:= 99, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= majorFlap_ls_inchoerence_chksect );
+
+	check_section_add_di_input(
+		di_input := open_flap_ls_di,
+		CONVERSION_this:= majorFlap_ls_inchoerence_chksect);
+		
+	message_configure(
+        individual_reset                    := FALSE,
+        machine_reaction                    := MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology                            := MESSAGE_TYPOLOGY_ABNORMAL,
+        CONVERSION_this                     := majorFlap_ls_inchoerence_chksect.too_many_failed_checks_aem.message );		
+		
+	
+	(* OPEN TRAILING MINOR LOGIC *)
+	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_open_trailing_minor_chksect'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ALWAYS_OFF, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_NOT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= ITEM_CASE_FEED, 
+		status_bits_to_be_false:= 0, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= 0, 
+		status_bits_to_reset:= 0, 
+		reject_bit_to_set:= TRAILING_MINOR_FLAP_OPEN, 
+		_step:= 28, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= open_trailing_minor_begin_phase, 
+		end_phase:= open_trailing_minor_end_phase, 
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 100, 
+		products_for_failed_checks_percentage:= 99, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= open_trailing_minor_chksect);
+
+	check_section_add_di_input(
+		di_input := open_trailing_minor_di,
+		CONVERSION_this:= open_trailing_minor_chksect);
+	
+	message_configure(
+        individual_reset                    := FALSE,
+        machine_reaction                    := MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology                            := MESSAGE_TYPOLOGY_ABNORMAL,
+        CONVERSION_this                     := open_trailing_minor_chksect.too_many_failed_checks_aem.message );	
+	
+	(* OPEN LEADING MINOR LOGIC *)
+	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_open_leading_minor_chksect'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ALWAYS_OFF, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_NOT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= ITEM_CASE_FEED, 
+		status_bits_to_be_false:= 0, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= 0, 
+		status_bits_to_reset:= 0, 
+		reject_bit_to_set:= LEADING_MINOR_FLAP_OPEN, 
+		_step:= 28, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= open_leading_minor_begin_phase, 
+		end_phase:= open_leading_minor_end_phase, 
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 100, 
+		products_for_failed_checks_percentage:= 99, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= open_leading_minor_chksect);
+
+	check_section_add_di_input(
+		di_input := open_trailing_minor_di,
+		CONVERSION_this:= open_leading_minor_chksect); 
+    
+	message_configure(
+        individual_reset                    := FALSE,
+        machine_reaction                    := MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology                            := MESSAGE_TYPOLOGY_ABNORMAL,
+        CONVERSION_this                     := open_leading_minor_chksect.too_many_failed_checks_aem.message );	
+		
+    
+		(*Emergency Stop Reject Logic*)  //added for glue
+	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_incomplete_glue_reject_dchk'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ON, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= ITEM_CASE_FEED, 
+		status_bits_to_be_false:= 0, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= 0, 
+		status_bits_to_reset:= 0, 
+		reject_bit_to_set:= INCOMPLETE_GLUE, 
+		_step:= 28, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= 10, 
+		end_phase:= 340, 
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 100, 
+		products_for_failed_checks_percentage:= 10, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= incomplete_glue_reject_dchk );
+
+	check_section_add_boolean_input(
+		boolean_input:= incomplete_glue_reject_bool,
+		CONVERSION_this:= incomplete_glue_reject_dchk);			
+		
+	message_configure(
+        individual_reset                    := FALSE,
+        machine_reaction                    := MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology                            := MESSAGE_TYPOLOGY_ABNORMAL,
+        CONVERSION_this                     := incomplete_glue_reject_dchk.too_many_failed_checks_aem.message );			
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_quality_reject_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NO_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_GENERIC_1,
+		process						:=	prc,
+		CONVERSION_this				:=	quality_reject_aem);
+   
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_incomplete_glue_reject_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NO_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_GENERIC_1,
+		process						:=	prc,
+		CONVERSION_this				:=	incomplete_glue_reject_aem);    
+END_IF
+
+
+IF objects_running()
+THEN
+    process_cycle(prc);
+    
+END_IF
+
+
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{716bd0fd-daa1-4e6e-a640-afeff974c246}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{174870bf-8ae4-437c-9bb1-0690ff33230d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{666b6281-8f87-4ef5-9ca2-82febb55379f}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{d0e2c80a-1b33-4bde-8801-136df51fb55e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_case_openFlap_sensors">
+      <LineId Id="3" Count="114" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_openFlap_sensors._handle_messages">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_openFlap_sensors._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_openFlap_sensors._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_openFlap_sensors._object_manager">
+      <LineId Id="310" Count="355" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_openFlap_sensors._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_openFlap_sensors._read_var_input">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_openFlap_sensors._set_runtime_properties">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_openFlap_sensors._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

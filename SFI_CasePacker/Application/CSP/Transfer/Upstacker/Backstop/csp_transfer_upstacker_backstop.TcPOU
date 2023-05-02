@@ -1,0 +1,273 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_upstacker_backstop" Id="{1bab9fa0-339e-44f4-beb6-68891ff24118}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_upstacker_backstop
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	extend_do:										digital_output;
+	
+	_sact:											digital_actuator;
+	
+	backstop_extend_bool:							BOOL := TRUE;
+	backstop_extend_deg:							LREAL := 120; (*$P $*)
+	backstop_extend_ph:								phase;
+	
+	backstop_retract_bool:							BOOL := FALSE;
+	backstop_retract_deg:							LREAL := 340; (*$P $*)
+	backstop_retract_ph:							phase;
+	
+	accumulator_belt_moving:						BOOL;
+	
+	calc_backstop_retract_deg: 						LREAL;
+	machine_speed_degps: 							LREAL;
+	speed_comp_value_s: 							LREAL := 0.1111;
+	
+	normal_inputs_with_filter_ton_ncn:				DINT := 50; //50ms debounce
+	normal_inputs_with_filter_toff_ncn:				DINT := 50; //50ms debounce
+END_VAR
+
+VAR_INPUT
+	retracted_di:									digital_input;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+phase_set_data(
+	phase				:= backstop_extend_deg,
+	delay				:= 0,			
+	max_compensation	:= 0,			
+	CONVERSION_this		:= backstop_extend_ph);
+	
+phase_set_data(
+	phase				:= calc_backstop_retract_deg,
+	delay				:= 0,			
+	max_compensation	:= 0,			
+	CONVERSION_this		:= backstop_retract_ph);
+
+machine_speed_degps := csp_main_motorization_manager.motm.actual_velocity / 60 * G_MODULO_360_DEG;
+calc_backstop_retract_deg := MODABS(backstop_retract_deg-(machine_speed_degps * speed_comp_value_s), G_MODULO_360_DEG);
+
+IF 	axis_is_moving(csp_transfer_accumulator_belt.axis)
+THEN
+	accumulator_belt_moving := TRUE;
+ELSE
+	accumulator_belt_moving := FALSE;
+END_IF
+
+
+IF 	csp_main_services.pressure_switch_value < csp_main_services.pressure_value_limit //Checks if pressure is below limit set
+THEN
+	digital_actuator_message_disable(_sact); //disabe the check if the pressure is below the limt //If not, the pressure check alarm will inhibit machine start
+ELSE
+	digital_actuator_message_enable(_sact); //enable the check if the pressure is above the limit
+END_IF
+
+(* MASTER CONTROL OF BACKSTOP *)
+IF 	backstop_extend_bool
+THEN
+	digital_actuator_activate(_sact);
+END_IF
+
+IF 	backstop_retract_bool
+THEN
+	digital_actuator_deactivate(_sact);
+END_IF
+
+
+(* TO EXTEND BACKSTOP TO HOLD CARTONS - phase reaches extend AND actuator is NOT active *)
+IF 	phase_edge(backstop_extend_ph)
+	AND backstop_retract_bool
+	AND csp_transfer_upstacker_virtualMaster.connection_done
+THEN
+	backstop_retract_bool := FALSE;
+	backstop_extend_bool := TRUE;
+END_IF
+
+(* TO RETRACT BACKSTOP TO ALLOW FOR UPSTACK - phase reaches retract AND actuator is active AND accumulator belt is NOT moving AND clamps are closed AND upstacker is running forward*)
+IF 	phase_edge(backstop_retract_ph)
+	AND backstop_extend_bool
+	AND csp_transfer_upstacker_virtualMaster.connection_done
+	AND 
+	(
+		csp_transfer_upstacker_virtualMaster.active_cam = TRANSFER_UPSTACKER_VIRTUAL_START_CAM
+		OR
+		csp_transfer_upstacker_virtualMaster.active_cam = FORWARD_CAM
+	)
+THEN
+	backstop_extend_bool := FALSE;
+	backstop_retract_bool := TRUE;
+END_IF
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{ce1e683f-a7de-4e47-a1f2-1a1e587b6a17}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{075a7059-0eb1-49bf-afcd-ae6ed6fbf54c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{ee57fc6f-7841-403e-b62c-ccc0d5be179c}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{5269b1b4-3530-4cc2-80aa-f8fc502d7114}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_upstacker_backstop.prc', 
+		process						:= csp_transfer_upstacker.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* OUTPUTS *)
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_extend_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= extend_do);
+		
+	(* INPUTS *)
+	digital_input_filtered_init(
+        object_name                 := CONCAT(prc_path, '_retracted_di'),
+        polarity_direct             := TRUE,
+        ton                         := normal_inputs_with_filter_ton_ncn,
+        toff                        := normal_inputs_with_filter_toff_ncn,
+        process                     := prc,
+        CONVERSION_this             := retracted_di);
+		
+	(* DIGITAL ACTUATOR *)
+	digital_actuator_init(
+		object_name:= CONCAT(prc_path, '_sact'), 
+		_type:= DIGITAL_ACTUATOR_TYPE_IN_xI, 
+		fault_reaction:= DIGITAL_ACTUATOR_FAULT_REACTION_DEACTIVATING, 
+		active_time:= 1000, 
+		inactive_time:= 1000, 
+		dout:= extend_do, 
+		process:= prc, 
+		CONVERSION_this:= _sact);
+		
+	digital_actuator_add_di_inactive(
+		di_inactive:= retracted_di, 
+		CONVERSION_this:= _sact);
+		
+	(* PHASES *)
+	phase_init(
+        object_name 				:= CONCAT(prc_path, '_backstop_extend_ph'),
+        phase 						:= 0,	//Set at runtime!
+        delay 						:= 0,
+        max_compensation 			:= 0,
+        generator 					:= csp_transfer_accumulator_virtualMaster.phgen,
+        process 					:= prc,
+        CONVERSION_this 			:= backstop_extend_ph);
+		
+	phase_init(
+        object_name 				:= CONCAT(prc_path, '_backstop_retract_ph'),
+        phase 						:= 0,	//Set at runtime!
+        delay 						:= 0,
+        max_compensation 			:= 0,
+        generator 					:= csp_transfer_accumulator_virtualMaster.phgen,
+        process 					:= prc,
+        CONVERSION_this 			:= backstop_retract_ph);
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	phase_cycle(backstop_extend_ph);
+	phase_cycle(backstop_retract_ph);
+	digital_input_filtered_cycle(retracted_di);
+	digital_actuator_cycle(_sact);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{a9254628-7255-42ed-949a-9dd39608542b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{aee1928f-2954-46ad-a3f9-3bd90925825a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{38564e7a-28ad-4351-a18c-9e86d43adc4f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{8ce6de53-5b9f-491e-8021-392899213a22}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<TcSmItem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2012/07/TcSmProject" TcSmVersion="1.0" TcVersion="3.1.4024.7" ClassName="CNvPubSubDef" SubType="9051">
+	<DataTypes>
+		<DataType>
+			<Name GUID="{604191F1-C292-416F-BD1E-CFD75694CE63}" IecBaseType="true" AutoDeleteType="true">ARRAY [0..3] OF DINT</Name>
+			<BitSize>128</BitSize>
+			<BaseType GUID="{18071995-0000-0000-0000-000000000009}">DINT</BaseType>
+			<ArrayInfo>
+				<LBound>0</LBound>
+				<Elements>4</Elements>
+			</ArrayInfo>
+		</DataType>
+	</DataTypes>
+	<Box Id="99" Disabled="true" BoxType="9051">
+		<Name>__FILENAME__</Name>
+		<ImageId>99</ImageId>
+		<Vars VarGrpType="1">
+			<Name>Inputs</Name>
+		</Vars>
+		<Vars VarGrpType="2">
+			<Name>Outputs</Name>
+			<Var BoxStateVariable="true">
+				<Name>CycleIdx</Name>
+				<Type>UINT</Type>
+			</Var>
+		</Vars>
+		<Eap InOut="1" Mac="010105040000" ArpRetryInterval="1000">
+			<EapVar Id="1" VarInOut="1" NvId="101" NvLength="16">
+				<Name>RAJ_To_FLexlink_Var</Name>
+				<ImageId>97</ImageId>
+				<Vars VarGrpType="1">
+					<Name>Inputs</Name>
+				</Vars>
+				<Vars VarGrpType="2">
+					<Name>Outputs</Name>
+					<Var>
+						<Name>VarData</Name>
+						<Type GUID="{604191F1-C292-416F-BD1E-CFD75694CE63}">ARRAY [0..3] OF DINT</Type>
+						<BitOffs>16</BitOffs>
+					</Var>
+				</Vars>
+			</EapVar>
+		</Eap>
+	</Box>
+</TcSmItem>

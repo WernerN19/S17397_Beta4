@@ -1,0 +1,159 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_transport_tensioner" Id="{92ee46c6-661a-40ad-8260-b8f120b2c5af}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_transport_tensioner
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	chain_tensioner_sact:							digital_actuator;
+	chain_tensioner_do:								digital_output;
+	chain_tensioner_tmr:                            timer;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(* CHAIN TENSIONER SHOULD RUN ON RESET EDGE FOR 3 SECONDS THEN NOT RUN AGAIN UNTIL RESET EDGE*)
+IF machine_get_reset_edge(csp.mch)
+THEN
+	timer_restart(
+		delta_ms 		:= 3000, 
+		CONVERSION_this	:= chain_tensioner_tmr);
+END_IF
+
+IF NOT timer_is_expired(chain_tensioner_tmr)
+THEN	
+	digital_actuator_activate(chain_tensioner_sact);
+ELSE
+	digital_actuator_deactivate(chain_tensioner_sact);
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{53c91617-a2d1-4b44-b1e5-b955f43075bb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{0dbc6f32-b842-49e2-ad2d-a5a34750a095}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{2fb628a4-1b99-44aa-b561-69afd108d1b0}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{79c09bd7-444e-4dbb-8b83-3746bd88f1b6}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_transport_tensioner.prc', 
+		process						:= csp_case_transport.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	digital_output_init(
+		object_name 				:= CONCAT(prc_path, 'chain_tensioner_do'),
+		polarity_direct 			:= TRUE,
+		process 					:= prc,
+		CONVERSION_this 			:= chain_tensioner_do);
+	timer_init(
+		object_name					:= CONCAT(prc_path, 'chain_tensioner_tmr'),
+		process						:=prc,
+		CONVERSION_this				:=chain_tensioner_tmr );
+		
+	
+	digital_actuator_init(			
+		object_name					:=CONCAT(prc_path, '_chain_tensioner_sact'), 
+		_type           			:= DIGITAL_ACTUATOR_TYPE_IN_xx,
+		fault_reaction 				:= DIGITAL_ACTUATOR_FAULT_REACTION_DEACTIVATING,
+		active_time     			:= 0,
+		inactive_time   			:= 0,
+		dout            			:= chain_tensioner_do,
+		process         			:= prc,
+		conversion_this 			:=chain_tensioner_sact);	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	digital_actuator_cycle(chain_tensioner_sact);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{1383f86d-1931-45c2-8bdf-9e06334cadc6}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{abcdafed-4a8e-4709-9b47-1db7100c628e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{b856513c-a822-44fd-863a-13bc15510d55}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{e8da73a3-aba4-4600-83b2-7642708ea76b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

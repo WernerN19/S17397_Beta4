@@ -1,0 +1,54 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_case_flapControl_highest" Id="{16373b8f-df73-4324-a592-f49064c802cb}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_case_flapControl_highest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[csp_case_flapControl();
+
+
+		(* LS *)
+		(* UPPER *)
+			csp_case_fc_ls_upper();
+			csp_case_fc_ls_upper_follower();
+			csp_case_fc_ls_upper_sensors();
+			csp_case_fc_ls_upper_leadingMinorCloser();
+			csp_case_fc_ls_upper_leadingMinorCloser_virtual();
+			csp_case_fc_ls_upper_spreader();
+			(* LOWER *)
+			csp_case_fc_ls_lower();
+			csp_case_fc_ls_lower_follower();
+			csp_case_fc_ls_lower_sensors();
+			csp_case_fc_ls_lower_spreader();
+			csp_case_fc_ls_lower_trailingCloser();
+		(* OS *)
+			(* UPPER *)
+			csp_case_fc_os_upper();
+			csp_case_fc_os_upper_follower();
+			csp_case_fc_os_upper_sensors();
+			csp_case_fc_os_upper_spreader();
+			(* LOWER *)
+			csp_case_fc_os_lower();
+			csp_case_fc_os_lower_follower();
+			csp_case_fc_os_lower_sensors();
+			csp_case_fc_os_lower_spreader();
+			]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

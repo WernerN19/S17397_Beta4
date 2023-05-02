@@ -1,0 +1,49 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_submit_command" Id="{25e6bc0e-ceae-4267-a3da-91d70c32e4a6}" SpecialFunc="None">
+    <Declaration><![CDATA[(* Function that executes the command assigned to the jog_manager
+	specified by the parameter 'this' *)
+FUNCTION jog_manager_submit_command : VOID
+VAR
+END_VAR
+(*All VAR_IN_OUT variables have been moved to the end of the declaration due to compatibility reasons*)
+VAR_IN_OUT
+    CONVERSION_this:	jog_manager;	(* Instance to which the method applies *)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[CASE CONVERSION_this.command OF   
+ 
+	JOG_MANAGER_SET_ACTIVATION_CONDITION:
+        IF 	CONVERSION_this.status = JOG_MANAGER_STATUS_IDLE
+		THEN
+			CONVERSION_this.status := JOG_MANAGER_STATUS_READY;		
+		END_IF 
+		CONVERSION_this.command := JOG_MANAGER_CMD_NONE;
+		
+	JOG_MANAGER_RESET_ACTIVATION_CONDITION:
+        IF 	CONVERSION_this.status = JOG_MANAGER_STATUS_READY
+		THEN
+			CONVERSION_this.status := JOG_MANAGER_STATUS_IDLE;		
+		END_IF 
+		CONVERSION_this.command := JOG_MANAGER_CMD_NONE;
+		
+	JOG_MANAGER_STOP_ABSOLUTE_MOVEMENT:
+		IF	CONVERSION_this.status = JOG_MANAGER_STATUS_ABSOLUTE_MOVING
+		THEN
+			CONVERSION_this.status := JOG_MANAGER_STATUS_STOP_ABSOLUTE_MOVING;		
+		END_IF 
+		CONVERSION_this.command := JOG_MANAGER_CMD_NONE;
+		
+END_CASE
+
+IF	CONVERSION_this.command = JOG_MANAGER_CMD_NONE
+THEN
+	IF	descriptor_get_mode(CONVERSION_this.descriptor) = MODE_OPERATIONAL
+	THEN
+		CONVERSION_this.operational_command := JOG_MANAGER_CMD_NONE;
+	END_IF
+	CONVERSION_this.test.command := JOG_MANAGER_TEST_CMD_NONE;
+END_IF]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

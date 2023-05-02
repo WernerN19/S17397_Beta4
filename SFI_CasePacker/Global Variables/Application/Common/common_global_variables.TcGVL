@@ -1,0 +1,113 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <GVL Name="common_global_variables" Id="{0002a73b-bb55-43bc-89d8-1d986527f237}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+
+
+============= DESCRIPTION =============
+Application common global variables list
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/18 	0000.00	 	G.Cera 			Creation of the PRG
+**********************************************************************************************************)
+{attribute 'Tc2GvlVarNames'}
+VAR_GLOBAL CONSTANT
+
+(*	ITEM_ABSENT:										DWORD := 16#0000_0000;
+	ITEM_TO_REJECT:										DWORD := 16#0000_0001;
+	ITEM_REJECTED:										DWORD := 16#0000_0002;
+	ITEM_PRESENT:										DWORD := 16#0000_0003;
+*)
+    NONE:												DWORD := 16#0000_0000;
+    ALL:												DWORD := 16#FFFF_FFFF;
+    DWORD_BIT_0	:										DWORD := 16#0000_0001;
+	
+	ITEM_CASE_FEED:										DWORD := ITEM_AUX_BIT_4;
+	ITEM_HAS_CARTON:									DWORD := ITEM_AUX_BIT_5;
+	ITEM_HAS_LS_UPPER_FLAP:								DWORD := ITEM_AUX_BIT_6;
+	ITEM_HAS_LS_LOWER_FLAP:								DWORD := ITEM_AUX_BIT_7;
+	ITEM_HAS_OS_UPPER_FLAP:								DWORD := ITEM_AUX_BIT_8;
+	ITEM_HAS_OS_LOWER_FLAP:								DWORD := ITEM_AUX_BIT_9;
+	(*ITEM_HAS_GLUE_ON_CASE:								DWORD := ITEM_AUX_BIT_9;*)
+	ITEM_HAS_LS_UPPER_FLAP_AT_GLUE:						DWORD := ITEM_AUX_BIT_10;
+	ITEM_HAS_OS_UPPER_FLAP_AT_GLUE:						DWORD := ITEM_AUX_BIT_11;
+	ITEM_HAS_OPEN_FLAP_LS:								DWORD := ITEM_AUX_BIT_12;
+	ITEM_HAS_OPEN_FLAP_OS:								DWORD := ITEM_AUX_BIT_13;
+	ITEM_POWER_UP:										DWORD := ITEM_AUX_BIT_14;
+	ITEM_HAS_LOAD:										DWORD := ITEM_AUX_BIT_15;
+	ITEM_HAS_TRANSFER_LOAD_BUILD_COMPLETE:				DWORD := ITEM_AUX_BIT_16;
+	
+	(* SHIFT REGISTER IDENTITY CARD *)
+	(*****************************)
+	
+	(* MOTION *)
+	G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC:			LREAL := 1.0;
+	G_SERVO_ENCODER_SCALING_FACTOR_DEGPINC:				LREAL := 0.0001;	
+	G_NO_MODULO_DEG:									LREAL := 0;
+	G_MODULO_360_DEG:									LREAL := 360;	
+	G_MODULO_720_DEG:									LREAL := 720;
+	G_MODULO_1080_DEG:									LREAL := 1080;
+	G_MODULO_4320_DEG:									LREAL := 4320;
+
+	G_CONV_S_TO_MS:										INT := 1000;
+	G_CONV_PPM_TO_DEGPS:								LREAL := 6.0;
+	G_CONV_KG_TO_NM:									LREAL := 9.80665;	
+
+	MAX_INT_VALUE:										INT := 32767;		(* Global_Variables: 32767*)
+	MIN_INT_VALUE:										INT := -32768;		(* Global_Variables: -32768*)
+	MAX_WORD_VALUE:										WORD := 65535;		(* Global_Variables: 65535*)
+
+	WORD_MASK_HIGH_BYTE:								WORD := 16#FF00;	(* Global_Variables: Maschera x WORD elimina la parte bassa *)
+	WORD_MASK_LOW_BYTE:									WORD := 16#00FF;	(* Global_Variables: Maschera x WORD elimina la parte alta *)
+
+	CUPS_NUMBER_PICKED_BY_R1_R2:						INT := 12;
+	CUPS_FEEDING_CROSS_SECTION_ENABLE_PHASE:			INT := 190;
+	PICK_AND_PLACE_ROBOTS_NUMBER:						INT := 6;
+END_VAR
+
+
+VAR_GLOBAL
+	(* MACHINE CONFIGURATION *)
+	//sw_configurator:									sw_configurator_struct;		
+	csp_sw_configurator:									csp_sw_configurator_struct;	
+
+	(* APPLICATION STATUS *)
+	g_application_status_1st_powerup_high:				BOOL;
+	g_application_status_1st_powerup_normal:			BOOL;
+	g_application_status_1st_powerup_low:				BOOL;
+
+	g_application_status_2nd_powerup_high:				BOOL;
+	g_application_status_2nd_powerup_normal:			BOOL;
+	g_application_status_2nd_powerup_low:				BOOL;
+
+	g_application_status_3rd_powerup_high:				BOOL;
+	g_application_status_3rd_powerup_normal:			BOOL;
+	g_application_status_3rd_powerup_low:				BOOL;
+
+	g_application_status:								application_status_enum;
+	
+	power_done:											BOOL := FALSE;
+	(*PLC_TARGET_MACHINE, PLC_TARGET_LOCAL, PLC_TARGET_LOCAL_IP *)
+	g_plc_target:										plc_target_type_enum := PLC_TARGET_LOCAL;
+	
+	RAJ_to_Flexlink AT %Q*:							ARRAY[0..3] OF DINT;
+	Flexlink_to_RAJ AT %I*:							ARRAY[0..3] OF DINT;
+	RAJ_to_Cartoner AT %Q*:							ARRAY[0..19] OF DINT;
+	Cartoner_to_RAJ AT %I*: 						ARRAY[0..19] OF DINT;
+	
+END_VAR
+
+VAR_GLOBAL RETAIN
+	g_application_status_1st_powerup_high_absolute:		BOOL:=FALSE;
+	g_application_status_1st_powerup_normal_absolute:	BOOL:=FALSE;
+	g_application_status_1st_powerup_low_absolute:		BOOL:=FALSE;
+END_VAR
+
+VAR_GLOBAL PERSISTENT
+	csp_retain_data:									csp_retain_data_struct;
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

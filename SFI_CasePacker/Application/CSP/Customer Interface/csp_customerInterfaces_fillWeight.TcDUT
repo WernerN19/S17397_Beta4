@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_fillWeight" Id="{f9648a82-e404-4fb0-bc04-9abf412e4d39}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_fillWeight :
+STRUCT
+	
+	Target:				REAL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Ingredient fill weight; $*)
+	Maximum:			REAL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Ingredient max weight; $*)
+	Minimum:			REAL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Ingredient min weight; $*)
+	
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

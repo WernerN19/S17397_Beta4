@@ -1,0 +1,91 @@
+<?xml version="1.0"?>
+<TcSmItem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2012/07/TcSmProject" TcSmVersion="1.0" TcVersion="3.1.4024.7" ClassName="CDevEthernetProtocolNvDef" SubType="106">
+	<Device Id="4" Disabled="true" DevType="106" AmsPort="28676" AmsNetId="0.0.0.0.5.1" RemoteName="Device 4 (EtherCAT Automation Protocol, EL6601)">
+		<Name>__FILENAME__</Name>
+		<ImageId>210</ImageId>
+		<AddressInfo>
+			<Ecat>
+				<EtherCATDeviceId>94</EtherCATDeviceId>
+				<EtherCATDeviceName>TIID^Cabinet ethercat master^CSPENC3^SPLC5000Slot22 (EL6614)</EtherCATDeviceName>
+			</Ecat>
+		</AddressInfo>
+		<Image Id="13" AddrType="4" ImageType="3">
+			<Name>Image</Name>
+		</Image>
+		<Box File="Box 95 (Publisher).xti" Id="99"/>
+		<Box File="Box 96 (Subscriber).xti" Id="100"/>
+		<Box Id="101" BoxType="9051">
+			<Name>Box 97 (Publisher)</Name>
+			<ImageId>99</ImageId>
+			<Vars VarGrpType="1">
+				<Name>Inputs</Name>
+			</Vars>
+			<Vars VarGrpType="2">
+				<Name>Outputs</Name>
+				<Var BoxStateVariable="true">
+					<Name>CycleIdx</Name>
+					<Type>UINT</Type>
+					<BitOffs>144</BitOffs>
+				</Var>
+			</Vars>
+			<Eap InOut="1" Mac="010105040000" ArpRetryInterval="1000">
+				<EapVar Id="2" VarInOut="1" NvId="50" NvLength="4">
+					<Name>RAJ_To_Cartoner_Var</Name>
+					<ImageId>97</ImageId>
+					<Vars VarGrpType="1">
+						<Name>Inputs</Name>
+					</Vars>
+					<Vars VarGrpType="2">
+						<Name>Outputs</Name>
+						<Var>
+							<Name>VarData</Name>
+							<Type>DINT</Type>
+							<BitOffs>160</BitOffs>
+						</Var>
+					</Vars>
+				</EapVar>
+			</Eap>
+		</Box>
+		<Box Id="102" BoxType="9052">
+			<Name>Box 98 (Subscriber)</Name>
+			<ImageId>100</ImageId>
+			<Vars VarGrpType="1">
+				<Name>Inputs</Name>
+			</Vars>
+			<Vars VarGrpType="2">
+				<Name>Outputs</Name>
+			</Vars>
+			<Eap Mac="010105040000">
+				<EapVar Id="4" NvId="51" NvLength="4">
+					<Name>Cartoner_To_RAJ_Var</Name>
+					<ImageId>98</ImageId>
+					<Vars VarGrpType="1">
+						<Name>Inputs</Name>
+						<Var>
+							<Name>Quality</Name>
+							<Comment><![CDATA[Duration the variable is not refreshed (in 100µs)]]></Comment>
+							<Type>UINT</Type>
+							<BitOffs>160</BitOffs>
+						</Var>
+						<Var>
+							<Name>CycleIndex</Name>
+							<Comment><![CDATA[Incremented each publisher cycle]]></Comment>
+							<Type>UINT</Type>
+							<BitOffs>176</BitOffs>
+						</Var>
+						<Var>
+							<Name>VarData</Name>
+							<Type>DINT</Type>
+							<BitOffs>192</BitOffs>
+						</Var>
+					</Vars>
+					<Vars VarGrpType="2">
+						<Name>Outputs</Name>
+					</Vars>
+				</EapVar>
+			</Eap>
+		</Box>
+		<Ethernet DeviceDesc="EL6614 4 Port Switch (Ethernet, CoE)" VirtualDeviceName="true"/>
+		<Eap EapDeviceGuid="{5B33C7D8-B5E4-4052-98FA-0D404BA33E02}"/>
+	</Device>
+</TcSmItem>

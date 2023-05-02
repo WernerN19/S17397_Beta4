@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="csp_transfer_infeed_belt_status_enum" Id="{21681d6c-c615-44ba-918d-0ff192f2c40c}">
+    <Declaration><![CDATA[TYPE csp_transfer_infeed_belt_status_enum :(
+	CSP_TRANSFER_INFEED_BELT_STATUS_NOT_INITIALIZED 							:= 0,
+	CSP_TRANSFER_INFEED_BELT_STATUS_DISABLED 									:= 10,
+	CSP_TRANSFER_INFEED_BELT_STATUS_ENABLE_REQUEST 								:= 70,
+	CSP_TRANSFER_INFEED_BELT_STATUS_ENABLING 									:= 80,
+	CSP_TRANSFER_INFEED_BELT_STATUS_ENABLED 									:= 100,
+	CSP_TRANSFER_INFEED_BELT_STATUS_RUNNING										:= 110,
+	CSP_TRANSFER_INFEED_BELT_STATUS_STOP_REQUEST 								:= 500,
+	CSP_TRANSFER_INFEED_BELT_STATUS_DISABLE_REQUEST 							:= 530,
+	CSP_TRANSFER_INFEED_BELT_STATUS_DISABLING 									:= 540
+	) := CSP_TRANSFER_INFEED_BELT_STATUS_NOT_INITIALIZED;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

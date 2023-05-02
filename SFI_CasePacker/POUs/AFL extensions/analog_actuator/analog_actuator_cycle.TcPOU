@@ -1,0 +1,315 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_cycle" Id="{519d4944-4d5d-4d65-8a2e-d25d5d4c2e57}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Handles the state machine of the object, has to be called once per task cycle <br/>
+	<p>
+	Against certain errors the cpu can be stopped at the first cycle of the caller task, <br/> 
+	in this case the cause can be inspected in the global struct <i>framework.abort_error</i>: <br/>
+	<br/>
+	<li> <b>ERRORID_1 = 17</b>: Active digital_input not added. </li>
+	<li> <b>ERRORID_1 = 19</b>: Inactive digital_input not added. </li>
+	</p>
+
+$*)
+FUNCTION analog_actuator_cycle : VOID
+
+VAR_IN_OUT
+    CONVERSION_this:	analog_actuator;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT CONVERSION_this.CONVERSION_private.cycle_is_active
+THEN
+	descriptor_set_task_id(CONVERSION_this.descriptor);
+
+	IF analog_actuator_is_not_initialized(CONVERSION_this)
+	THEN
+		framework_object_not_initialized_get_name(
+			object_address := ADR(CONVERSION_this),
+			object_size := SIZEOF(CONVERSION_this),
+			abort := TRUE,
+			error_str_1 := 'object not initialized',
+			error_str_2 := ''
+		);
+	    RETURN;
+	END_IF
+
+	CONVERSION_this.CONVERSION_private.cycle_is_active := TRUE;
+END_IF
+
+IF descriptor_mode_req_is_pending(CONVERSION_this.descriptor) THEN
+    analog_actuator_change_mode(CONVERSION_this);
+END_IF
+
+IF CONVERSION_this.has_di_ready
+THEN
+	digital_check_cycle(CONVERSION_this.ready_dchk);
+END_IF
+
+IF CONVERSION_this.has_di_active
+THEN
+	digital_check_cycle(CONVERSION_this.active_dchk);
+	digital_check_cycle(CONVERSION_this.inactive_dchk);
+END_IF
+
+IF CONVERSION_this.has_ai_feedback
+THEN
+	analog_check_cycle(CONVERSION_this.feedback_achk);
+END_IF
+
+CASE descriptor_get_mode(CONVERSION_this.descriptor) OF
+	MODE_ABSENT:
+		RETURN;
+
+	MODE_TO_INACTIVE:
+		;		(*$FIXME: To inactive mode strategy to handle. $*)
+
+	MODE_INACTIVE:
+		;		(*$FIXME: Inactive mode to handle. $*)
+
+	MODE_TEST:
+		CONVERSION_this.command := analog_actuator_test_command_handler(CONVERSION_this);
+
+	MODE_OPERATIONAL:
+		CONVERSION_this.command := CONVERSION_this.operational_command;
+
+END_CASE;
+
+analog_actuator_read_inputs(CONVERSION_this);
+analog_actuator_submit_command(CONVERSION_this);
+
+CONVERSION_this.ao_setpoint_value := CONVERSION_this.analog_physical_command;
+
+IF CONVERSION_this.has_ai_feedback
+THEN
+	CONVERSION_this.ai_feedback_value := analog_input_physical_read(CONVERSION_this.ai_feedback^);
+ELSE
+	CONVERSION_this.ai_feedback_value := 0;
+END_IF
+
+(*transition states*)
+CASE CONVERSION_this.status OF
+	ANALOG_ACTUATOR_STATUS_INIT:
+    	CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_INACTIVE;
+
+    ANALOG_ACTUATOR_STATUS_ACTIVATING:
+		IF CONVERSION_this.is_active AND NOT CONVERSION_this.is_inactive
+		THEN
+			(*TEST EV*)
+			IF	descriptor_get_mode(CONVERSION_this.descriptor) = MODE_OPERATIONAL
+			THEN
+				CONVERSION_this.operational_command := ANALOG_ACTUATOR_CMD_NONE;
+			END_IF
+
+			IF	descriptor_get_mode(CONVERSION_this.descriptor) = MODE_TEST
+			THEN
+				CONVERSION_this.test.command := ANALOG_ACTUATOR_TEST_CMD_IDLE;
+			END_IF
+
+			IF CONVERSION_this.has_ai_feedback
+			THEN
+				analog_check_set_min_value(CONVERSION_this.analog_physical_command - CONVERSION_this.feedback_lower_tolerance, CONVERSION_this.feedback_achk);
+				analog_check_set_max_value(CONVERSION_this.analog_physical_command + CONVERSION_this.feedback_upper_tolerance, CONVERSION_this.feedback_achk);
+				analog_check_enable(CONVERSION_this.feedback_achk);
+			END_IF
+
+			CONVERSION_this.command := ANALOG_ACTUATOR_CMD_NONE;
+			CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_ACTIVE;
+		ELSE
+			IF CONVERSION_this.has_ai_feedback
+			THEN
+				analog_check_disable(CONVERSION_this.feedback_achk);
+			END_IF
+		END_IF
+		IF descriptor_is_ready(CONVERSION_this.descriptor)
+		THEN
+			CONVERSION_this.active_elapsed_time := timer_get_elapsed_time(CONVERSION_this.timer);
+		END_IF
+
+
+    ANALOG_ACTUATOR_STATUS_DEACTIVATING:
+        IF CONVERSION_this.is_inactive AND NOT CONVERSION_this.is_active
+		THEN
+			(*TEST EV*)
+			IF	descriptor_get_mode(CONVERSION_this.descriptor) = MODE_OPERATIONAL
+			THEN
+				CONVERSION_this.operational_command := ANALOG_ACTUATOR_CMD_NONE;
+			END_IF
+
+			IF	descriptor_get_mode(CONVERSION_this.descriptor) = MODE_TEST
+			THEN
+				CONVERSION_this.test.command := ANALOG_ACTUATOR_TEST_CMD_IDLE;
+			END_IF
+
+			IF CONVERSION_this.has_ai_feedback
+			THEN
+				analog_check_disable(CONVERSION_this.feedback_achk);
+			END_IF
+
+			CONVERSION_this.command := ANALOG_ACTUATOR_CMD_NONE;
+			CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_INACTIVE;
+		END_IF
+
+		IF CONVERSION_this.has_ai_feedback
+		THEN
+			analog_check_disable(CONVERSION_this.feedback_achk);
+		END_IF
+
+		IF descriptor_is_ready(CONVERSION_this.descriptor)
+		THEN
+			CONVERSION_this.deactive_elapsed_time := timer_get_elapsed_time(CONVERSION_this.timer);
+		END_IF
+
+    ANALOG_ACTUATOR_STATUS_FAULTED:
+       CASE CONVERSION_this.fault_reaction OF
+			ANALOG_ACTUATOR_FAULT_REACTION_DEACTIVATING:
+				analog_output_physical_write(physical_value := 0, CONVERSION_this := CONVERSION_this.ao_setpoint^);	(*todo: to consider also percent write*)
+				IF CONVERSION_this.has_do_activate
+				THEN
+					digital_output_reset(CONVERSION_this.do_activate^);
+				END_IF
+				CONVERSION_this.operational_command := ANALOG_ACTUATOR_CMD_DEACTIVATE;
+				CONVERSION_this.test.command := ANALOG_ACTUATOR_TEST_CMD_DEACTIVATE;
+
+			ANALOG_ACTUATOR_FAULT_REACTION_HOLD,
+			ANALOG_ACTUATOR_FAULT_REACTION_IGNORE:
+				CONVERSION_this.operational_command := ANALOG_ACTUATOR_CMD_NONE;
+				CONVERSION_this.test.command := ANALOG_ACTUATOR_TEST_CMD_IDLE;
+		END_CASE;
+
+		IF CONVERSION_this.has_ai_feedback
+		THEN
+			analog_check_disable(CONVERSION_this.feedback_achk);
+		END_IF
+
+END_CASE;
+
+(*dynamic diagnosis*)
+CASE CONVERSION_this.status OF
+
+    ANALOG_ACTUATOR_STATUS_ACTIVATING:
+
+        IF timer_is_expired(CONVERSION_this.timer)
+        THEN
+			IF 	CONVERSION_this.has_ai_feedback
+				OR
+				CONVERSION_this.has_di_active
+			THEN
+				analog_actuator_set_snapshot(
+					errorID_1 := 10,
+					errorID_2 := 0,
+					errorID_3 := 0,
+					CONVERSION_this := CONVERSION_this.active_fem
+					);
+
+				IF CONVERSION_this.fault_reaction <> ANALOG_ACTUATOR_FAULT_REACTION_IGNORE
+				THEN
+					CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_FAULTED;
+				END_IF
+			END_IF
+		END_IF
+
+	ANALOG_ACTUATOR_STATUS_INACTIVE:
+
+		IF CONVERSION_this.has_di_active
+		THEN
+			digital_check_enable(CONVERSION_this.inactive_dchk);
+		END_IF
+
+    ANALOG_ACTUATOR_STATUS_DEACTIVATING:
+
+        IF timer_is_expired(CONVERSION_this.timer)
+        THEN
+			IF 	CONVERSION_this.has_ai_feedback
+				OR
+				CONVERSION_this.has_di_active
+			THEN
+				analog_actuator_set_snapshot(
+					errorID_1 := 11,
+					errorID_2 := 0,
+					errorID_3 := 0,
+					CONVERSION_this := CONVERSION_this.inactive_fem
+					);
+
+				IF CONVERSION_this.fault_reaction <> ANALOG_ACTUATOR_FAULT_REACTION_IGNORE
+				THEN
+					CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_FAULTED;
+				END_IF
+			END_IF
+		END_IF
+END_CASE;
+
+(*static diagnosis*)
+IF 	CONVERSION_this.has_di_ready
+THEN
+	digital_check_enable(CONVERSION_this.ready_dchk);
+	IF message_is_on(CONVERSION_this.ready_dchk.alarm_asm.message)
+	THEN
+		IF CONVERSION_this.fault_reaction <> ANALOG_ACTUATOR_FAULT_REACTION_IGNORE
+		THEN
+			CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_FAULTED;
+		END_IF
+	END_IF
+END_IF
+
+IF 	CONVERSION_this.has_di_active
+THEN
+	IF	CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_ACTIVE
+	THEN
+		digital_check_enable(CONVERSION_this.active_dchk);
+		IF message_is_on(CONVERSION_this.active_dchk.alarm_asm.message)
+		THEN
+			IF CONVERSION_this.fault_reaction <> ANALOG_ACTUATOR_FAULT_REACTION_IGNORE
+			THEN
+				CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_FAULTED;
+			END_IF
+		END_IF
+	ELSE
+		digital_check_disable(CONVERSION_this.active_dchk);
+	END_IF
+END_IF
+
+IF 	CONVERSION_this.has_di_active
+THEN
+	IF	CONVERSION_this.status = ANALOG_ACTUATOR_STATUS_INACTIVE
+	THEN
+		digital_check_enable(CONVERSION_this.inactive_dchk);
+		IF message_is_on(CONVERSION_this.inactive_dchk.alarm_asm.message)
+		THEN
+			IF CONVERSION_this.fault_reaction <> ANALOG_ACTUATOR_FAULT_REACTION_IGNORE
+			THEN
+				CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_FAULTED;
+			END_IF
+		END_IF
+	ELSE
+		digital_check_disable(CONVERSION_this.inactive_dchk);
+	END_IF
+END_IF
+
+(*fault manager*)
+CASE descriptor_get_stop_status(CONVERSION_this.descriptor) OF
+    STOP_GOING_ON:
+		descriptor_apply_stop(CONVERSION_this.descriptor);
+    STOP_ON:
+		IF descriptor_get_reset_level(CONVERSION_this.descriptor)
+        THEN
+            CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_INIT;
+			CONVERSION_this.command := CONVERSION_this.operational_command;
+			analog_actuator_submit_command(CONVERSION_this);
+        END_IF
+	STOP_OFF:
+		IF 	CONVERSION_this.status
+			=
+			ANALOG_ACTUATOR_STATUS_FAULTED
+		THEN
+			IF descriptor_get_reset_level(CONVERSION_this.descriptor)
+	        THEN
+	            CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_INIT;
+				CONVERSION_this.command := CONVERSION_this.operational_command;
+				analog_actuator_submit_command(CONVERSION_this);
+	        END_IF
+		END_IF
+END_CASE;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

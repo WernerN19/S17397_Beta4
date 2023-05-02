@@ -1,0 +1,196 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_init" Id="{a28dab7a-5e2b-4c18-af0a-afe4e8d7b005}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Initializes the instance specified by the parameter <b><i>this</i></b>. <br/>
+	<p>
+	This function should be called at startup only.<br/>	
+	Against errors on the input parameters the cpu is stopped, in this case the cause <br/>
+	can be inspected in the global struct <i>framework.abort_error</i>: <br/>
+	<br/>
+	<li> <b>ERRORID_1 = 1</b>: <b><i>object_name</i></b> is illegal </li>
+	</p>
+$*)
+FUNCTION jog_manager_init : VOID
+VAR_INPUT
+	object_name:		STRING(MAX_OBJ_NAME_LENGTH);	(*$ The instance name as <i>STRING</i> $*)	
+END_VAR
+VAR_IN_OUT	
+	process:			process;			(*$ <a href="#process_object"><i>process</i></a> membership $*)
+	CONVERSION_this:	jog_manager;		(*$ Instance to which the method applies $*)
+END_VAR
+VAR
+	i:					UINT;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF 	CONVERSION_this.CONVERSION_private.initialized
+THEN
+	RETURN;
+END_IF
+
+IF 	process_is_not_initialized(process)
+THEN
+	IF 	framework_initialization()
+	THEN
+		RETURN;
+	END_IF
+END_IF
+
+IF 	process_is_not_initialized(process)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(process), 
+		object_size := SIZEOF(process), 
+		abort := TRUE,
+		error_str_1 := 'object not initialized', 
+		error_str_2 := CONCAT('Please check jog_manager_init of ',CONVERSION_this.object_name)			
+	);
+    RETURN;
+END_IF
+
+IF 	object_name = ''
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(CONVERSION_this), 
+		object_size := SIZEOF(CONVERSION_this), 
+		abort := TRUE,
+		error_str_1 := 'object name is null', 
+		error_str_2 := ''
+	);
+    RETURN;
+END_IF
+
+IF 	obj_name_find_illegal_characters(object_name)
+THEN
+    abort(
+		object_name := object_name,
+        errorID_1 := 1,
+        errorID_2 := 0,
+        errorID_3 := 0,
+        error_str_1 := CONCAT(CONCAT(CONCAT(CONCAT('(', JOG_MANAGER_CLASS_NAME), ') '), object_name), ' object name is invalid'),
+		error_str_2 := ''
+    );
+    RETURN;
+END_IF
+
+CONVERSION_this.object_name := object_name;
+CONVERSION_this.CONVERSION_private.my_address := ADR(CONVERSION_this);
+
+descriptor_init(
+	object_name := CONCAT(CONVERSION_this.object_name,'.descriptor'),
+	process := process,
+	CONVERSION_this := CONVERSION_this.descriptor
+	);
+
+CONVERSION_this.status := JOG_MANAGER_STATUS_INIT;
+CONVERSION_this.command := JOG_MANAGER_CMD_NONE;
+CONVERSION_this.test.command := JOG_MANAGER_TEST_CMD_NONE;
+
+FOR i := 1 TO JOG_MANAGER_MAX_PARENTS DO
+	CONVERSION_this.parents[i] := G_Framework.NULL;
+END_FOR											
+CONVERSION_this.parents_next_free := 1;
+	
+FOR i := JOG_MANAGER_JOG_LIST_NONE TO JOG_MANAGER_JOG_LIST_MAX DO
+	CONVERSION_this.axis_list[i].axis := G_framework.NULL;
+	CONVERSION_this.axis_list[i].master_axis := FALSE;
+	CONVERSION_this.axis_list[i].jog_type := JOG_TYPE_NONE;
+	CONVERSION_this.axis_list[i].sw_limit_positive := 0.0;
+	CONVERSION_this.axis_list[i].sw_limit_negative := 0.0;
+	CONVERSION_this.axis_list[i].all_slave_axis_engaged := FALSE;
+END_FOR
+CONVERSION_this.CONVERSION_private.list_selected := JOG_MANAGER_JOG_LIST_NONE;
+
+CONVERSION_this.di_pendant_positive := G_framework.NULL;
+CONVERSION_this.di_pendant_negative := G_framework.NULL;
+CONVERSION_this.has_pendant := FALSE;
+
+CONVERSION_this.has_shared_pendant := G_framework.NULL;
+CONVERSION_this.shared_pendant_active := FALSE;
+
+parameter_overwrite_bool_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.jog_active_pow'),
+	parameter := CONVERSION_this.jog_active,
+	process := process,
+	CONVERSION_this := CONVERSION_this.jog_active_pow);
+
+parameter_overwrite_bool_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.enable_sw_limit_pow'),
+	parameter := CONVERSION_this.enable_sw_limit,
+	process := process,
+	CONVERSION_this := CONVERSION_this.enable_sw_limit_pow);
+
+parameter_overwrite_lreal_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.axis_cmd_position_rotative_pow'),
+	out_of_range := PARAMETER_OVERWRITE_OUT_OF_RANGE_NONE,
+	parameter := CONVERSION_this.axis_cmd_position_rotative,
+	process := process,
+	CONVERSION_this := CONVERSION_this.axis_cmd_position_rotative_pow);
+
+parameter_overwrite_lreal_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.axis_cmd_position_linear_pow'),
+	out_of_range := PARAMETER_OVERWRITE_OUT_OF_RANGE_NONE,
+	parameter := CONVERSION_this.axis_cmd_position_linear,
+	process := process,
+	CONVERSION_this := CONVERSION_this.axis_cmd_position_linear_pow);
+			
+parameter_overwrite_bool_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.pendant_active_pow'),
+	parameter := CONVERSION_this.pendant_active,
+	process := process,
+	CONVERSION_this := CONVERSION_this.pendant_active_pow);
+	
+command_button_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.hmi_jog_positive'),
+	process := process,
+	CONVERSION_this := CONVERSION_this.hmi_jog_positive_cbtn);	
+
+command_button_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.hmi_jog_negative'),
+	process := process,
+	CONVERSION_this := CONVERSION_this.hmi_jog_negative_cbtn);	
+
+command_button_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.hmi_jog_absolute'),
+	process := process,
+	CONVERSION_this := CONVERSION_this.hmi_jog_absolute_cbtn);	
+
+hmi_graphic_object_status_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.hmi_jog_selection_hgos'),
+	process := process,
+	CONVERSION_this  := CONVERSION_this.hmi_jog_selection_hgos);
+	
+hmi_graphic_object_status_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.hmi_rot_selection_hgos'),
+	process := process,
+	CONVERSION_this  := CONVERSION_this.hmi_rot_selection_hgos);
+
+hmi_graphic_object_status_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.hmi_lin_selection_hgos'),
+	process := process,
+	CONVERSION_this  := CONVERSION_this.hmi_lin_selection_hgos);
+
+hmi_graphic_object_status_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.hmi_sw_limit_hgos'),
+	process := process,
+	CONVERSION_this  := CONVERSION_this.hmi_sw_limit_hgos);
+
+hmi_graphic_object_status_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.hmi_pendant_active_hgos'),
+	process := process,
+	CONVERSION_this  := CONVERSION_this.hmi_pendant_active_hgos);
+	
+led_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.hmi_pendant_positive_ld'),
+	process := process,
+	CONVERSION_this  := CONVERSION_this.hmi_pendant_positive_ld);
+
+led_init(
+	object_name := CONCAT(CONVERSION_this.object_name, '.hmi_pendant_negative_ld'),
+	process := process,
+	CONVERSION_this  := CONVERSION_this.hmi_pendant_negative_ld);
+	
+CONVERSION_this.CONVERSION_private.initialized := TRUE;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

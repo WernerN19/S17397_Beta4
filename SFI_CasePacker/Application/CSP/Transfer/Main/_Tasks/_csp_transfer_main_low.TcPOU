@@ -1,0 +1,54 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_transfer_main_low" Id="{51b347f7-7545-4d05-be6d-04f2aca5ee65}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_transfer_main_low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*MAIN*)
+csp_transfer_main();
+
+	(*Brand*)
+	csp_transfer_main_brand();
+	
+	(*Safety*)
+	csp_transfer_main_safety();
+
+		csp_transfer_main_safety_emergency();
+
+		csp_transfer_main_safety_drives();
+			csp_transfer_main_safety_drives_commonConfiguration();
+			csp_transfer_main_safety_accUChange();
+			csp_transfer_main_safety_drives_PS41020(); 
+			csp_transfer_main_safety_drives_SD41100(); 
+			csp_transfer_main_safety_drives_SD41200(); 
+			csp_transfer_main_safety_drives_SD41300(); 
+			csp_transfer_main_safety_drives_SD41400(); 
+			csp_transfer_main_safety_drives_SD41500(); 
+			csp_transfer_main_safety_drives_SD41600(); 
+			csp_transfer_main_safety_drives_SD41700(); 
+
+				
+		csp_transfer_main_safety_token();	
+		csp_transfer_main_safety_guards();
+			
+
+	]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

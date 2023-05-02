@@ -1,0 +1,438 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_tr_accU_os_width" Id="{39a4ea04-aa85-4a40-8e95-92c8ce2e1668}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+2020/05/05 	0000.01	 	G.Imbriaco		From original author, G.Imbriaco: AccU Change motor with absolute encoder and brake.
+										If position_req_mm parameter different from actual_pos_mm and machine reset_edge
+										the motor move to position_req then disable again
+										Manual movement with basc axis object under test( preset, moving,...)
+										All disabled if main accU_Change is not Operational
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_tr_accU_os_width
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	axis:											axis;
+	Slot51_drv:										coe_drive;
+
+	not_in_position:								message;
+	axis_restore_absolute_position_fb:				restore_absolute_position_with_retain_fb;
+
+	disable_req:									BOOL:=FALSE;
+	position_req:									LREAL:=0.0;(*$P $*)
+	move_velocity_req:								LREAL:=10.0;(*$P $*)
+	position_req_tolerance:							LREAL:=0.2;	(*$P $*)
+	
+	axis_status:									axis_status_enum := AXIS_STATUS_PARAMETERS_START;(*$M $*)
+	in_position:									BOOL:=FALSE;(*$M $*)	
+	actual_position:								LREAL:=0.0; (*$M $*)
+	axis_move_condition:							BOOL:=FALSE;
+	torque_limit:                                   INT := 5000;    
+    torque_limit_old:                               INT;
+	
+	fsm_status:										csp_case_tr_accU_os_width_enum;(*$M $*)
+	fsm_next_status:								csp_case_tr_accU_os_width_enum;
+	fsm_enable_condition:							BOOL:=FALSE;
+	debug_state_machine:							BOOL:=FALSE;
+	debug_state_machine_one_step:					BOOL:=FALSE;
+	NC_encoder_val AT %I*:							DINT;
+	
+END_VAR
+VAR PERSISTENT
+	axis_restore_absolute_position_data:			restore_absolute_position_with_retain_struct;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+//Axis Torque Limit
+IF torque_limit <> Torque_limit_old
+    THEN
+    IF coe_drive_write_parameter(
+        index:=16#7010 ,
+        complete_access:= FALSE ,
+        sub_index:= 16#0B,
+        data_source:= ADR(torque_limit),
+        data_lenght:= SIZEOF(torque_limit),
+        CONVERSION_this:=csp_case_tr_accU_os_width.axis.coe_drive^ )= COE_DRIVE_RETURN_VALUE_DONE
+        THEN
+		torque_limit_old := Torque_limit;
+	END_IF
+END_IF 
+
+//Axis move condition
+IF csp_main_accuChange.case_tr_accU_ls_width_move_req 
+	OR jog_manager_is_jog_axis_active(SMTR61430_SMTR61500_CASE_TOP_RAIL_LS_AND_OS_WIDTH, csp_main_jogManager.jog_manager_accuchange)
+THEN
+	axis_move_condition := TRUE;
+ELSE
+	axis_move_condition := FALSE;
+END_IF
+
+(*FSM Control*)
+fsm_enable_condition := axis_is_ok(FALSE, axis)
+						(*AND
+						process_is_ready(prc) *)
+						AND
+						process_subtree_is_ready(prc)
+						AND
+						process_get_mode(csp_main_accuChange.prc) = MODE_OPERATIONAL
+						AND
+						axis_restore_absolute_position_fb.o_position_restored
+						AND
+						NOT disable_req;		
+					
+IF	(NOT fsm_enable_condition
+	OR
+	disable_req)
+	AND
+	fsm_status <> CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_DISABLED
+	AND
+	fsm_status < CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_STOP_REQUEST;
+END_IF
+
+CASE fsm_status OF
+	
+	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_next_status := CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_DISABLED;
+        END_IF
+
+		
+	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_DISABLED:
+	
+		IF	fsm_enable_condition
+		THEN
+			(* Axis with absolute encoder, no home procedure request *)
+			fsm_next_status := CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_POSITION_CHECK;
+		END_IF;
+	
+		
+	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_POSITION_CHECK:
+
+		IF 	axis_move_condition
+			OR jog_manager_is_jog_axis_active(SMTR61430_SMTR61500_CASE_TOP_RAIL_LS_AND_OS_WIDTH, csp_main_jogManager.jog_manager_accuchange)
+		THEN
+			fsm_next_status := CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_ENABLE_REQUEST;
+		END_IF			
+	
+		
+	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_ENABLE_REQUEST:
+	
+		axis_enable(axis);
+		IF axis_is_standstill(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_ENABLED;
+		END_IF		
+
+		
+	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_ENABLED:
+	
+		IF 	axis_move_condition
+			OR jog_manager_is_jog_axis_active(SMTR61430_SMTR61500_CASE_TOP_RAIL_LS_AND_OS_WIDTH, csp_main_jogManager.jog_manager_accuchange)
+		THEN
+			fsm_next_status	:= CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_GEAR_REQUEST;	
+		END_IF
+			
+		
+	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_GEAR_REQUEST:
+
+		IF	axis_is_standstill(axis)
+			AND (csp_case_tr_accU_virtualMaster.master_redefined
+			OR jog_manager_is_jog_axis_active(SMTR61430_SMTR61500_CASE_TOP_RAIL_LS_AND_OS_WIDTH, csp_main_jogManager.jog_manager_accuchange))
+		THEN
+			axis_engage_position_gear(
+				ratio 			:= 1.0,
+				acceleration 	:= csp_main_accuChange.CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration 	:= csp_main_accuChange.CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= csp_main_accuChange.CONSTANTS.MAX_JERK_MMpSEC3,
+				master 			:= csp_case_tr_accU_virtualMaster.axis,
+				CONVERSION_this := axis);
+			
+		END_IF
+		
+		IF axis_is_gear_engaging(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_GEARING;
+		END_IF
+
+		
+	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_GEARING:
+		
+		IF axis_is_gear_engaged(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_GEARED;
+		END_IF
+		
+		
+	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_GEARED:
+			
+		IF axis_is_moving(csp_case_tr_accU_virtualMaster.axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_MOVING;
+		END_IF
+		
+		(* BREAKS GEAR IF NOT JOGGING *)
+		IF NOT csp_main_accuchange.Brand_Change_Occurred
+			AND NOT jog_manager_is_jog_axis_active(SMTR61430_SMTR61500_CASE_TOP_RAIL_LS_AND_OS_WIDTH, csp_main_jogManager.jog_manager_accuchange)
+		THEN
+			fsm_next_status := CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_STOP_REQUEST;
+		END_IF
+	
+		
+	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_MOVING:
+
+		IF axis_is_standstill(axis)
+		THEN
+			fsm_next_status := CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_STOP_REQUEST;
+		END_IF
+		
+		
+	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_STOP_REQUEST:
+
+		axis_stop(
+		    deceleration 	:= csp_main_accuChange.CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		    jerk 			:= csp_main_accuChange.CONSTANTS.MAX_JERK_MMpSEC3,
+		    CONVERSION_this 			:= axis);
+
+		IF 	axis_is_standstill(axis)
+			OR
+			NOT axis_is_ok(FALSE, axis)
+			OR
+			axis_is_disabled(axis)
+		THEN
+			fsm_next_status := CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_DISABLE_REQUEST;
+		END_IF
+
+		
+	CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_DISABLE_REQUEST:
+	
+   		axis_disable(axis);
+        IF	axis_is_disabled(axis)
+        THEN
+            fsm_next_status := CSP_CASE_TR_ACCU_OS_WIDTH_STATUS_DISABLED;
+        END_IF;
+
+END_CASE;
+
+IF NOT debug_state_machine
+	OR
+	debug_state_machine_one_step
+THEN
+	fsm_status := fsm_next_status;
+	debug_state_machine_one_step := FALSE;
+END_IF
+
+(************************************************************************)
+_brand_change();
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_brand_change" Id="{9a56e97f-6aca-4d64-9c9b-a64d66c78a56}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_messages" Id="{f8939b60-14d8-41ed-9c5c-6bd9a6cfc81e}">
+      <Implementation>
+        <ST><![CDATA[IF in_position OR csp_main_jogManager.jog_is_active
+THEN
+	;//process_message_reset(not_in_position);
+ELSE
+	IF csp_main_accuChange.machine_size_complete = FALSE
+	THEN
+		;//process_message_reset(not_in_position);
+	ELSE
+		;//process_message_set(errorID_1:= 1, errorID_2:= 0, errorID_3:= 0, CONVERSION_this:= not_in_position);
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{3978c4c1-b630-4976-92cc-fbdcf12cd55c}">
+      <Implementation>
+        <ST><![CDATA[digital_output_set(csp_case_tr_accU_virtualMaster.brake_release_do);]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{62434c02-85c5-492b-928e-2bfcbe5e8214}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{8457959c-7188-4625-8029-6bfab6b24554}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name						:= 'csp_case_tr_accU_os_width.prc', 
+		process							:= csp_case_tr_accU_os.prc, 
+		CONVERSION_this					:= prc);
+		
+	prc_path 							:= process_get_path(prc);
+	
+	IF csp_main_configurator.Physical_hw 
+	THEN
+		axis_init(
+			object_name					:= CONCAT(prc_path, '_axis'), 
+			axis_type					:= AXIS_TYPE_SERVO, 
+			encoder_scaling_factor		:= 0.15*0.00000095367431640625,
+ 			modulo						:= 1024,
+  			process						:= prc, 
+			CONVERSION_this				:= axis);
+						
+		axis_init_absolute_encoder_preset(   
+        	position                    :=    180,
+        	CONVERSION_this             :=    axis);
+
+		axis_add_safety_integrated_series(
+			safety_integrated_series	:= csp_case_main_safety_accUChange.sis,
+			CONVERSION_this				:= axis);
+		axis_set_brake_type(AXIS_BRAKE_DRIVE_CMD, axis);
+	ELSE
+		axis_init(
+			object_name 				:= CONCAT(prc_path, '_axis'),
+			axis_type 					:= AXIS_TYPE_VIRTUAL,
+			encoder_scaling_factor 		:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo 						:= 0,
+			process 					:= prc,
+			CONVERSION_this 			:= axis);
+	END_IF
+		
+	axis_set_rotation_direction(
+		invert_encoder_counting			:= TRUE,
+		invert_motor_polarity			:= TRUE,
+		CONVERSION_this					:= axis);
+	
+	coe_drive_init(
+		object_name 					:= CONCAT(prc_path, '_Slot51_drv'),
+		device_name 					:= 'IO6100Slot51 (EL7211)',
+		vendor 							:= DRIVE_BECKHOFF_EL72x1,
+		mode 							:= COE_DRIVE_MODE_DRIVEN_BY_AXIS,
+		ethercat_master					:= csp_main.cabinet_ethercat_master,
+		process							:= prc,
+		CONVERSION_this 				:= Slot51_drv);
+
+	axis_add_coe_drive(
+		coe_drive						:= Slot51_drv,
+		CONVERSION_this					:= axis);
+		
+	axis_set_max_dynamic(
+		reference_velocity				:=	csp_main_accuChange.CONSTANTS.MAX_VELOCITY_MMpSEC,
+		velocity						:=	csp_main_accuChange.CONSTANTS.MAX_VELOCITY_MMpSEC,
+		acceleration					:=	csp_main_accuChange.CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+		deceleration					:=	csp_main_accuChange.CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		jerk							:=	csp_main_accuChange.CONSTANTS.MAX_JERK_MMpSEC3,
+		following_error					:=	csp_main_accuChange.CONSTANTS.MAX_FOLLOWING_ERROR_MM,
+		CONVERSION_this					:=	axis);
+
+		process_message_init(
+		object_name:= CONCAT(prc_path, '_not_in_position'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_NO_STOP,  
+		typology:=  MESSAGE_TYPOLOGY_NOT_VISIBLE, 
+		process:= prc, 
+		CONVERSION_this:= not_in_position);
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+	coe_drive_cycle(Slot51_drv);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{00a8529a-29e4-4cae-820b-c2bab23ccd60}">
+      <Implementation>
+        <ST><![CDATA[axis_restore_absolute_position_fb(
+	io_retain_data				:= axis_restore_absolute_position_data, 
+	io_axis						:= axis);]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{62d888b6-b736-414d-8a9e-8251822fe491}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{16c08add-2789-4fa0-b91f-ee5ce42a0fb7}">
+      <Implementation>
+        <ST><![CDATA[
+axis_status := axis_get_status(axis);
+actual_position :=axis_get_actual_incremental_position(axis); (* axis_get_actual_modulo_position(axis); only with modulo*)
+
+IF ABS(csp_case_tr_accU_ls_width.position_req - actual_position) < position_req_tolerance
+	OR process_get_mode(prc)= MODE_ABSENT
+	OR process_get_mode(csp_main_accuChange.prc) = MODE_ABSENT
+THEN
+	in_position := TRUE;
+ELSE
+	in_position := FALSE; 
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{08975f20-b472-4bdd-b96d-b2be05083dca}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

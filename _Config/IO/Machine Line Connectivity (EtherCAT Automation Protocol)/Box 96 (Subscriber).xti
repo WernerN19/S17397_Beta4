@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<TcSmItem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2012/07/TcSmProject" TcSmVersion="1.0" TcVersion="3.1.4024.7" ClassName="CNvPubSubDef" SubType="9052">
+	<DataTypes>
+		<DataType>
+			<Name GUID="{732480A7-5392-0A1F-50AB-897A82278605}" IecBaseType="true" AutoDeleteType="true">ARRAY [0..15] OF BYTE</Name>
+			<BitSize>128</BitSize>
+			<BaseType GUID="{18071995-0000-0000-0000-000000000001}">BYTE</BaseType>
+			<ArrayInfo>
+				<LBound>0</LBound>
+				<Elements>16</Elements>
+			</ArrayInfo>
+		</DataType>
+	</DataTypes>
+	<Box Id="104" BoxType="9052">
+		<Name>__FILENAME__</Name>
+		<ImageId>100</ImageId>
+		<Vars VarGrpType="1">
+			<Name>Inputs</Name>
+			<Var BoxStateVariable="true">
+				<Name>FrameState</Name>
+				<Type>UINT</Type>
+				<BitOffs>32</BitOffs>
+			</Var>
+		</Vars>
+		<Vars VarGrpType="2">
+			<Name>Outputs</Name>
+			<Var BoxStateVariable="true">
+				<Name>FrameCtrl</Name>
+				<Type>UINT</Type>
+				<BitOffs>160</BitOffs>
+			</Var>
+		</Vars>
+		<Eap Mac="010105040000">
+			<EapVar Id="7" NvId="2" NvLength="16">
+				<Name>Flexlink_To_RAJ_Var</Name>
+				<ImageId>98</ImageId>
+				<Vars VarGrpType="1">
+					<Name>Inputs</Name>
+					<Var BoxStateVariable="true">
+						<Name>VarState</Name>
+						<Comment><![CDATA[0x0001 = Invalid hash value received
+0x0002 = Invalid variable length received
+]]></Comment>
+						<Type>UINT</Type>
+						<BitOffs>48</BitOffs>
+					</Var>
+					<Var>
+						<Name>Quality</Name>
+						<Comment><![CDATA[Duration the variable is not refreshed (in 100µs)]]></Comment>
+						<Type>UINT</Type>
+						<BitOffs>64</BitOffs>
+					</Var>
+					<Var>
+						<Name>CycleIndex</Name>
+						<Comment><![CDATA[Incremented each publisher cycle]]></Comment>
+						<Type>UINT</Type>
+						<BitOffs>80</BitOffs>
+					</Var>
+					<Var>
+						<Name>VarData</Name>
+						<Type GUID="{732480A7-5392-0A1F-50AB-897A82278605}">ARRAY [0..15] OF BYTE</Type>
+						<BitOffs>96</BitOffs>
+					</Var>
+				</Vars>
+				<Vars VarGrpType="2">
+					<Name>Outputs</Name>
+					<Var BoxStateVariable="true">
+						<Name>VarCtrl</Name>
+						<Comment><![CDATA[0x0001 = Ignore hash value
+]]></Comment>
+						<Type>UINT</Type>
+						<BitOffs>176</BitOffs>
+					</Var>
+				</Vars>
+			</EapVar>
+		</Eap>
+	</Box>
+</TcSmItem>

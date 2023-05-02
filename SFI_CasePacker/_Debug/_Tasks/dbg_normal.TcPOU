@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="dbg_normal" Id="{aa796c1d-aa96-4438-88ff-2ee7c000833a}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM dbg_normal
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT framework_is_local_simulated()
+THEN
+	RETURN;	
+END_IF
+dbg_csp_case_feed_virtualmaster();
+dbg_csp_case_flapcontrol_backstop();
+dbg_csp_case_glue_sensors();
+dbg_csp_case_loader_pusher();
+dbg_csp_case_loader_virtualmaster();
+dbg_csp_case_main_services();
+dbg_csp_case_main_services_breakers();
+dbg_csp_case_main_services_pushbuttons();
+dbg_csp_case_transport_tensioner();
+dbg_csp_case_virtualmaster();
+dbg_csp_main_services();
+dbg_csp_transfer_crosspusher_follower();
+dbg_csp_transfer_crosspusher_horizontal();
+dbg_csp_transfer_crosspusher_reject();
+dbg_csp_transfer_crosspusher_sensors();
+dbg_csp_transfer_crosspusher_vertical();
+dbg_csp_transfer_crosspusher_virtualmaster();
+dbg_csp_transfer_infeed_clamp();
+dbg_csp_transfer_infeed_reject_highload();
+dbg_csp_transfer_infeed_reject_pusher();
+dbg_csp_transfer_infeed_reject_virtualmaster();
+dbg_csp_transfer_main_services();
+dbg_csp_transfer_main_services_breakers();
+dbg_csp_transfer_main_services_pushbuttons();
+dbg_csp_transfer_main_services_towerlamp();
+dbg_csp_transfer_upstacker_backstop();
+dbg_csp_transfer_upstacker_downstream();
+dbg_csp_transfer_upstacker_sensors();
+dbg_csp_transfer_upstacker_upstream();
+dbg_csp_transfer_upstacker_virtualmaster();
+dbg_csp_transfer_virtualmaster();
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,405 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_loader_sensors" Id="{192cfbc7-6741-43dd-b140-1df39f1707cd}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_loader_sensors
+VAR
+	
+	prc:												process;
+	prc_path:											STRING;
+	
+	(* RFID *)
+	rfid_value:											BYTE;
+	rfid_value_to_write:								BYTE;
+	
+	rfid_input_buffer:									iol_slave_bis00lh_pdo_input;
+	rfid_input_bitheader_1:								iol_slave_bis00lh_bitheader_input;
+	rfid_input_bitheader_2:								iol_slave_bis00lh_bitheader_input;
+			
+	rfid_output_buffer:									iol_slave_bis00lh_pdo_output;
+	rfid_output_bitheader_1:							iol_slave_bis00lh_bitheader_output;
+	rfid_output_bitheader_2:							iol_slave_bis00lh_bitheader_output;
+	
+	RFID_read_write_status:								csp_case_loader_rfid_status_enum;
+	RFID_read_write_status_next:						csp_case_loader_rfid_status_enum;
+	RFID_read_write_debug:								BOOL := FALSE;
+	RFID_read_write_one_step:							BOOL := FALSE;
+	RFID_read_write_running:							BOOL;
+	RFID_read_write_tmr:								timer;
+	RFID_read_write_error_msg:							message;
+	
+	rfid_start_toggle:									BOOL := FALSE;
+	rfid_shutdown_toggle:								BOOL := FALSE;
+	rfid_write_toggle:									BOOL := FALSE;
+	rfid_write_done:									BOOL := FALSE;
+	rfid_read_toggle:									BOOL := FALSE;
+	rfid_read_done:										BOOL := FALSE;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+IF 	csp_main_accuChange.RFID_reader_list_accuchange = LOADER_GUIDE_PLATE_READER
+THEN
+	RFID();
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{59106261-3bbf-42f3-8d45-28befa747649}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{362cfb4c-1b47-4ab7-bde6-305cfca0a778}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{8e8237d1-8abf-45f1-b8db-00318af41782}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{9d8bc314-be19-464a-8840-8884480c6d1d}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_loader_pusher.prc', 
+		process						:= csp_case_loader.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* INPUTS *)
+
+	
+	
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_RFID_read_write_error_msg'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, //MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology:=  MESSAGE_TYPOLOGY_NOT_VISIBLE, //MESSAGE_TYPOLOGY_ABNORMAL,
+        process:= prc,
+        CONVERSION_this:= RFID_read_write_error_msg);
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{e4e4e790-e091-4fa3-a1ae-aac6df553eb0}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{a375a94d-3871-4d05-aec6-b633031c7f9d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{82ff1488-2116-47ab-9d36-aca420ff04d6}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{71c6d25d-9f93-48bb-b55a-38c341121e7e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="RFID" Id="{11fa4b29-7e70-4b93-a5fd-74ae08c5124d}">
+      <Implementation>
+        <ST><![CDATA[	(* RMH RFID TEST *)
+rfid_input_bitheader_1.CP := rfid_input_buffer.ByteArr[0].0;
+rfid_input_bitheader_1.AA := rfid_input_buffer.ByteArr[0].1;
+rfid_input_bitheader_1.AE := rfid_input_buffer.ByteArr[0].2;
+rfid_input_bitheader_1.AF := rfid_input_buffer.ByteArr[0].3;
+rfid_input_bitheader_1.Bit4 := rfid_input_buffer.ByteArr[0].4;
+rfid_input_bitheader_1._TO := rfid_input_buffer.ByteArr[0].5;
+rfid_input_bitheader_1.HF := rfid_input_buffer.ByteArr[0].6;
+rfid_input_bitheader_1.BB := rfid_input_buffer.ByteArr[0].7;
+
+rfid_input_bitheader_2.CP := rfid_input_buffer.ByteArr[0].0;
+rfid_input_bitheader_2.AA := rfid_input_buffer.ByteArr[0].1;
+rfid_input_bitheader_2.AE := rfid_input_buffer.ByteArr[0].2;
+rfid_input_bitheader_2.AF := rfid_input_buffer.ByteArr[0].3;
+rfid_input_bitheader_2.Bit4 := rfid_input_buffer.ByteArr[0].4;
+rfid_input_bitheader_2._TO := rfid_input_buffer.ByteArr[0].5;
+rfid_input_bitheader_2.HF := rfid_input_buffer.ByteArr[0].6;
+rfid_input_bitheader_2.BB := rfid_input_buffer.ByteArr[0].7;
+
+rfid_output_buffer.ByteArr[0].0 := rfid_output_bitheader_1.AV ;
+rfid_output_buffer.ByteArr[0].1 := rfid_output_bitheader_1.Bit1;
+rfid_output_buffer.ByteArr[0].2 := rfid_output_bitheader_1.GR;
+rfid_output_buffer.ByteArr[0].3 := rfid_output_bitheader_1.Bit3;
+rfid_output_buffer.ByteArr[0].4 := rfid_output_bitheader_1.Bit4;
+rfid_output_buffer.ByteArr[0].5 := rfid_output_bitheader_1.KA;
+rfid_output_buffer.ByteArr[0].6 := rfid_output_bitheader_1.TI;
+rfid_output_buffer.ByteArr[0].7 := rfid_output_bitheader_1.Bit7;
+
+rfid_output_buffer.ByteArr[9].0 := rfid_output_bitheader_2.AV ;
+rfid_output_buffer.ByteArr[9].1 := rfid_output_bitheader_2.Bit1;
+rfid_output_buffer.ByteArr[9].2 := rfid_output_bitheader_2.GR;
+rfid_output_buffer.ByteArr[9].3 := rfid_output_bitheader_2.Bit3;
+rfid_output_buffer.ByteArr[9].4 := rfid_output_bitheader_2.Bit4;
+rfid_output_buffer.ByteArr[9].5 := rfid_output_bitheader_2.KA;
+rfid_output_buffer.ByteArr[9].6 := rfid_output_bitheader_2.TI;
+rfid_output_buffer.ByteArr[9].7 := rfid_output_bitheader_2.Bit7;
+
+
+IF 	rfid_start_toggle
+THEN
+	rfid_output_bitheader_1.GR := FALSE;
+	rfid_output_bitheader_1.KA := FALSE;
+	rfid_output_bitheader_1.AV := FALSE;
+	rfid_output_bitheader_2.GR := FALSE;
+	rfid_output_bitheader_2.KA := FALSE;
+	rfid_output_bitheader_2.AV := FALSE;
+	
+	rfid_start_toggle := FALSE;
+END_IF
+
+
+IF 	rfid_shutdown_toggle
+THEN
+	rfid_output_bitheader_1.KA := TRUE;
+	rfid_output_bitheader_2.KA := TRUE;
+	
+	IF rfid_input_bitheader_1.HF
+		AND rfid_input_bitheader_2.HF
+		AND NOT rfid_input_bitheader_1.CP
+		AND NOT rfid_input_bitheader_2.CP
+	THEN
+		rfid_output_bitheader_1.KA := FALSE;
+		rfid_output_bitheader_2.KA := FALSE;
+		rfid_shutdown_toggle := FALSE;
+	END_IF
+		
+END_IF
+
+
+IF 	rfid_write_toggle //OR i_rfid_write_from_hmi
+THEN	
+	rfid_output_buffer.ByteArr[1] := 16#0032;
+	rfid_output_buffer.ByteArr[2] := 16#00;
+	rfid_output_buffer.ByteArr[3] := 16#00;
+	rfid_output_buffer.ByteArr[4] := 16#0001;
+	rfid_output_buffer.ByteArr[5] := 16#00;
+	rfid_output_buffer.ByteArr[6] := rfid_value_to_write;
+	
+	rfid_output_bitheader_1.AV := TRUE;
+	rfid_output_bitheader_2.AV := TRUE;
+	
+	IF rfid_input_bitheader_1.AA 
+		AND rfid_input_bitheader_2.AA 
+		AND rfid_input_bitheader_1.AE
+		AND rfid_input_bitheader_2.AE
+	THEN
+		rfid_output_bitheader_1.AV := FALSE;
+		rfid_output_bitheader_2.AV := FALSE;
+		rfid_write_toggle := FALSE;
+	END_IF
+		
+END_IF
+
+
+IF 	rfid_read_toggle 
+THEN	
+	rfid_output_buffer.ByteArr[1] := 16#0001;
+	rfid_output_buffer.ByteArr[2] := 16#00;
+	rfid_output_buffer.ByteArr[3] := 16#00;
+	rfid_output_buffer.ByteArr[4] := 16#0001;
+	rfid_output_buffer.ByteArr[5] := 16#00;
+	
+	rfid_output_bitheader_1.AV := TRUE;
+	rfid_output_bitheader_2.AV := TRUE;
+	
+	
+	IF rfid_input_bitheader_1.AA 
+		AND rfid_input_bitheader_2.AA 
+		AND rfid_input_bitheader_1.AE
+		AND rfid_input_bitheader_2.AE
+	THEN
+		// SAVE VALUES IN INPUT BUFFER [1...8] - CHECK WITH BRAND FOR WHAT VALUE SHOULD BE PRESENT
+		rfid_value := rfid_input_buffer.ByteArr[1];
+		rfid_output_bitheader_1.AV := FALSE;
+		rfid_output_bitheader_2.AV := FALSE;
+		rfid_read_toggle := FALSE;
+	END_IF
+		
+END_IF
+
+
+
+(* STATE MACHINE FOR READING AND WRITING TO RFID *)
+CASE RFID_read_write_status OF
+			
+	CSP_CASE_LOADER_RFID_STATUS_START:
+	
+		IF 	csp_main_accuChange.RFID_read_write_running (* Use this value within brand change to start the check *)
+		THEN
+			rfid_write_done := FALSE;
+			rfid_read_done := FALSE;
+			rfid_read_write_running := TRUE;
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_CHECK_READ_WRITE;
+		END_IF
+		
+		
+	CSP_CASE_LOADER_RFID_STATUS_CHECK_READ_WRITE:
+	
+		rfid_start_toggle := TRUE;
+		IF 	csp_main_accuChange.RFID_reading (* Use this value also within brand change *)
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_READ_START;
+		ELSIF csp_main_accuChange.RFID_writing
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_WRITE_START;
+		END_IF
+			
+		
+		
+	(* RFID READ START *)	
+	CSP_CASE_LOADER_RFID_STATUS_READ_START:
+	
+		IF 	rfid_input_bitheader_1.CP
+			AND rfid_input_bitheader_2.CP
+		THEN
+			rfid_read_toggle := TRUE;
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_READ_CHECK_RESULT;
+		END_IF
+	
+	CSP_CASE_LOADER_RFID_STATUS_READ_CHECK_RESULT:
+	
+		IF 	NOT rfid_read_toggle 
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_READ_DONE;
+		END_IF
+		
+	CSP_CASE_LOADER_RFID_STATUS_READ_DONE:
+	
+		rfid_read_done := TRUE;
+		rfid_read_write_running := FALSE;
+		RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_WAITING;
+		
+		
+	(* RFID WRITING START *)
+	CSP_CASE_LOADER_RFID_STATUS_WRITE_START:
+	
+		rfid_value_to_write := csp_main_accuChange.RFID_Setup_write_value;
+		
+		IF 	rfid_input_bitheader_1.CP
+			AND rfid_input_bitheader_2.CP
+		THEN
+			rfid_write_toggle := TRUE;
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_WAIT_WRITE;
+		END_IF
+		
+	CSP_CASE_LOADER_RFID_STATUS_WAIT_WRITE:
+	
+		IF 	NOT rfid_write_toggle
+		THEN	
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_WRITE_DONE;
+		END_IF
+		
+	CSP_CASE_LOADER_RFID_STATUS_WRITE_DONE:
+	
+		rfid_write_done := TRUE;
+		rfid_read_write_running := FALSE;
+		RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_WAITING;
+		
+	
+	CSP_CASE_LOADER_RFID_STATUS_WAITING:
+	
+		IF 	csp_main_accuchange.RFID_read_write_running
+		THEN
+			RFID_read_write_status_next := CSP_CASE_LOADER_RFID_STATUS_START;
+		END_IF
+		
+END_CASE
+
+
+(* ADVANCES TO NEXT STEP *)
+IF 	NOT RFID_read_write_debug
+	OR
+	RFID_read_write_one_step	
+THEN
+	RFID_read_write_status := RFID_read_write_status_next;
+	RFID_read_write_one_step := FALSE;
+END_IF
+
+
+(* Connection timeout *)
+IF	RFID_read_write_running
+	AND NOT RFID_read_write_debug
+THEN
+	IF	timer_is_expired(RFID_read_write_tmr)
+	THEN
+		rfid_start_toggle := TRUE;
+		process_message_set(1, RFID_read_write_status, 0, RFID_read_write_error_msg);
+	END_IF
+ELSE
+	timer_restart(10000, RFID_read_write_tmr);
+END_IF
+
+
+]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

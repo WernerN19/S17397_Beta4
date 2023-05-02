@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="analog_actuator_private" Id="{916b34b3-9dd7-45b2-84ad-fe67f32eda34}">
+    <Declaration><![CDATA[TYPE
+	analog_actuator_private :	STRUCT
+	initialized:		BOOL := FALSE;		(* The object has been initialized by _init function. *)
+	cycle_is_active:	BOOL := FALSE;		(* Cycle function is correctly called. *)
+	my_address:			POINTER_TO_VOID; 	(* Object address(pointer).
+												Used by HMI for establish
+												the objects relations *)
+
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

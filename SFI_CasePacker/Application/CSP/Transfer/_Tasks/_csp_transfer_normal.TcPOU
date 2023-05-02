@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_transfer_normal" Id="{6ffe8a0d-4e81-4495-9b3f-6b982cb9a56b}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_transfer_normal
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_csp_transfer_accumulator_normal();
+
+_csp_transfer_crosspusher_normal();
+
+_csp_transfer_main_normal();
+
+_csp_transfer_infeed_normal();
+
+_csp_transfer_upstacker_normal();
+
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

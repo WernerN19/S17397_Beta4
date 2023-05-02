@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_transfer_upstacker_highest" Id="{a4e6f9b7-f0f7-473e-b2a6-1fa7507ddd36}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_transfer_upstacker_highest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[csp_transfer_upstacker();
+(* TRANSFER *)
+	(* UPSTACKER *)
+		(* BACKSTOP *)
+		csp_transfer_upstacker_backstop();
+		(* DOWNSTREAM *)
+		csp_transfer_upstacker_downstream();
+		(* SENSORS *)
+		csp_transfer_upstacker_sensors();
+		(* UPSTREAM *)
+		csp_transfer_upstacker_upstream();
+		(* VIRTUAL MASTER *)
+		csp_transfer_upstacker_virtualMaster();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_is_jog_axis_active" Id="{63c126d0-e148-45a9-bed5-3b72e97f20dd}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Returns <i>TRUE</i> if the status of the instance <b><i>this</i></b> is
+	<a href="#jog_manager_status_enum"><i>JOG_MANAGER_STATUS_ACTIVE</i></a>
+	and  <i>list_selected</i> is a valid index,
+	<i>FALSE</i> otherwise.
+$*)
+FUNCTION jog_manager_is_jog_axis_active : BOOL
+VAR_INPUT
+	index:				UINT;
+END_VAR
+VAR_IN_OUT
+    CONVERSION_this:	jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	(
+		(CONVERSION_this.CONVERSION_private.list_selected = index)
+		OR 	
+		(CONVERSION_this.CONVERSION_private.old_list_selected = index)
+	)
+	AND
+	CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+THEN
+	jog_manager_is_jog_axis_active := (CONVERSION_this.status >= JOG_MANAGER_STATUS_ACTIVE);
+ELSE
+	jog_manager_is_jog_axis_active := FALSE;
+END_IF]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

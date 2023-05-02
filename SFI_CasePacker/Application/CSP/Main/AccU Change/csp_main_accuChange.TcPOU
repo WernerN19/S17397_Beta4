@@ -1,0 +1,3295 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_accuChange" Id="{1368eecb-a803-49a7-ac9f-b9d3a373ac43}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp brand management program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/02/12 	0000.00	 	G.Imbriaco		Common AccU Change enable/disable and velocity parameter
+2020/05/07	0001.00		M.Peppo			Initial AccU Change Sequence Added
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_accuChange
+VAR
+	request_test:												BOOL;	
+	test_in_position:											BOOL;
+	
+	first_scan_rtrig:											R_Trig;
+	first_scan_bool:											BOOL := FALSE;
+	
+	not_in_brand_change:										BOOL;  (*$P $*)
+	brand_change_check_string:									STRING := ''; (*$P $*)
+	brand_change_check_delay_tmr:								timer;
+	
+	machine_ready_and_enable:                                   BOOL := FALSE; 
+	hmi_machine_ready_and_enable_hgos:							hmi_graphic_object_status;
+	
+	prc:														process;
+	prc_path:													STRING;	
+	all_in_position_motcond:									motorization_conditioner;
+	
+	eoat_rfid_checked_motcond:									motorization_conditioner;
+	loader_pusher_rfid_checked_motcond:							motorization_conditioner;
+	loader_plate_rfid_checked_motcond:							motorization_conditioner;
+	
+	cam_data_changed:											BOOL;
+	
+	null_byte:													BYTE;
+	size_change_in_middle_of_changeover:						BOOL := FALSE;
+	
+	manual_empty:												BOOL;
+	manual_empty_cbtn:											command_button;
+
+	brand_change_request_dvr:									BOOL;
+	brand_change_request_cbtn:									command_button;
+
+	running_rfid_status:										csp_main_accuChange_RFID_running_check_status;
+	running_rfid_status_next:									csp_main_accuChange_RFID_running_check_status;
+	
+	
+	fsm_status:													csp_main_accuChange_enum;(*$M $*)
+	fsm_next_status:											csp_main_accuChange_enum;
+	fsm_enable_condition:										BOOL:=FALSE;
+	
+	fsm_conditions:												BOOL;
+	fsm_running:												BOOL;
+	fsm_timeout:												BOOL;
+
+	fsm_tmr:													timer;
+	
+	debug_fsm:													BOOL := FALSE;
+	debug_fsm_one_step:											BOOL := FALSE;
+	
+	changeover_timeout_asm:										message;
+	navigate_custom_screen_aem:									message;
+	change_parts_incorrect_aem:									message;
+	
+	buzzer_req_bool:											boolean;
+	buzzer_req_tmr:												timer;
+	stabilization_tmr:											timer;
+	buzzer_test_bool:											BOOL;
+	
+	completed_bool:												boolean;
+	change_bor:													boolean_or;
+	
+	start_btn:													BOOL;
+	stop_btn:													BOOL;
+
+	start_changeover:											BOOL; //Used for Step 3 onward
+	
+	p_brand_changeover_mode_enable:								BOOL;	(*$P $*)
+
+	machine_size_running:										BOOL := FALSE;
+	machine_empty:												BOOL := FALSE;
+	
+	Brand_Change_Occurred:										BOOL := FALSE;
+	Case_Motors_Safe_accU:										BOOL := FALSE;
+	
+	RFID_check_request:											BOOL := FALSE;
+	changeover_rfid_read_done:									BOOL := FALSE;
+	changeover_rfid_write_done:									BOOL := FALSE;
+	changeover_rfid_value:										BYTE;
+	changover_rfid_read_write_running:							BOOL := FALSE;
+	
+	failed_change_part_verify_fault:							BOOL := FALSE; // ADD TO CSP LOGIC
+	change_part_eoat_confirmed:									BOOL := FALSE; //REPLACE WITH CSP BIT
+	change_part_pusher_confirmed:								BOOL := FALSE;
+	change_part_plate_confirmed:								BOOL := FALSE;
+	change_part_paddles_OS_confirmed:							BOOL := FALSE;
+	change_part_paddles_LS_confirmed:							BOOL := FALSE;
+	
+	change_part_eoat_wrong:										message;
+	change_part_pusher_wrong:									message;
+	change_part_plate_wrong:									message;
+	change_part_paddles_wrong:									message;
+	
+	Group_1_motors_request:										BOOL := FALSE; //If true all group 1 motors move to target position of new size
+	Group_1_motors_in_position:									BOOL := FALSE;
+	Group_2_motors_request:										BOOL := FALSE;	
+	Group_2_motors_in_position:									BOOL := FALSE;
+	
+	(* ALL MOVE REQS *)
+	case_transport_accU_depth_move_req:							BOOL := FALSE; // DONE
+	
+	case_feed_magazine_accU_lsDepth_move_req:					BOOL := FALSE; // DONE
+	case_feed_magazine_accU_osDepth_move_req:					BOOL := FALSE; // DONE
+
+	transfer_infeed_accU_depth_move_req:						BOOL := FALSE;
+	transfer_infeed_accU_waterfall_move_req:					BOOL := FALSE; // DONE
+	transfer_accumulator_accU_depth_move_req:					BOOL := FALSE; // DONE
+
+	case_tr_accU_depth_move_req:								BOOL := FALSE;
+	
+	case_loader_guide_accU_width_move_req:						BOOL := FALSE; // DONE
+	case_glue_os_accU_width_move_req:							BOOL := FALSE;
+	case_glue_os_accU_upperPosition_move_req:					BOOL := FALSE;
+	case_glue_os_accU_lowerPosition_move_req:					BOOL := FALSE;
+	case_glue_ls_accU_upperPosition_move_req:					BOOL := FALSE;
+	case_glue_ls_accU_lowerPosition_move_req:					BOOL := FALSE;
+	
+	case_tr_accU_ls_width_move_req:								BOOL := FALSE; // DONE
+	
+	
+	
+	
+	motors_in_safe_pos_boolean:									boolean;
+	stop_machine_for_change_parts_dchk:							digital_check;
+	
+	Motion_Motors_New_Size_Req:									BOOL := FALSE;//Pneumatic move request is part of this bit
+	Case_Motors_In_New_Accu_Pos:								BOOL := FALSE;
+	Motion_motors_in_position:									BOOL := FALSE;
+	
+	all_motors_in_position:										BOOL := FALSE;
+	
+	navigate_to_accU_popup:										BOOL := FALSE;
+	navigate_to_accU_popup_dvr:									BOOL;
+	navigate_to_accu_popup_cbtn:								command_button;
+	
+	
+	remove_product_popup:										BOOL := FALSE;
+	trigger_change_parts_incorrect_popup:						BOOL := FALSE;
+
+	brand1_active:												BOOL := FALSE;
+	brand2_active:												BOOL := FALSE;
+	brand3_active:												BOOL := FALSE;
+	brand4_active:												BOOL := FALSE;
+	brand5_active:												BOOL := FALSE;
+	brand6_active:												BOOL := FALSE;
+	brand7_active:												BOOL := FALSE;
+	brand8_active:												BOOL := FALSE;
+	brand9_active:												BOOL := FALSE;
+	brand10_active:												BOOL := FALSE;
+	brand11_active:												BOOL := FALSE;
+	brand12_active:												BOOL := FALSE;
+	brand13_active:												BOOL := FALSE;
+	brand14_active:												BOOL := FALSE;
+	brand15_active:												BOOL := FALSE;
+	brand16_active:												BOOL := FALSE;
+	brand17_active:												BOOL := FALSE;
+	brand18_active:												BOOL := FALSE;
+	brand19_active:												BOOL := FALSE;	
+
+	// HMI custom page variable management
+	hmi_toggle_cbtn:											command_button;
+	enable_write:												BOOL;
+	hmi_toggle_counter:											INT := 0;
+	hmi_brand_color_red:										BOOL := FALSE;
+	hmi_brand_color_green:										BOOL := TRUE;
+	hmi_toggle_bit:												BOOL := FALSE;
+	hmi_toggle_hgos:											hmi_graphic_object_status;
+	
+	hmi_current_accU_step:										INT  := 0;
+	hmi_accU_step1_on:											BOOL := FALSE;
+	hmi_accU_step2_on:											BOOL := FALSE;
+	hmi_accU_step3_on:											BOOL := FALSE;
+	hmi_accU_step4_on:											BOOL := FALSE;
+	hmi_accU_step5_on:											BOOL := FALSE;
+	hmi_accU_step6_on:											BOOL := FALSE;
+	hmi_accU_step7_on:											BOOL := FALSE;
+	
+	hmi_brand_status_color_hgos:								hmi_graphic_object_status;
+	hmi_brand_status_bad_color_hgos:							hmi_graphic_object_status;
+	hmi_accU_step1_on_hgos:										hmi_graphic_object_status;
+	hmi_accU_step1_off_hgos:									hmi_graphic_object_status;
+	hmi_accU_step2_on_hgos:										hmi_graphic_object_status;
+	hmi_accU_step2_off_hgos:									hmi_graphic_object_status;
+	hmi_accU_step3_on_hgos:										hmi_graphic_object_status;
+	hmi_accU_step3_off_hgos:									hmi_graphic_object_status;
+	hmi_accU_step4_on_hgos:										hmi_graphic_object_status;
+	hmi_accU_step4_off_hgos:									hmi_graphic_object_status;
+	hmi_accU_step5_on_hgos:										hmi_graphic_object_status;
+	hmi_accU_step5_off_hgos:									hmi_graphic_object_status;
+	hmi_accU_step6_on_hgos:										hmi_graphic_object_status;
+	hmi_accU_step6_off_hgos:									hmi_graphic_object_status;
+	hmi_accU_step7_on_hgos:										hmi_graphic_object_status;
+	hmi_accU_step7_off_hgos:									hmi_graphic_object_status;
+	
+	hmi_in_position_on_hgos:									hmi_graphic_object_status;
+	hmi_in_position_off_hgos:									hmi_graphic_object_status;
+
+	//Motor setup screen indicators
+    hmi_in_position_transport_depth_on_hgos:					hmi_graphic_object_status;
+	hmi_in_position_transport_depth_off_hgos:					hmi_graphic_object_status;	
+	hmi_in_position_shuttle_depth_on_hgos:					    hmi_graphic_object_status;
+	hmi_in_position_shuttle_depth_off_hgos:					    hmi_graphic_object_status;	
+	hmi_in_position_magazine_ls_depth_on_hgos:					hmi_graphic_object_status;
+	hmi_in_position_magazine_ls_depth_off_hgos:					hmi_graphic_object_status;	
+	hmi_in_position_magazine_os_depth_on_hgos:					hmi_graphic_object_status;
+	hmi_in_position_magazine_os_depth_off_hgos:					hmi_graphic_object_status;	
+	hmi_in_position_loader_guide_width_on_hgos:					hmi_graphic_object_status;
+	hmi_in_position_loader_guide_width_off_hgos:				hmi_graphic_object_status;	
+	hmi_in_position_glue_os_upper_on_hgos:						hmi_graphic_object_status;
+	hmi_in_position_glue_os_upper_off_hgos:						hmi_graphic_object_status;	
+	hmi_in_position_glue_os_lower_on_hgos:						hmi_graphic_object_status;
+	hmi_in_position_glue_os_lower_off_hgos:						hmi_graphic_object_status;	
+	hmi_in_position_glue_ls_upper_on_hgos:						hmi_graphic_object_status;
+	hmi_in_position_glue_ls_upper_off_hgos:						hmi_graphic_object_status;	
+	hmi_in_position_glue_ls_lower_on_hgos:						hmi_graphic_object_status;
+	hmi_in_position_glue_ls_lower_off_hgos:						hmi_graphic_object_status;	
+	hmi_in_position_glue_os_width_on_hgos:						hmi_graphic_object_status;
+	hmi_in_position_glue_os_width_off_hgos:						hmi_graphic_object_status;	
+	hmi_in_position_transfer_infeed_depth_on_hgos:				hmi_graphic_object_status;
+	hmi_in_position_transfer_infeed_depth_off_hgos:				hmi_graphic_object_status;	
+	hmi_in_position_waterfall_on_hgos:							hmi_graphic_object_status;
+	hmi_in_position_waterfall_off_hgos:							hmi_graphic_object_status;	
+	hmi_in_position_accumulator_depth_on_hgos:					hmi_graphic_object_status;
+	hmi_in_position_accumulator_depth_off_hgos:					hmi_graphic_object_status;	
+	hmi_in_position_accumulator_conv_depth_on_hgos:				hmi_graphic_object_status;
+	hmi_in_position_accumulator_conv_depth_off_hgos:				hmi_graphic_object_status;	
+	hmi_in_position_top_rail_os_width_on_hgos:					hmi_graphic_object_status;
+	hmi_in_position_top_rail_os_width_off_hgos:					hmi_graphic_object_status;	
+	hmi_in_position_top_rail_ls_width_on_hgos:					hmi_graphic_object_status;
+	hmi_in_position_top_rail_ls_width_off_hgos:					hmi_graphic_object_status;	
+	hmi_in_position_top_rail_depth_on_hgos:						hmi_graphic_object_status;
+	hmi_in_position_top_rail_depth_off_hgos:					hmi_graphic_object_status;	
+	hmi_in_position_discharge_os_depth_on_hgos:					hmi_graphic_object_status;
+	hmi_in_position_discharge_os_depth_off_hgos:				hmi_graphic_object_status;	
+	
+	
+	
+	//Case Feed EOAT Change Part
+	change_part_color:											csp_main_accuChange_partColor_enum;
+	hmi_change_part_eoat_color:									csp_main_accuChange_partColor_enum;
+	hmi_change_part_eoat_red_on:								BOOL := FALSE;
+	hmi_change_part_eoat_green_on:								BOOL := FALSE;
+	hmi_change_part_eoat_blue_on:								BOOL := FALSE;
+	hmi_change_part_eoat_yellow_on:								BOOL := FALSE;
+	hmi_change_part_eoat_white_on:								BOOL := FALSE;
+	hmi_change_part_eoat_black_on:								BOOL := FALSE;
+	hmi_change_part_eoat_orange_on:								BOOL := FALSE;
+	hmi_change_part_eoat_checkbox_on:							BOOL := FALSE;
+	hmi_change_part_eoat_red_hgos:								hmi_graphic_object_status;
+	hmi_change_part_eoat_green_hgos:							hmi_graphic_object_status;
+	hmi_change_part_eoat_blue_hgos:								hmi_graphic_object_status;
+	hmi_change_part_eoat_yellow_hgos:							hmi_graphic_object_status;
+	hmi_change_part_eoat_white_hgos:							hmi_graphic_object_status;
+	hmi_change_part_eoat_black_hgos:							hmi_graphic_object_status;
+	hmi_change_part_eoat_orange_hgos:							hmi_graphic_object_status;
+	hmi_change_part_eoat_checkbox_hgos:							hmi_graphic_object_status;
+	//Loader Pusher Change Part
+	hmi_change_part_pusher_color:								csp_main_accuChange_partColor_enum;
+	hmi_change_part_pusher_green_on:							BOOL := FALSE;
+	hmi_change_part_pusher_yellow_on:							BOOL := FALSE;
+	hmi_change_part_pusher_white_on:							BOOL := FALSE;
+	hmi_change_part_pusher_black_on:							BOOL := FALSE;
+	hmi_change_part_pusher_checkbox_on:							BOOL := FALSE;
+	hmi_change_part_pusher_green_hgos:							hmi_graphic_object_status;
+	hmi_change_part_pusher_yellow_hgos:							hmi_graphic_object_status;
+	hmi_change_part_pusher_white_hgos:							hmi_graphic_object_status;
+	hmi_change_part_pusher_black_hgos:							hmi_graphic_object_status;
+	hmi_change_part_pusher_checkbox_hgos:						hmi_graphic_object_status;
+	//Loader Guide Plate Change Part
+	hmi_change_part_plate_color:								csp_main_accuChange_partColor_enum;
+	hmi_change_part_plate_green_on:								BOOL := FALSE;
+	hmi_change_part_plate_yellow_on:							BOOL := FALSE;
+	hmi_change_part_plate_black_on:								BOOL := FALSE;
+	hmi_change_part_plate_checkbox_on:							BOOL := FALSE;
+	hmi_change_part_plate_green_hgos:							hmi_graphic_object_status;
+	hmi_change_part_plate_yellow_hgos:							hmi_graphic_object_status;
+	hmi_change_part_plate_black_hgos:							hmi_graphic_object_status;
+	hmi_change_part_plate_checkbox_hgos:						hmi_graphic_object_status;
+	
+	//Closing Paddle Change Part
+	//No Current Color Blocks - Reserved for future
+	hmi_change_part_paddle_color:								csp_main_accuChange_partColor_enum;
+	hmi_change_part_paddle_checkbox_on:							BOOL := FALSE;
+	hmi_change_part_paddle_checkbox_hgos:						hmi_graphic_object_status;
+	
+	RFID_Setup_write_value:										BYTE;
+	RFID_Setup_read_value:										BYTE;
+	RFID_Setup_read_value_string:								STRING;		(*$M desc := Read value to display on HMI; $*)
+	RFID_Setup_read_cbtn:										command_button;
+	RFID_Setup_write_cbtn:										command_button;
+	
+	RFID_reader_list_accuchange:								csp_main_accUChange_RFID_reader_list;	(*$P desc := Acc-U-Change RFID Reader selection list; $*)
+	RFID_reader_list_accuchange_old:							csp_main_accUChange_RFID_reader_list;
+	RFID_reader_brand_colors:									csp_main_accuChange_partColor_enum; 	(*$P desc := Acc-U-Change RFID Color selection list; $*)
+	
+	RFID_reading:												BOOL;
+	RFID_writing:												BOOL;
+	
+	RFID_read_write_status:										csp_main_accuChange_RFID_read_write_status;
+	RFID_read_write_status_next:								csp_main_accuChange_RFID_read_write_status;
+	RFID_read_write_debug:										BOOL := FALSE;
+	RFID_read_write_one_step:									BOOL := FALSE;
+	RFID_read_write_running:									BOOL;
+	RFID_read_write_tmr:										timer;
+	RFID_read_write_error_msg:									message;
+	
+	//Bold Text to highlight current step
+	//hmi_step1_bold_hgos
+	closing_horizontal_safe: 									BOOL := FALSE;						
+	loader_in_position: 										BOOL;
+	case_feed_in_position: 										BOOL;
+	closing_os_in_position: 									BOOL;
+	closing_ls_in_position: 									BOOL;
+	loader_plate_in_position: 									BOOL;
+	change_part_in_position: 									BOOL;
+		
+	accU_axis_moving:											BOOL;
+	accU_axis_moving_horn_on:									BOOL;
+	horn_on_filter:												filter;
+	
+	horn_on_time:												DINT := 3000; (*$P $*)
+	horn_off_time:												DINT := 100; (*$P $*)
+	
+	bypass_paddle: 												BOOL := True;
+	Initial_Commissioning_bit: 									BOOL := False;
+END_VAR
+
+VAR CONSTANT
+	CONSTANTS:													csp_main_accuChange_constant;
+	CHANGEOVER_TIMEOUT_S:										INT := 360;
+	BUZZER_REQ_TIMEOUT_S:										INT := 3;
+	STABILIZATION_TIMEOUT_S:									INT := 3;
+END_VAR
+
+VAR PERSISTENT
+	machine_size_complete:										BOOL := true;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+//first_scan_rtrig(CLK := power_done);
+
+_set_runtime_properties();
+_brand_colors();
+_in_position();
+_hmi_management();
+RFID();
+
+(********************************* BODY *********************************)
+
+(* VERIFIES ALL ACC-U-CHANGE MOTORS ARE IN POSITION BEFORE EVERY RUN *)
+IF 	machine_size_complete
+	AND
+	(
+	Group_1_motors_in_position
+	AND Group_2_motors_in_position
+	OR Initial_Commissioning_bit
+	)
+THEN
+	motorization_conditioner_start_done(all_in_position_motcond);
+END_IF
+
+
+(* USED TO CHANGE VISIBILITY ON MESSAGE FOR RFID *)
+IF machine_is_ready(csp.mch)
+	OR
+	(RFID_reader_list_accuchange = CASE_FEED_EOAT_READER
+	AND
+	csp_case_feed_arm_sensors.rfid_input_bitheader_1.CP
+	AND
+	csp_case_feed_arm_sensors.rfid_input_bitheader_2.CP)
+	OR
+	(RFID_reader_list_accuchange = LOADER_PUSHER_READER
+	AND
+	csp_case_loader_pusher.rfid_input_bitheader_1.CP
+	AND
+	csp_case_loader_pusher.rfid_input_bitheader_2.CP)
+	OR
+	(RFID_reader_list_accuchange = LOADER_GUIDE_PLATE_READER
+	AND
+	csp_case_loader_sensors.rfid_input_bitheader_1.CP
+	AND
+	csp_case_loader_sensors.rfid_input_bitheader_2.CP)
+THEN
+	machine_ready_and_enable := TRUE;
+ELSE
+	machine_ready_and_enable := FALSE;               
+END_IF
+
+	hmi_graphic_object_set_status(
+        status  			:= SEL(machine_ready_and_enable, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_machine_ready_and_enable_hgos);
+
+(*  *)
+IF Brand_Change_Occurred
+THEN
+	RFID_read_write_status := READ_WRITE_STATUS_ERROR;
+END_IF
+
+
+(* BUTTON ACTIVATION TO MOVE MACHINE TO CLEANOUT MODE *)
+IF command_button_get_actual_value(manual_empty_cbtn) = HMI_BUTTON_STATUS_ON
+THEN
+	manual_empty := TRUE;
+ELSE
+	manual_empty := FALSE;
+END_IF
+
+
+(* CHECKS IF A BRAND CHANGE IS INITIATED IN THE MIDDLE OF A SIZE CHANGE AND RESETS *)
+IF 	csp_main_brand.count_changed
+	AND NOT machine_size_complete
+THEN
+	fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_BRAND_CHECK;
+	size_change_in_middle_of_changeover := TRUE;
+END_IF
+
+(* CLEARS ERROR RFID HANDLING *)
+IF machine_get_reset_edge(csp.mch)
+THEN
+	process_message_reset(change_part_eoat_wrong);
+	process_message_reset(change_part_pusher_wrong);
+	process_message_reset(change_part_plate_wrong);
+	process_message_reset(change_part_paddles_wrong);
+END_IF
+
+(* RUNS AT THE BEGINNING OF aHMI STARTUP WAITING FOR PARAMETER TO LAOD SO THAT SIZE CHANGE DOESN'T OVERWRITE WHEN NO CHANGE *)
+//brand_change_check_string := csp_main_brand.count;
+IF brand_change_check_string = ''
+THEN
+	timer_restart(5000, brand_change_check_delay_tmr);
+END_IF
+
+
+
+IF 	not_in_brand_change
+	OR first_scan_rtrig.q
+THEN
+	machine_size_complete := TRUE;
+	hmi_current_accU_step := 0;
+	Brand_Change_Occurred := FALSE;
+	navigate_to_accU_popup := FALSE;
+	cam_data_changed := FALSE;
+	fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_BRAND_CHECK;
+	
+	not_in_brand_change := FALSE;
+END_IF
+
+
+fsm_enable_condition := 
+						process_is_ready(prc)
+						AND 
+						(*process_subtree_is_ready(prc)
+						AND*)
+						process_get_mode(csp_main_accuChange.prc) = MODE_OPERATIONAL
+						AND
+						csp_main_brand.count <> ''; //Brand_Change_Occurred; //csp_main_brand.count_changed;
+					
+IF NOT fsm_enable_condition
+THEN
+	fsm_status	:=	CSP_MAIN_ACCUCHANGE_STATUS_BRAND_CHECK;
+END_IF
+
+
+CASE fsm_status OF
+	CSP_MAIN_ACCUCHANGE_STATUS_BRAND_CHECK:
+		
+		IF	(
+				machine_download_is_running(csp.mch)
+				OR 
+				size_change_in_middle_of_changeover
+			)
+			AND first_scan_bool
+		THEN
+			navigate_to_accU_popup := TRUE;
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_BRAND_CHANGE_REQUEST;
+		END_IF
+		
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_BRAND_CHANGE_REQUEST:
+	
+		IF brand_change_request_dvr
+		THEN
+			hmi_current_accU_step := 1;
+			machine_size_complete := FALSE;
+			Motion_Motors_New_Size_Req := FALSE;
+			Brand_Change_Occurred := TRUE;
+			size_change_in_middle_of_changeover := FALSE;
+			
+			change_part_eoat_confirmed := FALSE;
+			change_part_pusher_confirmed := FALSE;
+			change_part_plate_confirmed := FALSE;
+			change_part_paddles_OS_confirmed := FALSE;
+			change_part_paddles_LS_confirmed := FALSE;
+			
+			hmi_change_part_eoat_checkbox_on := FALSE;
+			hmi_change_part_pusher_checkbox_on := FALSE;
+			hmi_change_part_plate_checkbox_on := FALSE;
+			hmi_change_part_paddle_checkbox_on := FALSE;
+			
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_PRODUCT_REMOVED_CHECK;
+		END_IF
+		
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_PRODUCT_REMOVED_CHECK:
+	
+		IF 	machine_empty
+			AND machine_is_stop_emergency_active(csp.mch)
+		THEN
+			cam_data_changed := TRUE;
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_RESET_REQUEST;
+		ELSE
+			remove_product_popup := TRUE; //"Please remove product" to Operator //Currently not being called ... Should this be a fault instead? CALL THIS MANUAL EMPTY AND PUT ON ACCU SCREEN
+		END_IF
+		
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_RESET_REQUEST:
+	
+		IF machine_is_stopped(csp.mch)
+		THEN
+			hmi_current_accU_step := 2; //"RESET AND START Machine"
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_SAFE_POSITION_REQUEST;
+		END_IF
+		
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_SAFE_POSITION_REQUEST:
+	
+		IF machine_is_running(csp.mch)
+		THEN
+			hmi_current_accU_step:= 3; //"Machine Moves to Change Part Removal Position"
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_OPERATOR_REPLACE_CHANGE_PARTS;
+		END_IF
+		
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_OPERATOR_REPLACE_CHANGE_PARTS: 
+	
+		IF 	Case_Motors_Safe_accU
+			AND machine_is_running(csp.mch)
+		THEN
+			boolean_set(motors_in_safe_pos_boolean);
+			hmi_current_accU_step:= 4; //"Replace Specified Change Parts AND RESET AND START"
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_CHANGE_PARTS_REPLACED;
+		END_IF
+		
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_CHANGE_PARTS_REPLACED:
+		
+		boolean_reset(motors_in_safe_pos_boolean);
+		
+		IF machine_is_ready(csp.mch)
+		THEN
+			// ADD MESSAGE TO TELL THEM TO RESET AND START MACHINE
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_CHANGE_PARTS_START;
+		END_IF
+		
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_CHANGE_PARTS_START:
+	
+		hmi_current_accU_step:= 5; //"Verifying Change Parts"
+		RFID_check_request := TRUE;
+		
+		(* ENABLES CHECK REQUEST FOR RFID IN A STEP BY STEP ORDER STARTING WITH CASE_FEED_EOAT_READER *)
+		IF RFID_check_request
+		THEN
+			RFID_reader_list_accuchange := NO_READER_SELECTED;
+			RFID_read_write_running := TRUE;
+			RFID_reading := TRUE;
+			
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_CASE_FEED_EOAT;			
+		END_IF
+		
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_CASE_FEED_EOAT:
+	
+		RFID_reader_list_accuchange := CASE_FEED_EOAT_READER;
+		
+		(* PRODUCTION LOGIC *)
+		IF 	NOT change_part_eoat_confirmed
+			AND NOT process_message_is_on(change_part_eoat_wrong)
+		THEN
+			RFID_reading := TRUE;
+		END_IF
+		
+		
+		IF csp_case_feed_arm_sensors.rfid_read_done
+		THEN
+			RFID_reading := FALSE;
+			
+			IF changeover_rfid_value = INT_TO_BYTE(hmi_change_part_eoat_color)
+			THEN
+				change_part_eoat_confirmed := TRUE;
+				hmi_change_part_eoat_checkbox_on := TRUE;
+				fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_LOADER_PUSHER; (* MOVES TO LOADER_GUIDE_PUSHER_READER *)
+			ELSE
+				process_message_set(1, 0, 0, change_part_eoat_wrong);
+			END_IF
+		END_IF
+			
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_LOADER_PUSHER:
+	
+		RFID_reader_list_accuchange := LOADER_PUSHER_READER;
+		
+		IF NOT change_part_pusher_confirmed
+			AND NOT process_message_is_on(change_part_pusher_wrong)
+		THEN
+			RFID_reading := TRUE;
+		END_IF
+				
+		IF csp_case_loader_pusher.rfid_read_done
+		THEN
+			RFID_reading := FALSE;
+			
+			IF changeover_rfid_value = INT_TO_BYTE(hmi_change_part_pusher_color)
+			THEN
+				change_part_pusher_confirmed := TRUE;
+				hmi_change_part_pusher_checkbox_on := TRUE;
+				fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_LOADER_GUIDE_PLATE; (* MOVES TO LOADER_GUIDE_PLATE_READER *)
+			ELSE
+				process_message_set(1, 0, 0, change_part_pusher_wrong);
+			END_IF
+		END_IF
+		
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_LOADER_GUIDE_PLATE:
+	
+		RFID_reader_list_accuchange := LOADER_GUIDE_PLATE_READER;
+		
+		IF 	NOT change_part_plate_confirmed
+			AND NOT process_message_is_on(change_part_plate_wrong)
+		THEN
+			RFID_reading := TRUE;
+		END_IF
+		
+		IF csp_case_loader_sensors.rfid_read_done
+		THEN
+			RFID_reading := FALSE;
+			
+			IF changeover_rfid_value = INT_TO_BYTE(hmi_change_part_plate_color)
+			THEN
+				change_part_plate_confirmed := TRUE;
+				hmi_change_part_plate_checkbox_on := TRUE;
+				fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_CLOSING_PADDLES; (* MOVES TO CLOSING PADDLES READER *)
+			ELSE
+				process_message_set(1, 0, 0, change_part_plate_wrong);
+			END_IF
+		END_IF
+			
+				
+	CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_CLOSING_PADDLES:
+	
+		RFID_reader_list_accuchange := CLOSING_PADDLES_READER;
+		
+		IF	NOT change_part_paddles_OS_confirmed
+			AND NOT change_part_paddles_LS_confirmed
+			AND NOT process_message_is_on(change_part_pusher_wrong)
+		THEN
+			RFID_reading := TRUE;
+		END_IF
+		
+		IF csp_case_closing.rfid_read_done
+			 //manual bypass added 05/10/21
+			THEN
+				RFID_reading := FALSE;
+				
+				IF changeover_rfid_value = INT_TO_BYTE(hmi_change_part_paddle_color)
+				THEN
+					change_part_paddles_OS_confirmed := TRUE;
+					change_part_paddles_LS_confirmed := TRUE;
+					
+					hmi_change_part_paddle_checkbox_on := TRUE;
+					fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_ALL_RFID;
+				ELSE
+					process_message_set(1, 0, 0, change_part_paddles_wrong);
+				END_IF
+		END_IF
+		//Remove logic when paddle RFID can be reached by servo motors
+		IF bypass_paddle
+		THEN
+			change_part_paddles_OS_confirmed := TRUE;
+			change_part_paddles_LS_confirmed := TRUE;
+			hmi_change_part_paddle_checkbox_on := TRUE;
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_ALL_RFID;
+		END_IF
+			
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_VERIFYING_ALL_RFID:
+	
+		RFID_read_write_running := FALSE;
+		RFID_reading := FALSE;
+		
+		IF 	change_part_eoat_confirmed
+			AND change_part_pusher_confirmed
+			AND change_part_plate_confirmed
+			AND change_part_paddles_OS_confirmed
+			AND change_part_paddles_LS_confirmed
+		THEN
+			cam_data_changed := FALSE;
+			hmi_current_accU_step:= 6; //"Machine Moves to Selected Brand"
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_GROUP_1_ACCU_MOVE_REQUEST;
+		END_IF
+		
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_GROUP_1_ACCU_MOVE_REQUEST:
+				
+		(* ACCUMULATOR VM MOVE *)
+		IF 	NOT csp_transfer_accumulator_accU_depth.in_position
+			AND NOT csp_transfer_accumulator_accU_convDepth.in_position
+		THEN
+			transfer_accumulator_accU_depth_move_req := TRUE;
+		END_IF
+		
+		IF 	csp_transfer_accumulator_accU_depth.in_position
+			AND csp_transfer_accumulator_accU_convDepth.in_position
+		THEN
+			transfer_accumulator_accU_depth_move_req := FALSE;
+		END_IF
+		
+		(* INFEED GUIDE DEPTH MOVE *)
+		IF NOT csp_transfer_infeed_accU_depth.in_position
+		THEN
+			transfer_infeed_accU_depth_move_req := TRUE;
+		ELSE
+			IF axis_is_disabled(csp_transfer_infeed_accU_depth.axis)
+			THEN
+				transfer_infeed_accU_depth_move_req := FALSE;
+			END_IF
+		END_IF 
+				
+		(* CASE MAGAZINE LS MOVE *)
+		IF NOT csp_case_feed_magazine_accU_lsDepth.in_position
+		THEN
+			case_feed_magazine_accU_lsDepth_move_req := TRUE;
+		ELSE
+			IF 	axis_is_disabled(csp_case_feed_magazine_accU_lsDepth.axis)
+				AND csp_case_feed_magazine_accU_lsDepth.fsm_status = CSP_CASE_FEED_MAGAZINE_ACCU_LSDEPTH_STATUS_DISABLED
+			THEN
+				case_feed_magazine_accU_lsDepth_move_req := FALSE;
+			END_IF
+		END_IF
+				
+		(* CASE MAGAZINE OS MOVE *)
+		IF NOT csp_case_feed_magazine_accU_osDepth.in_position
+		THEN
+			case_feed_magazine_accU_osDepth_move_req := TRUE;
+		ELSE
+			IF axis_is_disabled(csp_case_feed_magazine_accU_osDepth.axis)
+			THEN
+				case_feed_magazine_accU_osDepth_move_req := FALSE;
+			END_IF
+		END_IF
+				
+		(* TRANSPORT VM MOVE *)
+		IF NOT csp_case_transport_accU_depth.in_position
+		THEN
+			case_transport_accU_depth_move_req := TRUE;
+		END_IF
+		
+		IF 	csp_case_transport_accU_depth.in_position
+			AND csp_case_feed_shuttle_accU_depth.in_position
+		THEN
+			case_transport_accU_depth_move_req := FALSE;
+		END_IF
+				
+		(* ALL GROUP 1 NOT IN MOVE REQUEST - ADVANCE *)
+		IF 	NOT transfer_accumulator_accU_depth_move_req
+			AND NOT transfer_infeed_accU_depth_move_req
+			AND NOT case_feed_magazine_accU_lsDepth_move_req
+			AND NOT case_feed_magazine_accU_osDepth_move_req
+			AND NOT case_transport_accU_depth_move_req
+		THEN
+			IF csp_case_tr_accU_ls_width.axis.actual_position < csp_case_tr_accU_ls_width.position_req
+			THEN
+				fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_GROUP_2_TR_UP_ACCU_MOVE_REQUEST;
+			ELSE
+				fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_GROUP_2_TR_DOWN_ACCU_MOVE_REQUEST;
+			END_IF
+		END_IF
+		
+	(*Top rail moves up, must move top rail before loader guides and glue guns to avoid conflict*)	
+	CSP_MAIN_ACCUCHANGE_STATUS_GROUP_2_TR_UP_ACCU_MOVE_REQUEST:	
+		
+		(* TOP RAIL VM MOVE *)
+		IF 	NOT csp_case_tr_accU_ls_width.in_position
+			AND NOT csp_case_tr_accU_os_width.in_position
+		THEN
+			case_tr_accU_ls_width_move_req := TRUE;
+		END_IF
+		
+		IF 	csp_case_tr_accU_ls_width.in_position
+			AND csp_case_tr_accU_os_width.in_position
+		THEN
+			case_tr_accU_ls_width_move_req := FALSE;
+			
+			(* LS UPPER GLUE GUNS *)
+			IF NOT csp_case_glue_ls_accu_upperposition.in_position
+			THEN
+				case_glue_ls_accU_upperPosition_move_req := TRUE;
+			ELSE
+				IF axis_is_disabled(csp_case_glue_ls_accu_upperposition.axis)
+				THEN
+					case_glue_ls_accU_upperPosition_move_req := FALSE;
+				END_IF
+				
+				(* LS LOWER GLUE GUNS *)
+				IF NOT csp_case_glue_ls_accu_lowerposition.in_position
+				THEN
+					case_glue_ls_accU_lowerPosition_move_req := TRUE;
+				ELSE
+					IF axis_is_disabled(csp_case_glue_ls_accu_lowerposition.axis)
+					THEN
+						case_glue_ls_accU_lowerPosition_move_req := FALSE;
+					END_IF
+				END_IF
+			END_IF
+			
+			(* OS UPPER GLUE GUNS *)
+			IF NOT csp_case_glue_os_accu_upperposition.in_position
+			THEN
+				case_glue_os_accU_upperPosition_move_req := TRUE;
+			ELSE
+				IF axis_is_disabled(csp_case_glue_os_accu_upperposition.axis)
+				THEN
+					case_glue_os_accU_upperPosition_move_req := FALSE;
+				END_IF
+				
+				(* OS LOWER GLUE GUNS *)
+				IF NOT csp_case_glue_os_accu_lowerposition.in_position
+				THEN
+					case_glue_os_accU_lowerPosition_move_req := TRUE;
+				ELSE
+					IF axis_is_disabled(csp_case_glue_os_accu_lowerposition.axis)
+					THEN
+						case_glue_os_accU_lowerPosition_move_req := FALSE;
+					END_IF
+				END_IF
+			END_IF
+			
+			(* OS WIDTH GLUE *)
+			IF NOT csp_case_glue_os_accu_width.in_position
+			THEN
+				case_glue_os_accU_width_move_req := TRUE;
+			ELSE
+				IF axis_is_disabled(csp_case_glue_os_accu_width.axis)
+				THEN
+					case_glue_os_accU_width_move_req := FALSE;
+				END_IF
+			END_IF
+			
+			(* LOADER GUIDE WIDTH MOVE *)
+			IF NOT csp_case_loader_guide_accU_width.in_position
+			THEN
+				case_loader_guide_accU_width_move_req := TRUE;
+			ELSE
+				IF axis_is_disabled(csp_case_loader_guide_accU_width.axis)
+				THEN
+					case_loader_guide_accU_width_move_req := FALSE;
+				END_IF
+			END_IF
+		
+		
+			(* TOP RAIL DEPTH = WAITS ON TOP RAIL WIDTH TO BE DONE *)
+			IF NOT csp_case_tr_accu_depth.in_position
+				AND NOT case_tr_accU_ls_width_move_req (* VERIFIES TOP RAIL WIDTH IS COMPLETED FIRST *)
+			THEN
+				case_tr_accU_depth_move_req := TRUE;
+			ELSE
+				IF axis_is_disabled(csp_case_tr_accu_depth.axis)
+				THEN
+					case_tr_accU_depth_move_req := FALSE;
+				END_IF
+			END_IF
+		END_IF
+		
+		(* INFEED WATERFALL MOVE *)
+		IF NOT csp_transfer_infeed_accU_waterfallAdjust.in_position
+		THEN
+			transfer_infeed_accU_waterfall_move_req := TRUE;
+		ELSE
+			IF 	axis_is_disabled(csp_transfer_infeed_accU_waterfallAdjust.axis)
+				AND csp_transfer_infeed_accU_waterfallAdjust.fsm_status = CSP_TRANSFER_INFEED_ACCU_WATERFALL_ADJUST_STATUS_DISABLED
+			THEN
+				transfer_infeed_accU_waterfall_move_req := FALSE;
+			END_IF
+		END_IF
+		
+		(* ALL GROUP 2 NOT IN MOVE REQUEST - ADVANCE *)
+		IF NOT case_tr_accU_ls_width_move_req
+			AND NOT transfer_infeed_accU_waterfall_move_req
+			AND NOT case_glue_ls_accU_lowerPosition_move_req
+			AND NOT case_glue_ls_accU_upperPosition_move_req
+			AND NOT case_glue_os_accU_lowerPosition_move_req
+			AND NOT case_glue_os_accU_upperPosition_move_req
+			AND NOT case_glue_os_accU_width_move_req
+			AND NOT case_loader_guide_accU_width_move_req
+			AND NOT case_tr_accU_depth_move_req
+		THEN
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_ADD_CASE_BLANKS;
+		END_IF
+		
+	(*Top rail moves down, must move top rail after loader guides and glue guns to avoid conflict*)	
+	CSP_MAIN_ACCUCHANGE_STATUS_GROUP_2_TR_DOWN_ACCU_MOVE_REQUEST:
+		
+		(* LS LOWER GLUE GUNS *)
+		IF NOT csp_case_glue_ls_accu_lowerposition.in_position
+		THEN
+			case_glue_ls_accU_lowerPosition_move_req := TRUE;
+		ELSE
+			IF axis_is_disabled(csp_case_glue_ls_accu_lowerposition.axis)
+			THEN
+				case_glue_ls_accU_lowerPosition_move_req := FALSE;
+			END_IF
+		
+		(* LS UPPER GLUE GUNS *)
+			IF NOT csp_case_glue_ls_accu_upperposition.in_position
+			THEN
+				case_glue_ls_accU_upperPosition_move_req := TRUE;
+			ELSE
+				IF axis_is_disabled(csp_case_glue_ls_accu_upperposition.axis)
+				THEN
+					case_glue_ls_accU_upperPosition_move_req := FALSE;
+				END_IF
+			END_IF
+			
+			(* LOADER GUIDE WIDTH MOVE *)
+			IF NOT csp_case_loader_guide_accU_width.in_position
+			THEN
+				case_loader_guide_accU_width_move_req := TRUE;
+			ELSE
+				IF axis_is_disabled(csp_case_loader_guide_accU_width.axis)
+				THEN
+					case_loader_guide_accU_width_move_req := FALSE;
+				END_IF
+			END_IF
+		END_IF
+		
+		(* OS LOWER GLUE GUNS *)
+		IF NOT csp_case_glue_os_accu_lowerposition.in_position
+		THEN
+			case_glue_os_accU_lowerPosition_move_req := TRUE;
+		ELSE
+			IF axis_is_disabled(csp_case_glue_os_accu_lowerposition.axis)
+			THEN
+				case_glue_os_accU_lowerPosition_move_req := FALSE;
+			END_IF
+		
+		(* OS UPPER GLUE GUNS *)
+			IF NOT csp_case_glue_os_accu_upperposition.in_position
+			THEN
+				case_glue_os_accU_upperPosition_move_req := TRUE;
+			ELSE
+				IF axis_is_disabled(csp_case_glue_os_accu_upperposition.axis)
+				THEN
+					case_glue_os_accU_upperPosition_move_req := FALSE;
+				END_IF
+			END_IF
+		
+		(* OS WIDTH GLUE *)
+			IF NOT csp_case_glue_os_accu_width.in_position
+			THEN
+				case_glue_os_accU_width_move_req := TRUE;
+			ELSE
+				IF axis_is_disabled(csp_case_glue_os_accu_width.axis)
+				THEN
+					case_glue_os_accU_width_move_req := FALSE;
+				END_IF
+			END_IF
+		END_IF
+		
+		(* TOP RAIL VM MOVE *)
+		IF 	csp_case_glue_os_accu_upperposition.in_position
+			AND csp_case_glue_ls_accu_upperposition.in_position
+			AND csp_case_loader_guide_accU_width.in_position
+			AND csp_case_glue_os_accu_width.in_position
+			AND NOT csp_case_tr_accU_ls_width.in_position
+			AND NOT csp_case_tr_accU_os_width.in_position
+		THEN
+			case_tr_accU_ls_width_move_req := TRUE;
+		END_IF
+		
+		IF 	csp_case_tr_accU_ls_width.in_position
+			AND csp_case_tr_accU_os_width.in_position
+		THEN
+			case_tr_accU_ls_width_move_req := FALSE;
+		
+			(* TOP RAIL DEPTH = WAITS ON TOP RAIL WIDTH TO BE DONE *)
+			IF NOT csp_case_tr_accu_depth.in_position
+			THEN
+				case_tr_accU_depth_move_req := TRUE;
+			ELSE
+				IF axis_is_disabled(csp_case_tr_accu_depth.axis)
+				THEN
+					case_tr_accU_depth_move_req := FALSE;
+				END_IF
+			END_IF
+		END_IF		
+		
+		(* INFEED WATERFALL MOVE *)
+		IF NOT csp_transfer_infeed_accU_waterfallAdjust.in_position
+		THEN
+			transfer_infeed_accU_waterfall_move_req := TRUE;
+		ELSE
+			IF 	axis_is_disabled(csp_transfer_infeed_accU_waterfallAdjust.axis)
+				AND csp_transfer_infeed_accU_waterfallAdjust.fsm_status = CSP_TRANSFER_INFEED_ACCU_WATERFALL_ADJUST_STATUS_DISABLED
+			THEN
+				transfer_infeed_accU_waterfall_move_req := FALSE;
+			END_IF
+		END_IF
+		
+		(* ALL GROUP 2 NOT IN MOVE REQUEST - ADVANCE *)
+		IF 	NOT case_tr_accU_ls_width_move_req
+			AND NOT transfer_infeed_accU_waterfall_move_req
+			AND NOT case_glue_ls_accU_lowerPosition_move_req
+			AND NOT case_glue_ls_accU_upperPosition_move_req
+			AND NOT case_glue_os_accU_lowerPosition_move_req
+			AND NOT case_glue_os_accU_upperPosition_move_req
+			AND NOT case_glue_os_accU_width_move_req
+			AND NOT case_loader_guide_accU_width_move_req
+			AND NOT case_tr_accU_depth_move_req
+		THEN
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_ADD_CASE_BLANKS;
+		END_IF
+		
+		
+	CSP_MAIN_ACCUCHANGE_STATUS_ADD_CASE_BLANKS:
+	
+		hmi_current_accU_step := 7; //"Add Case Blanks to Magazine"
+		
+		IF 
+			(
+				csp_main.is_SFI
+				AND csp_case_feed_magazine_level.level_status <= csp_case_feed_magazine_level.LEVEL_STATUS_LOW_LEVEL
+			)
+			OR
+			(
+				NOT csp_main.is_SFI
+				AND csp_case_feed_magazine_level.level_status >= csp_case_feed_magazine_level.LEVEL_STATUS_MIN_LEVEL
+			)		
+		THEN
+			navigate_to_accU_popup := FALSE;
+			Motion_Motors_New_Size_Req := TRUE;
+			hmi_current_accU_step := 0;
+			machine_size_complete := TRUE;
+			Brand_Change_Occurred := FALSE;
+			fsm_next_status := CSP_MAIN_ACCUCHANGE_STATUS_BRAND_CHECK;
+		END_IF
+		
+END_CASE;
+
+
+(* ADVANCES TO NEXT STEP *)
+IF 	NOT debug_fsm
+	OR
+	debug_fsm_one_step	
+THEN
+	fsm_status := fsm_next_status;
+	debug_fsm_one_step := FALSE;
+END_IF
+
+
+(* Connection timeout *)
+IF	fsm_running
+	AND NOT debug_fsm
+THEN
+	IF	timer_is_expired(fsm_tmr)
+	THEN
+		process_message_set(1, fsm_status, 0, changeover_timeout_asm);
+	END_IF
+ELSE
+	timer_restart(600000, fsm_tmr);
+END_IF
+
+
+
+(* CHECKS ALL RFID TAGS BEFORE RUNNING IF APPLICABLE *)
+motorization_conditioner_start_done(eoat_rfid_checked_motcond);
+motorization_conditioner_start_done(loader_pusher_rfid_checked_motcond);
+motorization_conditioner_start_done(loader_plate_rfid_checked_motcond);
+
+CASE running_rfid_status OF	
+	READ_RUNNING_CHECK_STATUS_START:
+	
+		rfid_read_write_running := TRUE;
+		running_rfid_status_next := READ_RUNNING_CHECK_STATUS_EOAT_CHECK_CP;
+		
+	(* EOAT CHECK *)
+	READ_RUNNING_CHECK_STATUS_EOAT_CHECK_CP:
+	
+		IF csp_case_feed_virtualMaster.phase_done
+		THEN
+			IF csp_case_feed_arm_sensors.rfid_input_bitheader_1.CP
+				AND csp_case_feed_arm_sensors.rfid_input_bitheader_2.CP
+			THEN
+				RFID_reader_list_accuchange := CASE_FEED_EOAT_READER;
+				running_rfid_status_next := READ_RUNNING_CHECK_STATUS_EOAT_SEND_READ;
+			ELSE
+				motorization_conditioner_start_done(eoat_rfid_checked_motcond);
+				running_rfid_status_next := READ_RUNNING_CHECK_STATUS_LOADER_PUSHER_CHECK_CP;
+			END_IF
+		END_IF
+		
+		
+	READ_RUNNING_CHECK_STATUS_EOAT_SEND_READ:
+	
+		RFID_reading := TRUE;
+		
+		IF csp_case_feed_arm_sensors.rfid_read_done
+		THEN
+			running_rfid_status_next := READ_RUNNING_CHECK_STATUS_EOAT_CHECK_READ;
+		END_IF
+		
+		
+	READ_RUNNING_CHECK_STATUS_EOAT_CHECK_READ:
+	
+		RFID_reading := FALSE;
+		
+		IF csp_case_feed_arm_sensors.rfid_value = INT_TO_BYTE(hmi_change_part_eoat_color)
+		THEN
+			motorization_conditioner_start_done(eoat_rfid_checked_motcond);
+			running_rfid_status_next := READ_RUNNING_CHECK_STATUS_LOADER_PUSHER_CHECK_CP;
+		ELSE
+			process_message_set(1, 1, 1, change_part_eoat_wrong);
+		END_IF
+		
+		
+	(* LOADER PUSHER CHECK *)
+	READ_RUNNING_CHECK_STATUS_LOADER_PUSHER_CHECK_CP:
+		
+		IF axis_is_cam_engaged(csp_case_loader_pusher.axis)
+		THEN
+			IF csp_case_loader_pusher.rfid_input_bitheader_1.CP
+				AND csp_case_loader_pusher.rfid_input_bitheader_2.CP
+			THEN
+				RFID_reader_list_accuchange := LOADER_PUSHER_READER;
+				running_rfid_status_next := READ_RUNNING_CHECK_STATUS_LOADER_PUSHER_SEND_READ;
+			ELSE
+				motorization_conditioner_start_done(loader_pusher_rfid_checked_motcond);
+				running_rfid_status_next := READ_RUNNING_CHECK_STATUS_LOADER_PLATE_CHECK_CP;
+			END_IF
+		END_IF
+			
+		
+	READ_RUNNING_CHECK_STATUS_LOADER_PUSHER_SEND_READ:
+	
+		RFID_reading := TRUE;
+		
+		IF csp_case_loader_pusher.rfid_read_done
+		THEN
+			running_rfid_status_next := READ_RUNNING_CHECK_STATUS_LOADER_PUSHER_CHECK_READ;
+		END_IF
+
+		
+	READ_RUNNING_CHECK_STATUS_LOADER_PUSHER_CHECK_READ:
+	
+		RFID_reading := FALSE;
+		
+		IF csp_case_loader_pusher.rfid_value = INT_TO_BYTE(hmi_change_part_pusher_color)
+		THEN
+			motorization_conditioner_start_done(loader_pusher_rfid_checked_motcond);
+			running_rfid_status_next := READ_RUNNING_CHECK_STATUS_LOADER_PLATE_CHECK_CP;
+		ELSE
+			process_message_set(1, 1, 1, change_part_pusher_wrong);
+		END_IF
+		
+		
+	(* LOADER PLATE CHECK *)
+	READ_RUNNING_CHECK_STATUS_LOADER_PLATE_CHECK_CP:
+	
+		IF 	csp_case_loader_sensors.rfid_input_bitheader_1.CP
+			AND csp_case_loader_sensors.rfid_input_bitheader_2.CP
+		THEN
+			RFID_reader_list_accuchange := LOADER_GUIDE_PLATE_READER;
+			running_rfid_status_next := READ_RUNNING_CHECK_STATUS_LOADER_PUSHER_SEND_READ;
+		ELSE
+			motorization_conditioner_start_done(loader_plate_rfid_checked_motcond);
+			running_rfid_status_next := READ_RUNNING_CHECK_STATUS_LOADER_PLATE_CHECK_CP;
+		END_IF
+		
+		
+	READ_RUNNING_CHECK_STATUS_LOADER_PLATE_SEND_READ:
+		
+		RFID_reading := TRUE;
+		
+		IF csp_case_loader_sensors.rfid_read_done
+		THEN
+			running_rfid_status_next := READ_RUNNING_CHECK_STATUS_LOADER_PLATE_CHECK_READ;
+		END_IF
+		
+		
+	READ_RUNNING_CHECK_STATUS_LOADER_PLATE_CHECK_READ:
+	
+		RFID_reading := FALSE;
+		
+		IF csp_case_loader_sensors.rfid_value = INT_TO_BYTE(hmi_change_part_plate_color)
+		THEN
+			motorization_conditioner_start_done(loader_plate_rfid_checked_motcond);
+			running_rfid_status_next := READ_RUNNING_CHECK_STATUS_DONE;
+		ELSE
+			process_message_set(1, 1, 1, change_part_plate_wrong);
+		END_IF
+		
+	(* ALL CHECKED *)
+	READ_RUNNING_CHECK_STATUS_DONE:
+	
+		rfid_read_write_running := FALSE;
+		
+		IF axis_is_moving(csp_main_motorization_virtualManager.axis)
+		THEN
+			running_rfid_status_next := READ_RUNNING_CHECK_STATUS_WAITING;
+		END_IF
+		
+		
+	READ_RUNNING_CHECK_STATUS_WAITING:
+		
+		;
+		
+		
+	READ_RUNNING_CHECK_STATUS_ERROR:
+	
+		;
+		
+		
+END_CASE
+
+running_rfid_status := running_rfid_status_next;
+
+IF 	machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	process_message_reset(change_part_eoat_wrong);
+	process_message_reset(change_part_pusher_wrong);
+	process_message_reset(change_part_plate_wrong);
+END_IF
+
+
+(************************************************************************)
+
+
+(* HORN CONTROL FOR ANY ACC-U-CHANGE MOTOR MOVING *)
+IF (
+		axis_is_moving(csp_case_transport_accU_depth.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_transport_accU_depth.axis)
+	)
+	OR	
+	(
+		axis_is_moving(csp_case_feed_shuttle_accU_depth.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_feed_shuttle_accU_depth.axis)
+	)
+	OR	
+	(
+		axis_is_moving(csp_case_feed_magazine_accU_lsDepth.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_feed_magazine_accU_lsDepth.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_case_feed_magazine_accU_osDepth.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_feed_magazine_accU_osDepth.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_case_feed_reject_accU_depth.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_feed_reject_accU_depth.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_transfer_infeed_accU_depth.axis)
+		AND 
+		NOT axis_is_disabled(csp_transfer_infeed_accU_depth.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_transfer_accumulator_accU_depth.axis)
+		AND 
+		NOT axis_is_disabled(csp_transfer_accumulator_accU_depth.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_transfer_infeed_accU_waterfallAdjust.axis)
+		AND 
+		NOT axis_is_disabled(csp_transfer_infeed_accU_waterfallAdjust.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_transfer_accumulator_accU_convDepth.axis)
+		AND 
+		NOT axis_is_disabled(csp_transfer_accumulator_accU_convDepth.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_case_tr_accU_depth.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_tr_accU_depth.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_case_loader_guide_accU_width.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_loader_guide_accU_width.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_case_glue_os_accU_width.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_glue_os_accU_width.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_case_glue_os_accU_upperPosition.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_glue_os_accU_upperPosition.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_case_glue_os_accU_lowerPosition.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_glue_os_accU_lowerPosition.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_case_glue_ls_accU_upperPosition.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_glue_ls_accU_upperPosition.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_case_glue_ls_accU_lowerPosition.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_glue_ls_accU_lowerPosition.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_case_tr_accU_os_width.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_tr_accU_os_width.axis)
+	)
+	OR
+	(
+		axis_is_moving(csp_case_tr_accU_ls_width.axis)
+		AND 
+		NOT axis_is_disabled(csp_case_tr_accU_ls_width.axis)
+	)
+THEN
+	accU_axis_moving := TRUE;
+ELSE
+	accU_axis_moving := FALSE;
+END_IF
+
+
+IF 	accU_axis_moving
+	AND filter_is_off(horn_on_filter)
+THEN
+	accU_axis_moving_horn_on := TRUE;
+END_IF
+
+IF filter_is_on(horn_on_filter)
+THEN
+	accU_axis_moving_horn_on := FALSE;
+END_IF
+
+
+filter_set_delays(
+	delay_off_on			:= horn_on_time,
+	delay_on_off			:= horn_off_time,
+	CONVERSION_this			:= horn_on_filter);
+
+//Added to prevent the move request from staying ON and alway moving to the phase position
+IF 	csp_main_accuchange.hmi_brand_status_color_hgos.status = HMI_OBJECT_STATUS_ON
+THEN
+	case_transport_accU_depth_move_req := FALSE; 
+	case_feed_magazine_accU_lsDepth_move_req := FALSE; 
+	case_feed_magazine_accU_osDepth_move_req := FALSE;
+	transfer_infeed_accU_depth_move_req := FALSE;
+	transfer_infeed_accU_waterfall_move_req := FALSE;
+	transfer_accumulator_accU_depth_move_req:= FALSE; 
+	case_tr_accU_depth_move_req := FALSE;
+	case_loader_guide_accU_width_move_req := FALSE;
+	case_glue_os_accU_width_move_req := FALSE;
+	case_glue_os_accU_upperPosition_move_req := FALSE;
+	case_glue_os_accU_lowerPosition_move_req := FALSE;
+	case_glue_ls_accU_upperPosition_move_req := FALSE;
+	case_glue_ls_accU_lowerPosition_move_req := FALSE;
+	case_tr_accU_ls_width_move_req:= FALSE; 
+END_IF
+
+
+
+_handle_messages();
+
+_write_output();
+
+
+IF NOT first_scan_bool
+THEN
+	cam_data_changed := TRUE;
+	not_in_brand_change := TRUE;
+END_IF
+
+IF first_scan_bool
+	AND cam_data_changed
+	AND NOT Brand_Change_Occurred
+THEN
+	cam_data_changed := FALSE;
+END_IF
+
+
+first_scan_bool := TRUE;
+]]></ST>
+    </Implementation>
+    <Action Name="_brand_colors" Id="{dd0372cf-f1be-4b96-8eda-76ca410426b4}">
+      <Implementation>
+        <ST><![CDATA[IF csp_main_brand.count = '6Count' 
+THEN
+	brand1_active := TRUE;
+ELSE
+	brand1_active := FALSE;
+END_IF
+IF csp_main_brand.count = '8Count' 
+THEN
+	brand2_active := TRUE;
+ELSE
+	brand2_active := FALSE;
+END_IF
+IF csp_main_brand.count = '10Count' 
+THEN
+	brand3_active := TRUE;
+ELSE
+	brand3_active := FALSE;
+END_IF
+IF csp_main_brand.count = '12Count' 
+THEN
+	brand4_active := TRUE;
+ELSE
+	brand4_active := FALSE;
+END_IF
+IF csp_main_brand.count = '16Count2x3' 
+THEN
+	brand5_active := TRUE;
+ELSE
+	brand5_active := FALSE;
+END_IF
+IF csp_main_brand.count = '18Count' 
+THEN
+	brand6_active := TRUE;
+ELSE
+	brand6_active := FALSE;
+END_IF
+IF csp_main_brand.count = '14Count' 
+THEN
+	brand7_active := TRUE;
+ELSE
+	brand7_active := FALSE;
+END_IF
+IF csp_main_brand.count = '16Count2x4' 
+THEN
+	brand8_active := TRUE;
+ELSE
+	brand8_active := FALSE;
+END_IF
+IF csp_main_brand.count = '20Count' 
+THEN
+	brand9_active := TRUE;
+ELSE
+	brand9_active := FALSE;
+END_IF
+IF csp_main_brand.count = '22Count' 
+THEN
+	brand10_active := TRUE;
+ELSE
+	brand10_active := FALSE;
+END_IF
+IF csp_main_brand.count = '24Count' 
+THEN
+	brand11_active := TRUE;
+ELSE
+	brand11_active := FALSE;
+END_IF
+IF csp_main_brand.count = '28Count' 
+THEN
+	brand12_active := TRUE;
+ELSE
+	brand12_active := FALSE;
+END_IF
+IF csp_main_brand.count = '30Count' 
+THEN
+	brand13_active := TRUE;
+ELSE
+	brand13_active := FALSE;
+END_IF
+IF csp_main_brand.count = '32Count' 
+THEN
+	brand14_active := TRUE;
+ELSE
+	brand14_active := FALSE;
+END_IF
+IF csp_main_brand.count = '34Count' 
+THEN
+	brand15_active := TRUE;
+ELSE
+	brand15_active := FALSE;
+END_IF
+IF csp_main_brand.count = '36Count' 
+THEN
+	brand16_active := TRUE;
+ELSE
+	brand16_active := FALSE;
+END_IF
+IF csp_main_brand.count = '44Count' 
+THEN
+	brand17_active := TRUE;
+ELSE
+	brand17_active := FALSE;
+END_IF
+IF csp_main_brand.count = '46Count' 
+THEN
+	brand18_active := TRUE;
+ELSE
+	brand18_active := FALSE;
+END_IF
+IF csp_main_brand.count = '48Count' 
+THEN
+	brand19_active := TRUE;
+ELSE
+	brand19_active := FALSE;
+END_IF
+IF brand1_active 
+THEN
+	hmi_change_part_eoat_color := RED;
+	hmi_change_part_pusher_color := GREEN;
+	hmi_change_part_plate_color	:= GREEN;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand2_active 
+THEN
+	hmi_change_part_eoat_color := GREEN;
+	hmi_change_part_pusher_color := GREEN;
+	hmi_change_part_plate_color	:= GREEN;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand3_active 
+THEN
+	hmi_change_part_eoat_color := BLUE;
+	hmi_change_part_pusher_color := YELLOW;
+	hmi_change_part_plate_color	:= YELLOW;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand4_active 
+THEN
+	hmi_change_part_eoat_color := BLUE;
+	hmi_change_part_pusher_color := YELLOW;
+	hmi_change_part_plate_color	:= YELLOW;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand5_active 
+THEN
+	hmi_change_part_eoat_color := BLUE;
+	hmi_change_part_pusher_color := YELLOW;
+	hmi_change_part_plate_color	:= YELLOW;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand6_active 
+THEN
+	hmi_change_part_eoat_color := BLUE;
+	hmi_change_part_pusher_color := YELLOW;
+	hmi_change_part_plate_color	:= YELLOW;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand7_active 
+THEN
+	hmi_change_part_eoat_color := YELLOW;
+	hmi_change_part_pusher_color := YELLOW;
+	hmi_change_part_plate_color	:= YELLOW;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand8_active 
+THEN
+	hmi_change_part_eoat_color := YELLOW;
+	hmi_change_part_pusher_color := YELLOW;
+	hmi_change_part_plate_color	:= YELLOW;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand9_active 
+THEN
+	hmi_change_part_eoat_color := YELLOW;
+	hmi_change_part_pusher_color := YELLOW;
+	hmi_change_part_plate_color	:= YELLOW;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand10_active 
+THEN
+	hmi_change_part_eoat_color := YELLOW;
+	hmi_change_part_pusher_color := YELLOW;
+	hmi_change_part_plate_color	:= YELLOW;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand11_active 
+THEN
+	hmi_change_part_eoat_color := YELLOW;
+	hmi_change_part_pusher_color := YELLOW;
+	hmi_change_part_plate_color	:= YELLOW;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand12_active 
+THEN
+	hmi_change_part_eoat_color := WHITE;
+	hmi_change_part_pusher_color := WHITE;
+	hmi_change_part_plate_color	:= BLACK;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand13_active 
+THEN
+	hmi_change_part_eoat_color := WHITE;
+	hmi_change_part_pusher_color := WHITE;
+	hmi_change_part_plate_color	:= BLACK;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand14_active 
+THEN
+	hmi_change_part_eoat_color := WHITE;
+	hmi_change_part_pusher_color := WHITE;
+	hmi_change_part_plate_color	:= BLACK;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand15_active 
+THEN
+	hmi_change_part_eoat_color := BLACK;
+	hmi_change_part_pusher_color := BLACK;
+	hmi_change_part_plate_color	:= BLACK;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand16_active 
+THEN
+	hmi_change_part_eoat_color := BLACK;
+	hmi_change_part_pusher_color := BLACK;
+	hmi_change_part_plate_color	:= BLACK;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand17_active 
+THEN
+	hmi_change_part_eoat_color := ORANGE;
+	hmi_change_part_pusher_color := BLACK;
+	hmi_change_part_plate_color	:= BLACK;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand18_active 
+THEN
+	hmi_change_part_eoat_color := ORANGE;
+	hmi_change_part_pusher_color := BLACK;
+	hmi_change_part_plate_color	:= BLACK;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF
+IF brand19_active 
+THEN
+	hmi_change_part_eoat_color := RED;		//07/08/21 PRS (was ORANGE)
+	hmi_change_part_pusher_color := BLACK;
+	hmi_change_part_plate_color	:= BLACK;
+	hmi_change_part_paddle_color := RED; (* NO COLOR BUT NEEDS VALUE *)
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_messages" Id="{c55e7901-8c0d-409f-84ed-ca350ea22cb8}">
+      <Implementation>
+        <ST><![CDATA[IF	navigate_to_accU_popup
+THEN
+	process_message_set(
+		errorID_1			:= 0,//fbConfigKinGroup.nErrorId,
+		errorID_2			:= 0,
+		errorID_3			:= 0,
+		CONVERSION_this 	:= navigate_custom_screen_aem);
+ELSE
+	process_message_reset(navigate_custom_screen_aem);
+END_IF
+
+IF	trigger_change_parts_incorrect_popup
+THEN
+	process_message_set(
+		errorID_1			:= 0,
+		errorID_2			:= 0,
+		errorID_3			:= 0,
+		CONVERSION_this 	:= change_parts_incorrect_aem);
+ELSE
+	process_message_reset(change_parts_incorrect_aem);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{6507f061-b02a-40c7-95f8-f76cf2189969}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_hmi_management" Id="{03365f4c-775c-4441-ba53-6fd533380dca}">
+      <Implementation>
+        <ST><![CDATA[CASE hmi_current_accU_step OF
+	0:
+		hmi_accU_step1_on:= FALSE;
+		hmi_accU_step2_on:= FALSE;
+		hmi_accU_step3_on:= FALSE;
+		hmi_accU_step4_on:= FALSE;
+		hmi_accU_step5_on:= FALSE;
+		hmi_accU_step6_on:= FALSE;
+		hmi_accU_step7_on:= FALSE;
+	1:
+		hmi_accU_step1_on:= TRUE;
+		hmi_accU_step2_on:= FALSE;
+		hmi_accU_step3_on:= FALSE;
+		hmi_accU_step4_on:= FALSE;
+		hmi_accU_step5_on:= FALSE;
+		hmi_accU_step6_on:= FALSE;
+		hmi_accU_step7_on:= FALSE;
+	2:
+		hmi_accU_step1_on:= FALSE;
+		hmi_accU_step2_on:= TRUE;
+		hmi_accU_step3_on:= FALSE;
+		hmi_accU_step4_on:= FALSE;
+		hmi_accU_step5_on:= FALSE;
+		hmi_accU_step6_on:= FALSE;
+		hmi_accU_step7_on:= FALSE;
+	3:
+		hmi_accU_step1_on:= FALSE;
+		hmi_accU_step2_on:= FALSE;
+		hmi_accU_step3_on:= TRUE;
+		hmi_accU_step4_on:= FALSE;
+		hmi_accU_step5_on:= FALSE;
+		hmi_accU_step6_on:= FALSE;
+		hmi_accU_step7_on:= FALSE;
+	4:
+		hmi_accU_step1_on:= FALSE;
+		hmi_accU_step2_on:= FALSE;
+		hmi_accU_step3_on:= FALSE;
+		hmi_accU_step4_on:= TRUE;
+		hmi_accU_step5_on:= FALSE;
+		hmi_accU_step6_on:= FALSE;
+		hmi_accU_step7_on:= FALSE;
+	5:
+		hmi_accU_step1_on:= FALSE;
+		hmi_accU_step2_on:= FALSE;
+		hmi_accU_step3_on:= FALSE;
+		hmi_accU_step4_on:= FALSE;
+		hmi_accU_step5_on:= TRUE;
+		hmi_accU_step6_on:= FALSE;
+		hmi_accU_step7_on:= FALSE;
+	6:
+		hmi_accU_step1_on:= FALSE;
+		hmi_accU_step2_on:= FALSE;
+		hmi_accU_step3_on:= FALSE;
+		hmi_accU_step4_on:= FALSE;
+		hmi_accU_step5_on:= FALSE;
+		hmi_accU_step6_on:= TRUE;
+		hmi_accU_step7_on:= FALSE;
+	7:
+		hmi_accU_step1_on:= FALSE;
+		hmi_accU_step2_on:= FALSE;
+		hmi_accU_step3_on:= FALSE;
+		hmi_accU_step4_on:= FALSE;
+		hmi_accU_step5_on:= FALSE;
+		hmi_accU_step6_on:= FALSE;
+		hmi_accU_step7_on:= TRUE;
+END_CASE
+
+CASE hmi_change_part_eoat_color OF
+	RED:
+		hmi_change_part_eoat_red_on:= TRUE;
+		hmi_change_part_eoat_green_on:= FALSE;
+		hmi_change_part_eoat_blue_on:= FALSE;
+		hmi_change_part_eoat_yellow_on:= FALSE;
+		hmi_change_part_eoat_white_on:= FALSE;
+		hmi_change_part_eoat_black_on:= FALSE;
+		hmi_change_part_eoat_orange_on:= FALSE;
+	GREEN:
+		hmi_change_part_eoat_red_on:= FALSE;
+		hmi_change_part_eoat_green_on:= TRUE;
+		hmi_change_part_eoat_blue_on:= FALSE;
+		hmi_change_part_eoat_yellow_on:= FALSE;
+		hmi_change_part_eoat_white_on:= FALSE;
+		hmi_change_part_eoat_black_on:= FALSE;
+		hmi_change_part_eoat_orange_on:= FALSE;
+	BLUE:
+		hmi_change_part_eoat_red_on:= FALSE;
+		hmi_change_part_eoat_green_on:= FALSE;
+		hmi_change_part_eoat_blue_on:= TRUE;
+		hmi_change_part_eoat_yellow_on:= FALSE;
+		hmi_change_part_eoat_white_on:= FALSE;
+		hmi_change_part_eoat_black_on:= FALSE;
+		hmi_change_part_eoat_orange_on:= FALSE;
+	YELLOW:
+		hmi_change_part_eoat_red_on:= FALSE;
+		hmi_change_part_eoat_green_on:= FALSE;
+		hmi_change_part_eoat_blue_on:= FALSE;
+		hmi_change_part_eoat_yellow_on:= TRUE;
+		hmi_change_part_eoat_white_on:= FALSE;
+		hmi_change_part_eoat_black_on:= FALSE;
+		hmi_change_part_eoat_orange_on:= FALSE;
+	WHITE:
+		hmi_change_part_eoat_red_on:= FALSE;
+		hmi_change_part_eoat_green_on:= FALSE;
+		hmi_change_part_eoat_blue_on:= FALSE;
+		hmi_change_part_eoat_yellow_on:= FALSE;
+		hmi_change_part_eoat_white_on:= TRUE;
+		hmi_change_part_eoat_black_on:= FALSE;
+		hmi_change_part_eoat_orange_on:= FALSE;
+	BLACK:
+		hmi_change_part_eoat_red_on:= FALSE;
+		hmi_change_part_eoat_green_on:= FALSE;
+		hmi_change_part_eoat_blue_on:= FALSE;
+		hmi_change_part_eoat_yellow_on:= FALSE;
+		hmi_change_part_eoat_white_on:= FALSE;
+		hmi_change_part_eoat_black_on:= TRUE;
+		hmi_change_part_eoat_orange_on:= FALSE;
+	ORANGE:
+		hmi_change_part_eoat_red_on:= FALSE;
+		hmi_change_part_eoat_green_on:= FALSE;
+		hmi_change_part_eoat_blue_on:= FALSE;
+		hmi_change_part_eoat_yellow_on:= FALSE;
+		hmi_change_part_eoat_white_on:= FALSE;
+		hmi_change_part_eoat_black_on:= FALSE;
+		hmi_change_part_eoat_orange_on:= TRUE;
+END_CASE
+
+CASE hmi_change_part_pusher_color OF
+	GREEN:
+		hmi_change_part_pusher_green_on:= TRUE;
+		hmi_change_part_pusher_yellow_on:= FALSE;
+		hmi_change_part_pusher_white_on:= FALSE;
+		hmi_change_part_pusher_black_on:= FALSE;
+	YELLOW:
+		hmi_change_part_pusher_green_on:= FALSE;
+		hmi_change_part_pusher_yellow_on:= TRUE;
+		hmi_change_part_pusher_white_on:= FALSE;
+		hmi_change_part_pusher_black_on:= FALSE;
+	WHITE:
+		hmi_change_part_pusher_green_on:= FALSE;
+		hmi_change_part_pusher_yellow_on:= FALSE;
+		hmi_change_part_pusher_white_on:= TRUE;
+		hmi_change_part_pusher_black_on:= FALSE;
+	BLACK:
+		hmi_change_part_pusher_green_on:= FALSE;
+		hmi_change_part_pusher_yellow_on:= FALSE;
+		hmi_change_part_pusher_white_on:= FALSE;
+		hmi_change_part_pusher_black_on:= TRUE;
+END_CASE
+
+CASE hmi_change_part_plate_color OF
+	GREEN:
+		hmi_change_part_plate_green_on:= TRUE;
+		hmi_change_part_plate_yellow_on:= FALSE;
+		hmi_change_part_plate_black_on:= FALSE;
+	YELLOW:
+		hmi_change_part_plate_green_on:= FALSE;
+		hmi_change_part_plate_yellow_on:= TRUE;
+		hmi_change_part_plate_black_on:= FALSE;
+	BLACK:
+		hmi_change_part_plate_green_on:= FALSE;
+		hmi_change_part_plate_yellow_on:= FALSE;
+		hmi_change_part_plate_black_on:= TRUE;
+END_CASE
+
+CASE hmi_change_part_paddle_color OF
+	NO_COLOR:
+		//FUTURE PLACEHOLDER
+END_CASE
+
+	hmi_graphic_object_set_status(
+		status  			:= SEL(machine_size_complete, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+		CONVERSION_this    	:= hmi_brand_status_color_hgos);
+	
+	hmi_graphic_object_set_status(
+		status  			:= SEL(machine_size_complete, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+		CONVERSION_this    	:= hmi_brand_status_bad_color_hgos);
+	
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step1_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_accU_step1_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step1_on, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_accU_step1_off_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step2_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_accU_step2_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step2_on, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_accU_step2_off_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step3_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_accU_step3_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step3_on, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_accU_step3_off_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step4_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_accU_step4_on_hgos);
+		
+	hmi_graphic_object_set_status(
+		status  			:= SEL(hmi_accU_step4_on, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_accU_step4_off_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step5_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_accU_step5_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step5_on, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_accU_step5_off_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step6_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_accU_step6_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step6_on, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_accU_step6_off_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step7_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_accU_step7_on_hgos);
+	
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_accU_step7_on, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_accU_step7_off_hgos);
+
+	//Change Part EOAT
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_eoat_red_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_eoat_red_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_eoat_green_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_eoat_green_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_eoat_blue_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_eoat_blue_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_eoat_yellow_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_eoat_yellow_hgos);
+	
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_eoat_white_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_eoat_white_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_eoat_black_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_eoat_black_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_eoat_orange_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_eoat_orange_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_eoat_checkbox_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_eoat_checkbox_hgos);
+		
+	//Change Part Pusher
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_pusher_green_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_pusher_green_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_pusher_yellow_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_pusher_yellow_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_pusher_white_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_pusher_white_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_pusher_black_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_pusher_black_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_pusher_checkbox_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_pusher_checkbox_hgos);
+		
+	//Change Part Plate
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_plate_green_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_plate_green_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_plate_yellow_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_plate_yellow_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_plate_black_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_plate_black_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_plate_checkbox_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_plate_checkbox_hgos);
+	
+	//Change Part Paddles
+	hmi_graphic_object_set_status(
+        status  			:= SEL(hmi_change_part_paddle_checkbox_on, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_change_part_paddle_checkbox_hgos);
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_in_position" Id="{7ef95837-13e5-487a-b11c-cef9cdd681c5}">
+      <Implementation>
+        <ST><![CDATA[IF (csp_case_main_statistics.is_empty
+	AND csp_transfer_main_statistics.is_empty 
+	AND NOT digital_input_is_active(csp_case_feed_magazine_ls_pusher.retracted_di)
+	AND NOT digital_input_is_active(csp_case_feed_magazine_ls_pusherTilt.upstream_di)
+	AND NOT digital_input_is_active(csp_case_feed_magazine_os_pusher.retracted_di)
+	AND NOT digital_input_is_active(csp_case_feed_magazine_os_pusherTilt.upstream_di)
+	AND NOT digital_input_is_active(csp_case_feed_magazine_level_zonemin.di)
+	AND NOT digital_input_is_active(csp_case_feed_magazine_level_zonelow.di)
+	AND NOT digital_input_is_active(csp_case_feed_magazine_level_zone1.di)
+	AND NOT digital_input_is_active(csp_case_feed_magazine_level_zone2.di)
+	AND NOT digital_input_is_active(csp_case_feed_magazine_level_zone3.di))
+	OR manual_empty
+THEN
+	machine_empty := TRUE;
+ELSE
+	machine_empty := FALSE;
+END_IF
+
+IF (csp_case_tr_squaring_ls_leading.in_accu_safe_pos)
+    AND (csp_case_tr_squaring_ls_trailing.in_accu_safe_pos)
+    AND (csp_case_tr_squaring_os_leading.in_accu_safe_pos)
+    AND (csp_case_tr_squaring_os_trailing.in_accu_safe_pos)
+    AND (csp_case_closing_os_horizontal.in_accu_safe_pos)
+    AND (csp_case_closing_os_upper.in_accu_safe_pos)
+    AND (csp_case_closing_os_lower.in_accu_safe_pos)
+    AND (csp_case_closing_ls_horizontal.in_accu_safe_pos)
+    AND (csp_case_closing_ls_upper.in_accu_safe_pos)
+    AND (csp_case_closing_ls_lower.in_accu_safe_pos)
+    AND (csp_case_fc_ls_lower_follower.in_accu_safe_pos)
+    AND (csp_case_fc_ls_lower_spreader.in_accu_safe_pos)
+    AND (csp_case_fc_ls_upper_follower.in_accu_safe_pos)
+    AND (csp_case_fc_ls_upper_leadingMinorCloser.in_accu_safe_pos)
+    AND (csp_case_fc_ls_upper_spreader.in_accu_safe_pos)
+    AND (csp_case_fc_os_lower_follower.in_accu_safe_pos)
+    AND (csp_case_fc_os_lower_spreader.in_accu_safe_pos)
+    AND (csp_case_fc_os_upper_follower.in_accu_safe_pos)
+    AND (csp_case_fc_os_upper_spreader.in_accu_safe_pos)
+    AND (csp_case_feed_shuttle_vertical.in_accu_safe_pos)
+    AND (csp_case_loader_guide_downstream.in_accu_safe_pos)
+    AND (csp_case_loader_guide_length.in_accu_safe_pos)
+    AND (csp_case_loader_guide_upstream.in_accu_safe_pos)
+    AND (csp_case_loader_pusher.in_accu_safe_pos)
+	AND (csp_case_feed_kinematic_x.in_accu_safe_pos)
+	AND (csp_case_feed_kinematic_y.in_accu_safe_pos)
+	AND (csp_case_feed_kinematic_tilt.in_accu_safe_pos) 
+THEN
+    Case_Motors_Safe_accU := TRUE;
+ELSE
+    Case_Motors_Safe_accU := FALSE;   
+END_IF
+
+	
+IF csp_case_feed_shuttle_accU_depth.in_position
+	AND csp_case_transport_accU_depth.in_position
+	AND csp_case_feed_reject_accU_depth.in_position
+THEN
+	test_in_position := TRUE;
+ELSE
+	test_in_position := FALSE;
+END_IF
+
+//INSERT IF STATEMENT HERE FOR WHICH MOTORS BELONG TO WHICH GROUP
+
+//Group 1 Motors in Position
+IF 	csp_case_transport_accU_depth.in_position
+	AND csp_case_feed_shuttle_accU_depth.in_position
+	AND csp_case_feed_magazine_accU_lsDepth.in_position
+	AND csp_case_feed_magazine_accU_osDepth.in_position
+	AND csp_case_feed_reject_accU_depth.in_position
+	AND csp_transfer_infeed_accU_depth.in_position
+	AND csp_transfer_infeed_accU_waterfallAdjust.in_position
+	AND csp_transfer_accumulator_accU_depth.in_position
+	AND csp_transfer_accumulator_accU_convDepth.in_position
+	AND csp_case_tr_accU_depth.in_position
+THEN
+	Group_1_motors_in_position := TRUE;
+ELSE
+	Group_1_motors_in_position := FALSE;
+END_IF
+
+//Group 2 Motors in Position
+IF 	csp_case_loader_guide_accU_width.in_position
+	AND csp_case_glue_os_accU_width.in_position
+	AND csp_case_glue_os_accU_upperPosition.in_position
+	AND csp_case_glue_os_accU_lowerPosition.in_position
+	AND csp_case_glue_ls_accU_upperPosition.in_position
+	AND csp_case_glue_ls_accU_lowerPosition.in_position
+	AND csp_case_tr_accU_os_width.in_position
+	AND csp_case_tr_accU_ls_width.in_position
+THEN
+	Group_2_motors_in_position := TRUE;
+ELSE
+	Group_2_motors_in_position := FALSE;
+END_IF
+
+IF Case_Motors_In_New_Accu_Pos //AND Transfer_Motors_In_New_Accu_Pos
+THEN
+	Motion_motors_in_position := TRUE;
+ELSE
+	Motion_motors_in_position := FALSE;
+END_IF
+
+
+IF 	ABS(csp_case_closing_os_horizontal.axis.actual_position - csp_case_closing_os_horizontal.accu_safe_pos) < csp_case_closing_os_horizontal.accu_tolerance
+	AND ABS(csp_case_closing_ls_horizontal.axis.actual_position - csp_case_closing_ls_horizontal.accu_safe_pos) < csp_case_closing_ls_horizontal.accu_tolerance
+THEN
+	closing_horizontal_safe := TRUE;
+ELSE
+	closing_horizontal_safe := FALSE;
+END_IF
+
+
+(* Acc U Change indicators on Acc U Change Motor page *)
+	
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_transport_accU_depth.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_transport_depth_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_transport_accU_depth.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_transport_depth_off_hgos);
+	
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_feed_shuttle_accU_depth.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_shuttle_depth_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_feed_shuttle_accU_depth.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_shuttle_depth_off_hgos);
+
+ 	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_feed_magazine_accU_lsDepth.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_magazine_ls_depth_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_feed_magazine_accU_lsDepth.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_magazine_ls_depth_off_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_feed_magazine_accU_osDepth.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_magazine_os_depth_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_feed_magazine_accU_osDepth.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_magazine_os_depth_off_hgos);
+	
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_feed_reject_accU_depth.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_discharge_os_depth_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_feed_reject_accU_depth.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_discharge_os_depth_off_hgos);
+	
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_transfer_infeed_accU_depth.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_transfer_infeed_depth_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_transfer_infeed_accU_depth.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_transfer_infeed_depth_off_hgos);	
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_transfer_infeed_accU_waterfallAdjust.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_waterfall_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_transfer_infeed_accU_waterfallAdjust.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_waterfall_off_hgos);	
+	 
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_transfer_accumulator_accU_depth.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_accumulator_depth_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_transfer_accumulator_accU_depth.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_accumulator_depth_off_hgos);	
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_transfer_accumulator_accU_convDepth.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_accumulator_conv_depth_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_transfer_accumulator_accU_convDepth.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_accumulator_conv_depth_off_hgos);		
+
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_tr_accU_depth.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_top_rail_depth_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_tr_accU_depth.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_top_rail_depth_off_hgos);		
+
+	
+
+//Group 2 Motors in Position Acc U Change motor indicators
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_loader_guide_accU_width.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_loader_guide_width_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_loader_guide_accU_width.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_loader_guide_width_off_hgos);	
+	
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_glue_os_accU_width.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_glue_os_width_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_glue_os_accU_width.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_glue_os_width_off_hgos);	
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_glue_os_accU_upperPosition.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_glue_os_upper_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_glue_os_accU_upperPosition.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_glue_os_upper_off_hgos);	
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_glue_os_accU_lowerPosition.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_glue_os_lower_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_glue_os_accU_lowerPosition.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_glue_os_lower_off_hgos);	
+	
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_glue_ls_accU_upperPosition.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_glue_ls_upper_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_glue_ls_accU_upperPosition.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_glue_ls_upper_off_hgos);	
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_glue_ls_accU_lowerPosition.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_glue_ls_lower_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_glue_ls_accU_lowerPosition.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_glue_ls_lower_off_hgos);	
+	
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_tr_accU_os_width.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_top_rail_os_width_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_tr_accU_os_width.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_top_rail_os_width_off_hgos);	
+
+
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_tr_accU_ls_width.in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_top_rail_ls_width_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(csp_case_tr_accU_ls_width.in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_top_rail_ls_width_off_hgos);	
+
+
+
+
+
+
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{2ca4eff0-aefd-4cbd-ba4a-f5b5b3acdc67}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{46144055-5ff3-4453-b079-2b65d85071d9}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_main_accuChange.prc', 
+		process						:= csp_main.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_navigate_custom_screen_aem'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:= 0,
+		disableable					:= FALSE,
+		individual_reset			:= FALSE,
+		machine_reaction			:= MACHINE_REACTION_NO_STOP,
+		typology					:= MESSAGE_TYPOLOGY_OBLIGATION,
+		process						:= prc,
+		CONVERSION_this				:= navigate_custom_screen_aem);
+		
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_change_parts_incorrect_aem'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:= 0,
+		disableable					:= FALSE,
+		individual_reset			:= FALSE,
+		machine_reaction			:= MACHINE_REACTION_NO_STOP,
+		typology					:= MESSAGE_TYPOLOGY_OBLIGATION,
+		process						:= prc,
+		CONVERSION_this				:= change_parts_incorrect_aem);		
+		
+	timer_init(
+		object_name					:= CONCAT(prc_path, '_RFID_read_write_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= RFID_read_write_tmr);
+	
+	motorization_conditioner_init(
+		object_name					:=	CONCAT(prc_path, 'all_in_position_motcond'),
+		velocity_limit				:=	0.0,
+		velocity_limit_active		:=	FALSE,
+		idle_handshake_active		:=	FALSE,
+		execute_handshake_active	:=	TRUE,
+		hold_handshake_active		:=	FALSE,
+		suspend_handshake_active	:=	FALSE,
+		complete_handshake_active	:=	FALSE,
+		abort_handshake_active		:=	FALSE,
+		stop_handshake_active		:=	FALSE,
+		origin						:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:=	csp_main_motorization_manager.motm,
+		process						:=	prc,
+		CONVERSION_this				:=	all_in_position_motcond);
+		
+		
+	motorization_conditioner_init(
+		object_name					:=	CONCAT(prc_path, '_eoat_rfid_checked_motcond'),
+		velocity_limit				:=	0.0,
+		velocity_limit_active		:=	FALSE,
+		idle_handshake_active		:=	FALSE,
+		execute_handshake_active	:=	TRUE,
+		hold_handshake_active		:=	FALSE,
+		suspend_handshake_active	:=	FALSE,
+		complete_handshake_active	:=	FALSE,
+		abort_handshake_active		:=	FALSE,
+		stop_handshake_active		:=	FALSE,
+		origin						:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:=	csp_main_motorization_manager.motm,
+		process						:=	prc,
+		CONVERSION_this				:=	eoat_rfid_checked_motcond);
+		
+	motorization_conditioner_init(
+		object_name					:=	CONCAT(prc_path, '_loader_pusher_rfid_checked_motcond'),
+		velocity_limit				:=	0.0,
+		velocity_limit_active		:=	FALSE,
+		idle_handshake_active		:=	FALSE,
+		execute_handshake_active	:=	TRUE,
+		hold_handshake_active		:=	FALSE,
+		suspend_handshake_active	:=	FALSE,
+		complete_handshake_active	:=	FALSE,
+		abort_handshake_active		:=	FALSE,
+		stop_handshake_active		:=	FALSE,
+		origin						:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:=	csp_main_motorization_manager.motm,
+		process						:=	prc,
+		CONVERSION_this				:=	loader_pusher_rfid_checked_motcond);
+		
+	motorization_conditioner_init(
+		object_name					:=	CONCAT(prc_path, '_loader_plate_rfid_checked_motcond'),
+		velocity_limit				:=	0.0,
+		velocity_limit_active		:=	FALSE,
+		idle_handshake_active		:=	FALSE,
+		execute_handshake_active	:=	TRUE,
+		hold_handshake_active		:=	FALSE,
+		suspend_handshake_active	:=	FALSE,
+		complete_handshake_active	:=	FALSE,
+		abort_handshake_active		:=	FALSE,
+		stop_handshake_active		:=	FALSE,
+		origin						:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:=	csp_main_motorization_manager.motm,
+		process						:=	prc,
+		CONVERSION_this				:=	loader_plate_rfid_checked_motcond);
+		
+		
+	boolean_init(
+		object_name:= CONCAT(prc_path, '_motors_in_safe_pos_boolean'), 
+		process:= prc, 
+		CONVERSION_this:= motors_in_safe_pos_boolean);
+		
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_stop_machine_for_change_parts_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 0, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_NORMAL_STOP, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= stop_machine_for_change_parts_dchk);
+	
+	digital_check_add_boolean(
+		boolean:= motors_in_safe_pos_boolean, 
+		CONVERSION_this:= stop_machine_for_change_parts_dchk);
+	
+	
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_change_part_eoat_wrong'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NORMAL_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL,
+        process:= prc,
+        CONVERSION_this:= change_part_eoat_wrong);
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_change_part_pusher_wrong'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NORMAL_STOP,
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL, 
+        process:= prc,
+        CONVERSION_this:= change_part_pusher_wrong);
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_change_part_plate_wrong'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NORMAL_STOP,
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL, 
+        process:= prc,
+        CONVERSION_this:= change_part_plate_wrong);
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_change_part_paddles_wrong'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NORMAL_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL, 
+        process:= prc,
+        CONVERSION_this:= change_part_paddles_wrong);
+		
+	//HMI custom page variable management	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_toggle_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_toggle_cbtn);
+		
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_manual_empty_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= manual_empty_cbtn);
+		
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_RFID_Setup_read_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= RFID_Setup_read_cbtn);
+		
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_RFID_Setup_write_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= RFID_Setup_write_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_brand_change_request_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= brand_change_request_cbtn);		
+		
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_navigate_to_accU_popup_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= navigate_to_accU_popup_cbtn);	
+	
+	//"toggle" FOR TESTING	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_toggle_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_toggle_hgos);
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_brand_status_color_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_brand_status_color_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_brand_status_bad_color_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_brand_status_bad_color_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step1_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step1_on_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step1_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step1_off_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step2_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step2_on_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step2_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step2_off_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step3_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step3_on_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step3_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step3_off_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step4_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step4_on_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step4_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step4_off_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step5_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step5_on_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step5_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step5_off_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step6_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step6_on_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step6_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step6_off_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step7_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step7_on_hgos);
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_accU_step7_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_accU_step7_off_hgos);
+
+	//Change Part EOAT
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_eoat_red_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_eoat_red_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_eoat_green_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_eoat_green_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_eoat_blue_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_eoat_blue_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_eoat_yellow_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_eoat_yellow_hgos);
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_eoat_white_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_eoat_white_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_eoat_black_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_eoat_black_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_eoat_orange_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_eoat_orange_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_eoat_checkbox_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_eoat_checkbox_hgos);
+		
+	//Change Part Pusher
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_pusher_green_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_pusher_green_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_pusher_yellow_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_pusher_yellow_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_pusher_white_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_pusher_white_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_pusher_black_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_pusher_black_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_pusher_checkbox_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_pusher_checkbox_hgos);
+		
+	//Change Part Plate
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_plate_green_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_plate_green_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_plate_yellow_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_plate_yellow_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_plate_black_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_plate_black_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_plate_checkbox_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_plate_checkbox_hgos);
+	
+	//Change Part Paddles
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_change_part_paddle_checkbox_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_change_part_paddle_checkbox_hgos);
+	
+		//Change Part In Position
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_off_hgos);	
+	
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_RFID_read_write_error_msg'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NOT_VISIBLE, 
+        process:= prc,
+        CONVERSION_this:= RFID_read_write_error_msg);
+		
+		
+	timer_init(
+		object_name					:= CONCAT(prc_path, '_brand_change_check_delay_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= brand_change_check_delay_tmr);
+		
+			//AAcc U Change in Position indicators
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_transport_depth_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_transport_depth_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_transport_depth_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_transport_depth_off_hgos);	
+
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_shuttle_depth_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_shuttle_depth_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_shuttle_depth_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_shuttle_depth_off_hgos);	
+	
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_magazine_ls_depth_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_magazine_ls_depth_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_magazine_ls_depth_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_magazine_ls_depth_off_hgos);	
+
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_magazine_os_depth_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_magazine_os_depth_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_magazine_os_depth_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_magazine_os_depth_off_hgos);	
+
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_loader_guide_width_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_loader_guide_width_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_loader_guide_width_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_loader_guide_width_off_hgos);	
+
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_glue_os_upper_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_glue_os_upper_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_glue_os_upper_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_glue_os_upper_off_hgos);	
+
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_glue_os_lower_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_glue_os_lower_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_glue_os_lower_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_glue_os_lower_off_hgos);	
+
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_glue_ls_upper_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_glue_ls_upper_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_glue_ls_upper_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_glue_ls_upper_off_hgos);	
+
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_glue_ls_lower_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_glue_ls_lower_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_glue_ls_lower_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_glue_ls_lower_off_hgos);	
+
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_glue_os_width_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_glue_os_width_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_glue_os_width_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_glue_os_width_off_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_transfer_infeed_depth_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_transfer_infeed_depth_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_transfer_infeed_depth_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_transfer_infeed_depth_off_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_waterfall_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_waterfall_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_waterfall_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_waterfall_off_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_accumulator_depth_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_accumulator_depth_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_accumulator_depth_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_accumulator_depth_off_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_accumulator_conv_depth_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_accumulator_conv_depth_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_accumulator_conv_depth_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_accumulator_conv_depth_off_hgos);	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_top_rail_os_width_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_top_rail_os_width_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_top_rail_os_width_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_top_rail_os_width_off_hgos);	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_top_rail_ls_width_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_top_rail_ls_width_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_top_rail_ls_width_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_top_rail_ls_width_off_hgos);	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_top_rail_depth_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_top_rail_depth_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_top_rail_depth_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_top_rail_depth_off_hgos);	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_discharge_os_depth_on_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_discharge_os_depth_on_hgos);	
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_in_position_discharge_os_depth_off_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_in_position_discharge_os_depth_off_hgos);	
+	
+	
+//HMI graphic object status for machine is ready and enabled for visiblity of read and write button  on the RFID setup screen
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_machine_ready_and_enable_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_machine_ready_and_enable_hgos);	
+
+		
+	filter_init(
+		object_name					:= CONCAT(prc_path, '_horn_on_filter'),
+		delay_off_on				:= horn_on_time,
+		delay_on_off				:= horn_off_time,
+		process						:= prc,
+		CONVERSION_this				:= horn_on_filter);
+		
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	command_button_cycle(hmi_toggle_cbtn);
+	command_button_cycle(manual_empty_cbtn);
+	command_button_cycle(RFID_Setup_read_cbtn);
+	command_button_cycle(RFID_Setup_write_cbtn);
+	command_button_cycle(brand_change_request_cbtn);
+	command_button_cycle(navigate_to_accU_popup_cbtn);
+	
+	motorization_conditioner_cycle(all_in_position_motcond);
+	motorization_conditioner_cycle(eoat_rfid_checked_motcond);
+	motorization_conditioner_cycle(loader_pusher_rfid_checked_motcond);
+	motorization_conditioner_cycle(loader_plate_rfid_checked_motcond);
+	
+	digital_check_cycle(stop_machine_for_change_parts_dchk);
+	
+	filter_cycle(accU_axis_moving_horn_on, horn_on_filter);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{c667b6b8-6d39-442e-b85c-343f521a5e5a}">
+      <Implementation>
+        <ST><![CDATA[command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= brand_change_request_cbtn);
+
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= navigate_to_accU_popup_cbtn);
+
+brand_change_request_dvr := command_button_is_pressed(brand_change_request_cbtn);
+navigate_to_accU_popup_dvr := command_button_is_pressed(navigate_to_accU_popup_cbtn);
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{8d7d3f4c-63a2-4817-be6b-58697720ecc2}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{93f5f2c7-06fa-4d9e-975b-d08223a20116}">
+      <Implementation>
+        <ST><![CDATA[IF navigate_to_accU_popup_dvr
+THEN
+	navigate_to_accU_popup := FALSE;
+	not_in_brand_change := TRUE;
+END_IF;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{001cfdd0-67a5-4388-a497-31ac62587a99}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="RFID" Id="{22b906b3-21ee-4eda-9877-a710b421bbd1}">
+      <Implementation>
+        <ST><![CDATA[IF RFID_reader_list_accuchange <> RFID_reader_list_accuchange_old
+THEN
+	RFID_Setup_read_value_string := '';
+	RFID_Setup_read_value := null_byte;
+	RFID_reader_list_accuchange_old := RFID_reader_list_accuchange;
+ELSE
+	RFID_Setup_read_value_string := BYTE_TO_STRING(RFID_Setup_read_value);
+END_IF
+
+
+IF csp_main_accuChange.RFID_reader_list_accuchange = LOADER_PUSHER_READER
+THEN
+	loader_plate_in_position := FALSE;
+	case_feed_in_position := FALSE;
+	closing_os_in_position := FALSE; 
+	
+	change_part_color := hmi_change_part_pusher_color;
+	
+	changeover_rfid_read_done := csp_case_loader_pusher.rfid_read_done;
+	changeover_rfid_write_done := csp_case_loader_pusher.rfid_write_done;
+	changeover_rfid_value := csp_case_loader_pusher.rfid_value;
+	changover_rfid_read_write_running := csp_case_loader_pusher.RFID_read_write_running;
+	 
+	IF csp_case_loader_pusher.rfid_input_bitheader_1.CP
+	THEN
+		loader_in_position := TRUE;
+	END_IF
+	 
+	
+ELSIF csp_main_accuChange.RFID_reader_list_accuchange = CASE_FEED_EOAT_READER
+THEN
+	loader_in_position := FALSE;
+	loader_plate_in_position := FALSE;
+	closing_os_in_position := FALSE; 
+	
+	change_part_color := hmi_change_part_eoat_color;
+
+	changeover_rfid_read_done := csp_case_feed_arm_sensors.rfid_read_done;
+	changeover_rfid_write_done := csp_case_feed_arm_sensors.rfid_write_done;
+	changeover_rfid_value := csp_case_feed_arm_sensors.rfid_value;
+	changover_rfid_read_write_running := csp_case_feed_arm_sensors.RFID_read_write_running;
+		
+	IF csp_case_feed_arm_sensors.rfid_input_bitheader_1.CP
+	THEN
+		case_feed_in_position := TRUE;
+	END_IF
+		 
+ELSIF csp_main_accuChange.RFID_reader_list_accuchange = LOADER_GUIDE_PLATE_READER
+THEN
+	loader_in_position := FALSE;
+	case_feed_in_position := FALSE;
+	closing_os_in_position := FALSE;
+	
+	change_part_color := hmi_change_part_plate_color;
+	
+	changeover_rfid_read_done := csp_case_loader_sensors.rfid_read_done;
+	changeover_rfid_write_done := csp_case_loader_sensors.rfid_write_done;
+	changeover_rfid_value := csp_case_loader_sensors.rfid_value;
+	changover_rfid_read_write_running := csp_case_loader_sensors.RFID_read_write_running;
+	
+	IF csp_case_loader_sensors.rfid_input_bitheader_1.CP
+	THEN
+		loader_plate_in_position := TRUE;
+	END_IF
+		
+ELSIF csp_main_accuChange.RFID_reader_list_accuchange = CLOSING_PADDLES_READER
+THEN
+	loader_in_position := FALSE;
+	case_feed_in_position := FALSE;
+	loader_plate_in_position := FALSE;
+	
+	change_part_color := hmi_change_part_paddle_color;
+
+	changeover_rfid_read_done := csp_case_closing.rfid_read_done;
+	changeover_rfid_write_done := csp_case_closing.rfid_write_done;
+	changeover_rfid_value := csp_case_closing.os_rfid_value;
+	changover_rfid_read_write_running := NOT csp_case_closing.rfid_read_done OR NOT csp_case_closing.rfid_write_done;
+
+	IF 	csp_case_closing.os_rfid_input_bitheader_1.CP
+		OR csp_case_closing.ls_rfid_input_bitheader_1.CP
+	THEN
+		closing_os_in_position := TRUE;
+	END_IF
+	 
+END_IF
+	
+	
+
+//checks all the change parts to see if the selected part is infront of the rfid reader
+IF 	loader_in_position
+	OR
+	case_feed_in_position
+	OR
+	loader_plate_in_position
+	OR
+	closing_os_in_position
+THEN
+	change_part_in_position:= TRUE;
+ELSE
+	change_part_in_position :=FALSE;	
+END_IF
+
+	hmi_graphic_object_set_status(
+        status  			:= SEL(change_part_in_position, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_in_position_on_hgos);
+		
+	hmi_graphic_object_set_status(
+        status  			:= SEL(change_part_in_position, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_in_position_off_hgos);
+
+		
+		
+(* READ VALUE FROM RFID TO HIM *)
+IF 	command_button_get_actual_value(RFID_Setup_read_cbtn) = HMI_BUTTON_STATUS_ON
+	AND machine_is_ready(csp.mch)
+THEN
+	RFID_read_write_status_next := READ_WRITE_STATUS_START_RFID_READ;
+END_IF
+
+
+IF hmi_toggle_hgos.status = HMI_OBJECT_STATUS_ON
+THEN
+	enable_write := TRUE;
+ELSE
+	enable_write := FALSE;
+END_IF
+
+(* WRITES VALUE FROM HMI TO RFID *)
+IF command_button_get_actual_value(RFID_Setup_write_cbtn) = HMI_BUTTON_STATUS_ON
+	AND machine_is_ready(csp.mch)
+	AND enable_write
+THEN
+	RFID_read_write_status_next := READ_WRITE_STATUS_START_RFID_WRITE;
+END_IF
+
+(* STATE MACHINE FOR READING AND WRITING TO RFID - ONLY FOR COMMAND BUTTONS*)
+CASE RFID_read_write_status OF
+	(* READ LOGIC *)
+	READ_WRITE_STATUS_START_RFID_READ:
+	
+		rfid_read_write_running := TRUE;
+		RFID_read_write_status_next := READ_WRITE_STATUS_SEND_READ_COMMAND;
+		
+		
+	READ_WRITE_STATUS_SEND_READ_COMMAND:
+	
+		rfid_reading := TRUE;
+		IF changover_rfid_read_write_running
+		THEN
+			RFID_read_write_status_next := READ_WRITE_STATUS_WAIT_FOR_READ_RESULT;
+		END_IF
+		
+		
+	READ_WRITE_STATUS_WAIT_FOR_READ_RESULT:
+	
+		IF 	rfid_reading
+			AND changeover_rfid_read_done (* BE DYNAMIC BASED ON SELECTION - AT TOP *)
+		THEN
+			RFID_read_write_status_next := READ_WRITE_STATUS_CHECK_READ_RESULT;
+		END_IF
+
+
+	READ_WRITE_STATUS_CHECK_READ_RESULT:
+	
+		rfid_read_write_running := FALSE;
+		rfid_reading := FALSE;
+		RFID_Setup_read_value := changeover_rfid_value; (* BE DYNAMIC BASED ON SELECTION - AT TOP *)
+		RFID_read_write_status_next := READ_WRITE_STATUS_WAITING;
+		
+		
+	(* WRITE LOGIC *)
+	READ_WRITE_STATUS_START_RFID_WRITE:
+	
+		rfid_read_write_running := TRUE;
+		RFID_Setup_write_value := INT_TO_BYTE(RFID_reader_brand_colors);
+		RFID_read_write_status_next := READ_WRITE_STATUS_SEND_WRITE_COMMAND;
+		
+		
+	READ_WRITE_STATUS_SEND_WRITE_COMMAND:
+	
+		rfid_writing := TRUE;
+		IF changover_rfid_read_write_running
+		THEN
+			RFID_read_write_status_next := READ_WRITE_STATUS_WAIT_FOR_WRITE_SUCCESS;
+		END_IF
+		
+		
+	READ_WRITE_STATUS_WAIT_FOR_WRITE_SUCCESS:
+	
+		IF rfid_writing
+			AND changeover_rfid_write_done
+		THEN
+			rfid_read_write_running := FALSE;
+			rfid_writing := FALSE;
+			
+			RFID_read_write_status_next := READ_WRITE_STATUS_WAITING;
+		END_IF
+		
+		
+	READ_WRITE_STATUS_WRITE_TO_READ:
+	
+		RFID_read_write_status_next := READ_WRITE_STATUS_START_RFID_READ;
+				
+		
+	READ_WRITE_STATUS_WAITING:
+	
+		rfid_read_write_running := FALSE;	
+		
+		
+	READ_WRITE_STATUS_ERROR:
+	
+		;
+	
+	
+	
+END_CASE
+
+
+(* ADVANCES TO NEXT STEP *)
+IF 	NOT RFID_read_write_debug
+	OR
+	RFID_read_write_one_step	
+THEN
+	RFID_read_write_status := RFID_read_write_status_next;
+	RFID_read_write_one_step := FALSE;
+END_IF
+
+
+(* Connection timeout *)
+IF	RFID_read_write_running
+	AND NOT RFID_read_write_debug
+THEN
+	IF	timer_is_expired(RFID_read_write_tmr)
+	THEN
+		process_message_set(1, RFID_read_write_status, 0, RFID_read_write_error_msg);
+	END_IF
+ELSE
+	timer_restart(10000, RFID_read_write_tmr);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_main_accuChange">
+      <LineId Id="1431" Count="1091" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_accuChange._brand_colors">
+      <LineId Id="2" Count="245" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_accuChange._handle_messages">
+      <LineId Id="2" Count="19" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_accuChange._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_accuChange._hmi_management">
+      <LineId Id="2" Count="307" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_accuChange._in_position">
+      <LineId Id="2" Count="267" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_accuChange._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_accuChange._object_manager">
+      <LineId Id="2" Count="621" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_accuChange._read_process_image">
+      <LineId Id="2" Count="9" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_accuChange._read_var_input">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_accuChange._set_runtime_properties">
+      <LineId Id="2" Count="3" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_accuChange._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_accuChange.RFID">
+      <LineId Id="2" Count="237" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

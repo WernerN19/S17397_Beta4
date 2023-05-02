@@ -1,0 +1,358 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_infeed_clamp" Id="{2a8ca545-293e-0257-20b7-6ceb3bff76c7}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_infeed_clamp
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	extend_do:										digital_output;
+	
+	os_sact:										digital_actuator;
+	ls_sact:										digital_actuator;
+	
+	min_prime:										BOOL:= TRUE;
+	min_prime_active_aem:							message;
+	
+	clamp_open_bool:								BOOL;
+	clamp_open_deg:									LREAL := 60; (*$P $*)
+	clamp_open_ph:									phase;
+	
+	clamp_close_bool:								BOOL;
+	clamp_close_deg:								LREAL := 330; (*$P $*)
+	clamp_close_ph:									phase;
+	start_infeed_belts:								BOOL := TRUE; //Used as a software toggle for all infeed belts
+	
+	normal_inputs_with_filter_ton_ncn:				DINT := 50; //50ms debounce
+	normal_inputs_with_filter_toff_ncn:				DINT := 50; //50ms debounce
+END_VAR
+
+
+VAR_INPUT
+	os_retracted_di:								digital_input;
+	ls_retracted_di:								digital_input;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+phase_set_data(
+	phase				:= clamp_open_deg,
+	delay				:= 0,			
+	max_compensation	:= 0,			
+	CONVERSION_this		:= clamp_open_ph);
+	
+phase_set_data(
+	phase				:= clamp_close_deg,
+	delay				:= 0,			
+	max_compensation	:= 0,			
+	CONVERSION_this		:= clamp_close_ph);
+
+(* MASTER CONTROL OF CLAMPS *)
+IF clamp_close_bool
+THEN
+	digital_actuator_activate(os_sact);
+	digital_actuator_activate(ls_sact);
+END_IF
+
+IF clamp_open_bool
+THEN
+	digital_actuator_deactivate(os_sact);
+	digital_actuator_deactivate(ls_sact);
+END_IF
+
+
+IF 	csp_main_motorization_manager.motm.actual_velocity <= 0
+	AND NOT csp_main_motorization.held_bit //allows to open clamp when HELD from upstream starved
+THEN
+	clamp_open_bool := FALSE;
+	clamp_close_bool := TRUE;
+END_IF
+
+IF min_prime
+	THEN
+		process_message_set(1, 1, 1, min_prime_active_aem);
+ELSE
+	process_message_reset(min_prime_active_aem);
+END_IF
+
+IF axis_is_moving(csp_transfer_infeed_accumulation_belt.axis)
+THEN
+	
+	IF 	min_prime (* Set up in two statements so that deactivate doesn't overwrite the other times clamps need to close *)
+		AND (csp_transfer_infeed_accumulation_level.level_status = CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_LOW
+			OR
+			csp_transfer_infeed_accumulation_level.level_status = CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_NORMAL
+			OR
+			csp_transfer_infeed_accumulation_level.level_status = CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_JAM
+			OR
+			csp_main_motorization.empty_command)
+		AND clamp_close_bool
+		AND csp_transfer_upstacker_virtualMaster.connection_done
+	THEN
+		min_prime := FALSE;
+		
+		clamp_close_bool := FALSE;
+		clamp_open_bool := TRUE;
+	END_IF
+	
+	(* NOT Min prime so run normal operation *)
+	IF NOT min_prime
+	THEN
+		(* SETS MIN PRIME - Checks that min prime is met in infeed accumulation level and closes clamps *)
+		IF csp_transfer_infeed_accumulation_level.level_status <= CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_UNDER_MIN
+			AND csp_transfer_accumulator_belt.axis.actual_velocity < 1
+			AND clamp_open_bool
+			AND NOT csp_main_motorization.empty_command
+		THEN
+			min_prime := TRUE;
+			clamp_open_bool := FALSE;
+			clamp_close_bool := TRUE;
+		END_IF
+				
+		(* TO CLOSE CLAMPS BEFORE UPSTACK - carton must be at backstop and prime AND accumulator belt not moving AND at phase position to make sure clear of upstacker *)
+		IF csp_transfer_upstacker_sensors.carton_backstop_bool 
+			//AND NOT axis_is_moving(csp_transfer_accumulator_belt.axis) (removed becuase it prevented the clamps from closing because the reverse move to releave pressure)
+			AND (phase_edge(clamp_close_ph)
+			OR
+			NOT csp_transfer_upstacker_virtualMaster.connection_done)
+			AND clamp_open_bool
+		THEN	
+			clamp_open_bool := FALSE;
+			clamp_close_bool := TRUE;
+		END_IF
+		
+		(* TO OPEN CLAMPS AFTER UPSTACK - backstop must be empty AND accumulator belt not moving AND accumulation level more than low prime AND phase position meaning clear of upstacker *)
+		IF (
+				csp_transfer_infeed_accumulation_level.level_status = CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_MIN
+				OR csp_transfer_infeed_accumulation_level.level_status = CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_LOW
+				OR csp_transfer_infeed_accumulation_level.level_status = CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_NORMAL
+				OR csp_transfer_infeed_accumulation_level.level_status = CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_JAM
+				OR csp_main_motorization.empty_command
+			)
+			AND phase_edge(clamp_open_ph)
+			AND clamp_close_bool
+			AND NOT csp_transfer_upstacker_sensors.carton_backstop_bool
+			and csp_transfer_upstacker_virtualMaster.connection_done
+		THEN
+			clamp_close_bool := FALSE;
+			clamp_open_bool := TRUE;
+		END_IF		
+	END_IF
+END_IF
+
+IF 	csp.o_machine_is_running
+THEN
+	digital_actuator_message_enable(ls_sact); //enable the check if the pressure is above the limit
+	digital_actuator_message_enable(os_sact); //enable the check if the pressure is above the limit
+ELSE
+	digital_actuator_message_disable(ls_sact); //disabe the check if the pressure is below the limt //If not, the pressure check alarm will inhibit machine start
+	digital_actuator_message_disable(os_sact); //disabe the check if the pressure is below the limt //If not, the pressure check alarm will inhibit machine start
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{52445af3-b8c6-4b63-96a8-1c463dfead7f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{b6ef0077-803e-4bfa-8e4c-e87a12bf214b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{38ec7f2c-d8f7-4e55-b01e-f81509ec9b19}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{f3e38217-ccb5-4ed8-926b-7c2666479729}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_infeed_clamp.prc', 
+		process						:= csp_transfer_infeed.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* OUTPUTS *)
+	digital_output_init(
+		object_name 				:= CONCAT(prc_path, '_extend_do'),
+		polarity_direct 			:= FALSE,
+		process 					:= prc,
+		CONVERSION_this 			:= extend_do);
+		
+	(* INPUTS *)
+	digital_input_filtered_init(
+        object_name                 := CONCAT(prc_path, '_retracted_di'),
+        polarity_direct             := TRUE,
+        ton                         := normal_inputs_with_filter_ton_ncn,
+        toff                        := normal_inputs_with_filter_toff_ncn,
+        process                     := prc,
+        CONVERSION_this             := os_retracted_di);
+		
+	digital_input_filtered_init(
+        object_name                 := CONCAT(prc_path, '_retracted_di'),
+        polarity_direct             := TRUE,
+        ton                         := normal_inputs_with_filter_ton_ncn,
+        toff                        := normal_inputs_with_filter_toff_ncn,
+        process                     := prc,
+        CONVERSION_this             := ls_retracted_di);
+	
+	(* DIGITAL ACTUATOR *)
+	digital_actuator_init(
+		object_name:= CONCAT(prc_path, '_os_sact'), 
+		_type:= DIGITAL_ACTUATOR_TYPE_IN_xI, //DIGITAL_ACTUATOR_TYPE_IN_xI, 
+		fault_reaction:= DIGITAL_ACTUATOR_FAULT_REACTION_DEACTIVATING, 
+		active_time:= 1000, 
+		inactive_time:= 1000, 
+		dout:= extend_do, 
+		process:= prc, 
+		CONVERSION_this:= os_sact);
+		
+	digital_actuator_add_di_inactive(
+		di_inactive:= os_retracted_di, 
+		CONVERSION_this:= os_sact);	
+		
+	digital_actuator_init(
+		object_name:= CONCAT(prc_path, '_ls_sact'), 
+		_type:= DIGITAL_ACTUATOR_TYPE_IN_xI, //DIGITAL_ACTUATOR_TYPE_IN_xI, 
+		fault_reaction:= DIGITAL_ACTUATOR_FAULT_REACTION_DEACTIVATING, 
+		active_time:= 1000, 
+		inactive_time:= 1000, 
+		dout:= extend_do, 
+		process:= prc, 
+		CONVERSION_this:= ls_sact);
+		
+	digital_actuator_add_di_inactive(
+		di_inactive:= ls_retracted_di, 
+		CONVERSION_this:= ls_sact);	
+		
+	(* PHASES *)
+	phase_init(
+        object_name 				:= CONCAT(prc_path, '_clamp_open_ph'),
+        phase 						:= 0,	//Set at runtime!
+        delay 						:= 0,
+        max_compensation 			:= 0,
+        generator 					:= csp_transfer_accumulator_virtualMaster.phgen,
+        process 					:= prc,
+        CONVERSION_this 			:= clamp_open_ph);
+		
+	phase_init(
+        object_name 				:= CONCAT(prc_path, '_clamp_close_ph'),
+        phase 						:= 0,	//Set at runtime!
+        delay 						:= 0,
+        max_compensation 			:= 0,
+        generator 					:= csp_transfer_accumulator_virtualMaster.phgen,
+        process 					:= prc,
+        CONVERSION_this 			:= clamp_close_ph);
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_min_prime_active_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NO_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_NORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	min_prime_active_aem);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	phase_cycle(clamp_open_ph);
+	phase_cycle(clamp_close_ph);
+	
+	digital_actuator_cycle(os_sact);
+	digital_actuator_cycle(ls_sact);
+	digital_input_filtered_cycle(ls_retracted_di);
+	digital_input_filtered_cycle(os_retracted_di);
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{6bf37187-fbf1-472e-b032-08dc25ac629c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{feda08e1-6498-407c-96ae-d97dc4029ec4}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{a02ea95e-5676-4399-ad1e-66c1b2e5b105}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{4f81bea2-aa41-4550-b53f-32982dcc9d8f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_casePackerStatus" Id="{9fcd0e43-b4c5-44f0-96e5-06c68c729d33}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_casePackerStatus :
+STRUCT
+	
+	Online:					BOOL;				(*$H_R desc := Machine is online; $*)
+	Job:					DINT;				(*$H_R desc := Current order (Job) status; $*)
+	NextJob:				DINT;				(*$H_R desc := Next order (Job) status; $*)
+	Running:				BOOL;				(*$H_R desc := Machine is actively making product; $*)
+	Faulted:				csp_customerInterfaces_casePackerStFault;
+	RunOut:					BOOL;				(*$H_R desc := Machine AND  conveyor clearance in process; $*)
+	RunOutComplete:			BOOL;				(*$H_R desc := Machine AND conveyor clearance complete; $*)
+	Rate:					csp_customerInterfaces_casePackerStRate;
+	Stop:					csp_customerInterfaces_casePackerStStop;
+	Starved:				csp_customerInterfaces_casePackerStStarved;
+	Blocked:				csp_customerInterfaces_casePackerStBlocked;
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,1036 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_phaseManager_startJob" Id="{3490f39f-12ff-0adc-1248-609d877bc411}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+WU phase manager program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/06/16 	0000.00	 	G.Cera 			Creation of the PRG
+2021/01/08 	0000.01	 	S.Uccellari 	Filler version
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_phaseManager_startJob
+VAR
+	prc:												process;
+	prc_path:											STRING;
+	
+	fsm_enable_conditions:								BOOL;
+	fsm_status:											INT;
+	
+	index:												INT;
+	
+	start_job_running:									BOOL;
+	start_job_done:										BOOL;
+	start_job_in_progress_wsm:							message;
+	start_job_in_progress_asm:							message;
+	machine_setup_in_progress_wsm:						message;
+	
+	execute_machine_setup:								BOOL := TRUE; (*MARCO - temporary*)
+	machine_setup_completed_bor:						boolean_or;
+
+	check_MES_variables:								BOOL;
+	MES_variables_valid:								BOOL;
+	
+	check_order_information:							BOOL;
+	order_valid:										BOOL;
+
+	check_product_information:							BOOL;
+	product_valid:										BOOL;
+	cups_number_valid:									BOOL;
+
+	check_recipe_information:							BOOL;
+	recipe_valid:										BOOL;
+	
+	check_curr_material_information:					BOOL;
+	curr_material_valid:								BOOL;
+		
+	check_next_material_information:					BOOL;
+	next_material_valid:								BOOL;
+			
+	check_mark_bubd_information:						BOOL;
+	mark_bubd_valid:									BOOL;
+
+	order_valid_led:									led;	
+	product_valid_led:									led;	
+	recipe_valid_led:									led;	
+	materials_valid_led:								led;	
+	mark_valid_led:										led;	
+	
+	order_ID:											STRING;												(*$M $*)
+	order_SAP_batch_ID:									STRING;												(*$M $*)
+
+	product_ID:											STRING;												(*$M $*)
+	product_UPC:										STRING;												(*$M $*)
+	product_pods_per_carton:							INT;												(*$M $*)
+	product_pods_per_case:								INT;												(*$M $*)
+	product_cartons_per_case:							INT;												(*$M $*)
+	product_target_weight:								REAL;												(*$M $*)
+	product_min_weight:									REAL;												(*$M $*)
+	product_max_weight:									REAL;												(*$M $*)
+	product_filter_type:								STRING;												(*$M $*)
+	caffeinated_flag_led:								led;
+	kosher_flag_led:									led;
+	organic_flag_led:									led;
+	flavor_flag_led:									led;
+	product_flavor_dose:								REAL;												(*$M $*)
+	product_shelf_life:									INT;												(*$M $*)
+	
+	recipe_filler:										STRING;												(*$M $*)
+	recipe_cartoner:									STRING;												(*$M $*)
+	recipe_case_packer:									STRING;												(*$M $*)
+	
+	current_material_1_ID:								STRING;												(*$M $*)
+	current_material_1_QTY:								REAL;												(*$M $*)
+	current_material_2_ID:								STRING;												(*$M $*)
+	current_material_2_QTY:								REAL;												(*$M $*)
+	current_material_3_ID:								STRING;												(*$M $*)
+	current_material_3_QTY:								REAL;												(*$M $*)
+	current_material_4_ID:								STRING;												(*$M $*)
+	current_material_4_QTY:								REAL;												(*$M $*)
+	current_material_5_ID:								STRING;												(*$M $*)
+	current_material_5_QTY:								REAL;												(*$M $*)
+	current_material_6_ID:								STRING;												(*$M $*)
+	current_material_6_QTY:								REAL;												(*$M $*)
+	current_material_7_ID:								STRING;												(*$M $*)
+	current_material_7_QTY:								REAL;												(*$M $*)
+	current_material_8_ID:								STRING;												(*$M $*)
+	current_material_8_QTY:								REAL;												(*$M $*)
+	current_material_9_ID:								STRING;												(*$M $*)
+	current_material_9_QTY:								REAL;												(*$M $*)
+	current_material_10_ID:								STRING;												(*$M $*)
+	current_material_10_QTY:							REAL;												(*$M $*)
+	current_material_11_ID:								STRING;												(*$M $*)
+	current_material_11_QTY:							REAL;												(*$M $*)
+	current_material_12_ID:								STRING;												(*$M $*)
+	current_material_12_QTY:							REAL;												(*$M $*)
+	current_material_13_ID:								STRING;												(*$M $*)
+	current_material_13_QTY:							REAL;												(*$M $*)
+	current_material_14_ID:								STRING;												(*$M $*)
+	current_material_14_QTY:							REAL;												(*$M $*)
+	current_material_15_ID:								STRING;												(*$M $*)
+	current_material_15_QTY:							REAL;												(*$M $*)
+
+	next_material_1_ID:									STRING;												(*$M $*)
+	next_material_1_QTY:								REAL;												(*$M $*)
+	next_material_2_ID:									STRING;												(*$M $*)
+	next_material_2_QTY:								REAL;												(*$M $*)
+	next_material_3_ID:									STRING;												(*$M $*)
+	next_material_3_QTY:								REAL;												(*$M $*)
+	next_material_4_ID:									STRING;												(*$M $*)
+	next_material_4_QTY:								REAL;												(*$M $*)
+	next_material_5_ID:									STRING;												(*$M $*)
+	next_material_5_QTY:								REAL;												(*$M $*)
+	next_material_6_ID:									STRING;												(*$M $*)
+	next_material_6_QTY:								REAL;												(*$M $*)
+	next_material_7_ID:									STRING;												(*$M $*)
+	next_material_7_QTY:								REAL;												(*$M $*)
+	next_material_8_ID:									STRING;												(*$M $*)
+	next_material_8_QTY:								REAL;												(*$M $*)
+	next_material_9_ID:									STRING;												(*$M $*)
+	next_material_9_QTY:								REAL;												(*$M $*)
+	next_material_10_ID:								STRING;												(*$M $*)
+	next_material_10_QTY:								REAL;												(*$M $*)
+	next_material_11_ID:								STRING;												(*$M $*)
+	next_material_11_QTY:								REAL;												(*$M $*)
+	next_material_12_ID:								STRING;												(*$M $*)
+	next_material_12_QTY:								REAL;												(*$M $*)
+	next_material_13_ID:								STRING;												(*$M $*)
+	next_material_13_QTY:								REAL;												(*$M $*)
+	next_material_14_ID:								STRING;												(*$M $*)
+	next_material_14_QTY:								REAL;												(*$M $*)
+	next_material_15_ID:								STRING;												(*$M $*)
+	next_material_15_QTY:								REAL;												(*$M $*)
+	
+	mark_BUBD:											STRING;												(*$M $*)
+	mark_prefix:										STRING;												(*$M $*)
+	mark_format:										STRING;												(*$M $*)
+	
+	i_end_job_done:										POINTER TO BOOL;	
+	
+	debug_mes_startJobReq:								BOOL;
+	debug_mes_cycleEnable:								BOOL;		
+	
+END_VAR
+
+VAR PERSISTENT
+	order_information:									csp_customerInterfaces_order;
+	product_information:								csp_customerInterfaces_product;
+	recipe_information:									csp_customerInterfaces_recipe;
+	current_material_information:						ARRAY[0..14] OF csp_customerInterfaces_material;
+	next_material_information:							ARRAY[0..14] OF csp_customerInterfaces_material;
+	mark_bubd_information:								csp_customerInterfaces_markBUBD;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+(**************************** PROGRAM HANDLER ***************************)
+run_cycle();
+check_parameters();
+custom_page();
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{840e51ba-ff0d-0eff-1ca8-7874ab43e7de}">
+      <Implementation>
+        <ST><![CDATA[IF	(
+		csp_main_phaseManager.fsm_status
+		=
+		CSP_MAIN_PHASE_MANAGER_STATUS_START_JOB_10
+	)
+THEN
+	IF 	execute_machine_setup
+	THEN	
+		process_message_set(
+			errorID_1			:= 1, 
+			errorID_2			:= 0, 
+			errorID_3			:= 0, 
+			CONVERSION_this		:= start_job_in_progress_wsm);
+
+		//process_message_reset(start_job_in_progress_asm);
+	ELSE
+		(*process_message_set(
+			errorID_1			:= 1, 
+			errorID_2			:= 0, 
+			errorID_3			:= 0, 
+			CONVERSION_this		:= start_job_in_progress_asm);
+		*)
+		process_message_reset(start_job_in_progress_wsm);	
+	END_IF	
+ELSE
+	process_message_reset(start_job_in_progress_wsm);	
+	//process_message_reset(start_job_in_progress_asm);		
+END_IF
+
+(*
+IF 	execute_machine_setup
+THEN
+	process_message_set(
+		errorID_1			:= 1, 
+		errorID_2			:= 0, 
+		errorID_3			:= 0, 
+		CONVERSION_this		:= machine_setup_in_progress_wsm);
+ELSE
+	process_message_reset(machine_setup_in_progress_wsm);
+END_IF
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{dbe5d524-7f1e-017d-2438-57725b7026ce}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{c1094b4f-6b4f-0378-35d2-dfbd30c12f7b}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{8fcb4fe6-a4a2-0b78-01df-208b64208647}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_main_phaseManager_startJob.prc', 
+		process						:= csp_main_phaseManager.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	boolean_or_init(
+		object_name					:= CONCAT(prc_path, '_machine_setup_completed_bor'), 
+		process						:= prc, 
+		CONVERSION_this				:= machine_setup_completed_bor);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_caffeinated_flag_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= caffeinated_flag_led);		
+		
+	led_init(
+		object_name					:= CONCAT(prc_path, '_kosher_flag_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= kosher_flag_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_organic_flag_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= organic_flag_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_flavor_flag_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= flavor_flag_led);				
+		
+	led_init(
+		object_name					:= CONCAT(prc_path, '_order_valid_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= order_valid_led);
+		
+	led_init(
+		object_name					:= CONCAT(prc_path, '_product_valid_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= product_valid_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_recipe_valid_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= recipe_valid_led);	
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_materials_valid_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= materials_valid_led);
+
+	led_init(
+		object_name					:= CONCAT(prc_path, '_mark_valid_led'), 
+		process						:= prc, 
+		CONVERSION_this				:= mark_valid_led);				
+		
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_start_job_in_progress_asm'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_TRY_AND_CHECK, 
+		reset_timeout				:= 5000, 
+		disableable					:= FALSE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_NORMAL_STOP, 
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= start_job_in_progress_asm);	
+		
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_start_job_in_progress_wsm'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_TRY_AND_CHECK, 
+		reset_timeout				:= 5000, 
+		disableable					:= FALSE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_NO_STOP, 
+		typology					:= MESSAGE_TYPOLOGY_NORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= start_job_in_progress_wsm);			
+		
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_machine_setup_in_progress_wsm'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_TRY_AND_CHECK, 
+		reset_timeout				:= 5000, 
+		disableable					:= FALSE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_NO_STOP, 
+		typology					:= MESSAGE_TYPOLOGY_NORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= machine_setup_in_progress_wsm);		
+		
+	
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{170929a9-a695-0f8e-2c4c-0b255a5e2a38}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{6e126a7f-4aa1-00ee-137b-0db43682d0e0}">
+      <Implementation>
+        <ST><![CDATA[i_end_job_done := ADR(csp_main_phaseManager_end_job.end_job_done);]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{00b2be6c-2b5f-0357-102f-ee078c7197aa}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{d8f38d12-f55b-09be-2671-40b1b5b4ac07}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="check_parameters" Id="{3a6994a2-dc20-03a5-1631-bd32fd880105}">
+      <Implementation>
+        <ST><![CDATA[IF NOT start_job_running
+THEN
+	order_valid := FALSE;
+	product_valid := FALSE;
+	recipe_valid := FALSE;
+	curr_material_valid := FALSE;
+	next_material_valid := FALSE;
+	mark_bubd_valid := FALSE;
+END_IF
+
+IF	check_MES_variables
+THEN
+// Order variable check
+	IF 	(
+			order_information.ID
+			<>
+			''
+		)
+		AND
+		(
+			order_information.SapBatchID
+			<>
+			''
+		)
+	THEN
+		order_valid := TRUE;
+	ELSE
+		
+		order_valid := FALSE;
+	END_IF	
+
+// Product variable check	
+	IF 	product_information.ID <> ''
+		AND
+			product_information.UPC <> ''
+		AND
+			product_information.PodsPerCarton > 0
+		AND
+			product_information.PodsPerCase > 0
+		AND
+			product_information.ShelfLife > 0
+		AND		
+		(	product_information.FillWeight.Maximum > product_information.FillWeight.Target
+			AND
+			product_information.FillWeight.Target > product_information.FillWeight.Minimum
+			AND
+			product_information.FillWeight.Minimum > 0	)
+		AND
+		(	product_information.FilterType = 'LFF'
+			OR
+			product_information.FilterType = 'FLUT'	)
+	THEN
+		product_valid := TRUE;
+	ELSE		
+		product_valid := FALSE;
+	END_IF	
+
+// Recipe variable check	
+	IF	recipe_information.Filler
+		<>
+		''
+	THEN
+		recipe_valid := TRUE;
+	ELSE
+		recipe_valid := FALSE;
+	END_IF	
+
+// Current material variable check	
+	curr_material_valid := TRUE;
+	
+	IF	current_material_information[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].ID = ''
+	THEN
+		curr_material_valid := FALSE;
+	END_IF
+	IF	(	current_material_information[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].ID <> 'None' 
+			AND
+			current_material_information[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].QTY = 0	)
+		OR
+		(	current_material_information[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].ID <> 'None' 
+			AND
+			current_material_information[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].QTY <= 0	)
+	THEN
+		curr_material_valid := FALSE;
+	END_IF
+
+	(*
+	IF	current_material_information[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].ID = ''
+	THEN
+		curr_material_valid := FALSE;
+	END_IF
+	IF	(	current_material_information[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].ID <> 'None' 
+			AND
+			current_material_information[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].QTY = 0	)
+		OR
+		(	current_material_information[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].ID <> 'None' 
+			AND
+			current_material_information[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].QTY <= 0	)
+	THEN
+		curr_material_valid := FALSE;
+	END_IF
+	*)
+	
+// Next material variable check	
+	next_material_valid := TRUE;
+
+	IF	next_material_information[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].ID = ''
+	THEN
+		next_material_valid := FALSE;
+	END_IF
+	IF	(	next_material_information[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].ID <> 'None' 
+			AND
+			next_material_information[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].QTY = 0	)
+		OR
+		(	next_material_information[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].ID <> 'None' 
+			AND
+			next_material_information[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].QTY <= 0	)
+	THEN
+		next_material_valid := FALSE;
+	END_IF
+
+(*		
+	IF	next_material_information[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].ID = ''
+	THEN
+		next_material_valid := FALSE;
+	END_IF
+	IF	(	next_material_information[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].ID <> 'None' 
+			AND
+			next_material_information[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].QTY = 0	)
+		OR
+		(	next_material_information[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].ID <> 'None' 
+			AND
+			next_material_information[csp_main_phaseManager.CASE_LABEL_MATERIAL_ID].QTY <= 0	)
+	THEN
+		next_material_valid := FALSE;
+	END_IF
+*)
+	
+// Mark BUBD variable check
+	IF	(
+			mark_bubd_information.BestUsedByDate
+			<>
+			''
+		)
+		AND
+		(
+			mark_bubd_information.Prefix
+			<>
+			''
+		)
+	THEN
+		mark_bubd_valid := TRUE;
+	ELSE
+		mark_bubd_valid := FALSE;
+	END_IF	
+END_IF
+
+MES_variables_valid :=
+	order_valid
+	AND
+	product_valid
+	AND
+	recipe_valid
+	AND
+	curr_material_valid
+	(*AND
+	next_material_valid*)
+	AND
+	mark_bubd_valid;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="custom_page" Id="{69410440-744b-0509-0cfb-1dbcb45b8112}">
+      <Implementation>
+        <ST><![CDATA[order_ID := order_information.ID;
+order_SAP_batch_ID := order_information.SapBatchID;
+
+product_ID := product_information.ID;
+product_UPC := product_information.UPC;
+product_pods_per_carton := product_information.PodsPerCarton;
+product_pods_per_case := product_information.PodsPerCase;
+product_cartons_per_case := product_information.CartonsPerCase;
+product_target_weight := product_information.FillWeight.Target;
+product_min_weight := product_information.FillWeight.Minimum;
+product_max_weight := product_information.FillWeight.Maximum;
+product_filter_type := product_information.FilterType;
+product_flavor_dose := product_information.FlavorDose;
+product_shelf_life := product_information.ShelfLife;
+
+IF	product_information.CaffeinatedFlag
+THEN
+	led_set_color(
+		color				:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this		:= caffeinated_flag_led);	
+ELSE
+	led_set_color(
+		color				:= HMI_LED_COLOR_RED, 
+		CONVERSION_this		:= caffeinated_flag_led);	
+END_IF
+
+IF	product_information.KosherFlag
+THEN
+	led_set_color(
+		color				:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this		:= kosher_flag_led);	
+ELSE
+	led_set_color(
+		color				:= HMI_LED_COLOR_RED, 
+		CONVERSION_this		:= kosher_flag_led);	
+END_IF
+
+IF	product_information.OrganicFlag
+THEN
+	led_set_color(
+		color				:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this		:= organic_flag_led);	
+ELSE
+	led_set_color(
+		color				:= HMI_LED_COLOR_RED, 
+		CONVERSION_this		:= organic_flag_led);	
+END_IF
+
+IF	product_information.FlavorFlag
+THEN
+	led_set_color(
+		color				:= HMI_LED_COLOR_GREEN, 
+		CONVERSION_this		:= flavor_flag_led);	
+ELSE
+	led_set_color(
+		color				:= HMI_LED_COLOR_RED, 
+		CONVERSION_this		:= flavor_flag_led);	
+END_IF
+
+recipe_filler := recipe_information.Filler;
+recipe_cartoner := recipe_information.Cartoner;
+recipe_case_packer := recipe_information.CasePacker;
+
+current_material_1_ID := current_material_information[0].ID;
+current_material_1_QTY := current_material_information[0].QTY;
+current_material_2_ID := current_material_information[1].ID;
+current_material_2_QTY := current_material_information[1].QTY;
+current_material_3_ID := current_material_information[2].ID;
+current_material_3_QTY := current_material_information[2].QTY;
+current_material_4_ID := current_material_information[3].ID;
+current_material_4_QTY := current_material_information[3].QTY;
+current_material_5_ID := current_material_information[4].ID;
+current_material_5_QTY := current_material_information[4].QTY;
+current_material_6_ID := current_material_information[5].ID;
+current_material_6_QTY := current_material_information[5].QTY;
+current_material_7_ID := current_material_information[6].ID;
+current_material_7_QTY := current_material_information[6].QTY;
+current_material_8_ID := current_material_information[7].ID;
+current_material_8_QTY := current_material_information[7].QTY;
+current_material_9_ID := current_material_information[8].ID;
+current_material_9_QTY := current_material_information[8].QTY;
+current_material_10_ID := current_material_information[9].ID;
+current_material_10_QTY := current_material_information[9].QTY;
+current_material_11_ID := current_material_information[10].ID;
+current_material_11_QTY := current_material_information[10].QTY;
+current_material_12_ID := current_material_information[11].ID;
+current_material_12_QTY := current_material_information[11].QTY;
+current_material_13_ID := current_material_information[12].ID;
+current_material_13_QTY := current_material_information[12].QTY;
+current_material_14_ID := current_material_information[13].ID;
+current_material_14_QTY := current_material_information[13].QTY;
+current_material_15_ID := current_material_information[14].ID;
+current_material_15_QTY := current_material_information[14].QTY;
+
+next_material_1_ID := next_material_information[0].ID;
+next_material_1_QTY := next_material_information[0].QTY;
+next_material_2_ID := next_material_information[1].ID;
+next_material_2_QTY := next_material_information[1].QTY;
+next_material_3_ID := next_material_information[2].ID;
+next_material_3_QTY := next_material_information[2].QTY;
+next_material_4_ID := next_material_information[3].ID;
+next_material_4_QTY := next_material_information[3].QTY;
+next_material_5_ID := next_material_information[4].ID;
+next_material_5_QTY := next_material_information[4].QTY;
+next_material_6_ID := next_material_information[5].ID;
+next_material_6_QTY := next_material_information[5].QTY;
+next_material_7_ID := next_material_information[6].ID;
+next_material_7_QTY := next_material_information[6].QTY;
+next_material_8_ID := next_material_information[7].ID;
+next_material_8_QTY := next_material_information[7].QTY;
+next_material_9_ID := next_material_information[8].ID;
+next_material_9_QTY := next_material_information[8].QTY;
+next_material_10_ID := next_material_information[9].ID;
+next_material_10_QTY := next_material_information[9].QTY;
+next_material_11_ID := next_material_information[10].ID;
+next_material_11_QTY := next_material_information[10].QTY;
+next_material_12_ID := next_material_information[11].ID;
+next_material_12_QTY := next_material_information[11].QTY;
+next_material_13_ID := next_material_information[12].ID;
+next_material_13_QTY := next_material_information[12].QTY;
+next_material_14_ID := next_material_information[13].ID;
+next_material_14_QTY := next_material_information[13].QTY;
+next_material_15_ID := next_material_information[14].ID;
+next_material_15_QTY := next_material_information[14].QTY;
+
+mark_BUBD := mark_bubd_information.BestUsedByDate;
+mark_prefix := mark_bubd_information.Prefix;
+mark_format := mark_bubd_information.Format;
+
+IF	csp_main_phaseManager.p_mes_interface_enable
+THEN
+	IF	csp_main.i_start_job_request
+	THEN
+		led_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= order_valid_led);
+			
+		led_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= product_valid_led);
+
+		led_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= recipe_valid_led);
+
+		led_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= materials_valid_led);
+
+		led_set_status(
+			status				:= HMI_OBJECT_STATUS_ON, 
+			CONVERSION_this		:= mark_valid_led);		
+	
+		IF	csp_main.i_csp_data_ref^.Status.Job.4
+			OR
+			csp_main.i_csp_data_ref^.Status.Job.5
+		THEN
+			led_set_color(
+				color				:= HMI_LED_COLOR_RED, 
+				CONVERSION_this		:= order_valid_led);
+		ELSE
+			led_set_color(
+				color				:= HMI_LED_COLOR_GREEN, 
+				CONVERSION_this		:= order_valid_led);			
+		END_IF	
+		
+		IF	csp_main.i_csp_data_ref^.Status.Job.6
+			OR
+			csp_main.i_csp_data_ref^.Status.Job.7
+		THEN
+			led_set_color(
+				color				:= HMI_LED_COLOR_RED, 
+				CONVERSION_this		:= product_valid_led);
+		ELSE
+			led_set_color(
+				color				:= HMI_LED_COLOR_GREEN, 
+				CONVERSION_this		:= product_valid_led);			
+		END_IF	
+
+		IF	csp_main.i_csp_data_ref^.Status.Job.8
+			OR
+			csp_main.i_csp_data_ref^.Status.Job.9
+		THEN
+			led_set_color(
+				color				:= HMI_LED_COLOR_RED, 
+				CONVERSION_this		:= recipe_valid_led);
+		ELSE
+			led_set_color(
+				color				:= HMI_LED_COLOR_GREEN, 
+				CONVERSION_this		:= recipe_valid_led);			
+		END_IF	
+
+		IF	csp_main.i_csp_data_ref^.Status.Job.10
+			OR
+			csp_main.i_csp_data_ref^.Status.Job.11
+		THEN
+			led_set_color(
+				color				:= HMI_LED_COLOR_RED, 
+				CONVERSION_this		:= materials_valid_led);
+		ELSE
+			led_set_color(
+				color				:= HMI_LED_COLOR_GREEN, 
+				CONVERSION_this		:= materials_valid_led);			
+		END_IF	
+
+		IF	csp_main.i_csp_data_ref^.Status.Job.12
+			OR
+			csp_main.i_csp_data_ref^.Status.Job.13
+		THEN
+			led_set_color(
+				color				:= HMI_LED_COLOR_RED, 
+				CONVERSION_this		:= mark_valid_led);
+		ELSE
+			led_set_color(
+				color				:= HMI_LED_COLOR_GREEN, 
+				CONVERSION_this		:= mark_valid_led);			
+		END_IF			
+	END_IF
+ELSE
+		led_set_status(
+			status				:= HMI_OBJECT_STATUS_OFF, 
+			CONVERSION_this		:= order_valid_led);
+			
+		led_set_status(
+			status				:= HMI_OBJECT_STATUS_OFF, 
+			CONVERSION_this		:= product_valid_led);
+
+		led_set_status(
+			status				:= HMI_OBJECT_STATUS_OFF, 
+			CONVERSION_this		:= recipe_valid_led);
+
+		led_set_status(
+			status				:= HMI_OBJECT_STATUS_OFF, 
+			CONVERSION_this		:= materials_valid_led);
+
+		led_set_status(
+			status				:= HMI_OBJECT_STATUS_OFF, 
+			CONVERSION_this		:= mark_valid_led);		
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="run_cycle" Id="{2a97ba13-0d0d-0346-177e-4759c38132ab}">
+      <Implementation>
+        <ST><![CDATA[IF	csp_main_phaseManager.fsm_status <> CSP_MAIN_PHASE_MANAGER_STATUS_START_JOB_10
+THEN	
+	fsm_status := 0;
+END_IF
+
+fsm_enable_conditions :=
+	(
+		csp_main_phaseManager.fsm_status
+		=
+		CSP_MAIN_PHASE_MANAGER_STATUS_START_JOB_10
+	);
+	
+IF	(
+			(
+				NOT fsm_enable_conditions
+				OR
+				(
+					NOT csp_main.i_start_job_request
+					AND
+					NOT csp_main.i_cycle_enable_request
+				)
+			)
+		AND
+		(start_job_running
+		OR
+		next_material_information[csp_main_phaseManager.MASTER_CASE_BLANK_MATERIAL_ID].ID = 'None') // 'None' is set when running club LCNC, resets Status_Job to a value of 1 (unscheduled)
+	)
+THEN
+	fsm_status := 666;
+END_IF
+
+CASE fsm_status OF
+	0:
+
+		//csp_main.i_csp_data_ref^.Status.Job := 1;		(* Not Scheduled *)	
+	
+		check_order_information := FALSE;
+		check_product_information := FALSE;
+		check_recipe_information := FALSE;
+		check_curr_material_information := FALSE;
+		check_next_material_information := FALSE;
+		check_mark_bubd_information := FALSE;
+	
+		check_MES_variables := FALSE;
+	
+		IF fsm_enable_conditions
+		THEN
+			fsm_status := 10;
+		END_IF
+		
+	10:
+
+		IF csp_main.i_start_job_request
+		THEN
+			start_job_running := TRUE;
+			i_end_job_done^ := FALSE;			
+			//csp_main.i_csp_data_ref^.Status.Job := 2;		(* Job is In Progress *)					
+			fsm_status := 20;
+		END_IF
+		
+	15:
+		// Reset mark,current_material,order,product information before get a new job
+		csp_main.i_mark_bubd_information^.BestUsedByDate 	:= '';
+		csp_main.i_mark_bubd_information^.Prefix 			:= '';
+		csp_main.i_mark_information^.ID 					:= '';
+		csp_main.i_mark_information^.KdpSite 				:= '';
+		csp_main.i_mark_information^.OriginDate 			:= '';
+		csp_main.i_mark_information^.PartnerSite			:= '';
+		csp_main.i_mark_information^.Template.Carton		:= '';
+		csp_main.i_mark_information^.Template.CASEPACK		:= '';
+		csp_main.i_mark_information^.Template.Pod			:= '';
+		//csp_main.i_mark_kdp_site_information^				:= '';
+		
+		csp_main.i_current_material_information^[0].ID 		:= '';
+		csp_main.i_current_material_information^[0].QTY		:= 0;
+		csp_main.i_next_material_information^[0].ID			:= '';
+		csp_main.i_next_material_information^[0].QTY		:= 0;
+
+		csp_main.i_current_material_information^[1].ID 		:= '';
+		csp_main.i_current_material_information^[1].QTY		:= 0;
+		csp_main.i_next_material_information^[1].ID			:= '';
+		csp_main.i_next_material_information^[1].QTY		:= 0;
+
+		csp_main.i_current_material_information^[2].ID 		:= '';
+		csp_main.i_current_material_information^[2].QTY		:= 0;
+		csp_main.i_next_material_information^[2].ID			:= '';
+		csp_main.i_next_material_information^[2].QTY		:= 0;
+
+		csp_main.i_current_material_information^[3].ID 		:= '';
+		csp_main.i_current_material_information^[3].QTY		:= 0;
+		csp_main.i_next_material_information^[3].ID			:= '';
+		csp_main.i_next_material_information^[3].QTY		:= 0;
+
+		csp_main.i_current_material_information^[4].ID 		:= '';
+		csp_main.i_current_material_information^[4].QTY		:= 0;
+		csp_main.i_next_material_information^[4].ID			:= '';
+		csp_main.i_next_material_information^[4].QTY		:= 0;
+        
+		csp_main.i_recipe_information^.Cartoner				:= '';	
+		csp_main.i_next_recipe_information^.Cartoner		:= '';
+		csp_main.i_recipe_information^.Filler				:= '';
+		csp_main.i_next_recipe_information^.Filler			:= '';					
+		csp_main.i_recipe_information^.CasePacker			:= '';
+		csp_main.i_next_recipe_information^.CasePacker		:= '';	
+        
+		csp_main.i_order_information^.ID					:= '';	
+		csp_main.i_order_information^.SapBatchID			:= '';
+		csp_main.i_product_information^.CaffeinatedFlag		:= FALSE;
+		csp_main.i_product_information^.CartonsPerCase		:= 0;
+		csp_main.i_product_information^.FillWeight.Maximum	:= 0;
+		csp_main.i_product_information^.FillWeight.Minimum	:= 0;
+		csp_main.i_product_information^.FillWeight.Target	:= 0;
+		csp_main.i_product_information^.FilterType			:= '';
+		csp_main.i_product_information^.FlavorDose			:= 0;
+		csp_main.i_product_information^.FlavorFlag			:= FALSE;
+		csp_main.i_product_information^.ID					:= '';
+		csp_main.i_product_information^.UPC					:= '';
+		csp_main.i_product_information^.KosherFlag			:= FALSE;
+		csp_main.i_product_information^.OrganicFlag			:= FALSE;
+		csp_main.i_product_information^.PodsPerCarton		:= 0;
+		csp_main.i_product_information^.PodsPerCase			:= 0;
+		csp_main.i_product_information^.ShelfLife			:= 0;
+		csp_main.i_next_order_information^.ID						:= '';	
+		csp_main.i_next_order_information^.SapBatchID				:= '';
+		csp_main.i_next_product_information^.CaffeinatedFlag		:= FALSE;
+		csp_main.i_next_product_information^.CartonsPerCase			:= 0;
+		csp_main.i_next_product_information^.FillWeight.Maximum		:= 0;
+		csp_main.i_next_product_information^.FillWeight.Minimum		:= 0;
+		csp_main.i_next_product_information^.FillWeight.Target		:= 0;
+		csp_main.i_next_product_information^.FilterType				:= '';
+		csp_main.i_next_product_information^.FlavorDose				:= 0;
+		csp_main.i_next_product_information^.FlavorFlag				:= FALSE;
+		csp_main.i_next_product_information^.ID						:= '';
+		csp_main.i_next_product_information^.UPC					:= '';
+		csp_main.i_next_product_information^.KosherFlag				:= FALSE;
+		csp_main.i_next_product_information^.OrganicFlag			:= FALSE;
+		csp_main.i_next_product_information^.PodsPerCarton			:= 0;
+		csp_main.i_next_product_information^.PodsPerCase			:= 0;
+		csp_main.i_next_product_information^.ShelfLife				:= 0;	
+	
+		fsm_status := 20;				
+		
+	20:
+		order_information := csp_main.i_order_information^;
+		product_information := csp_main.i_product_information^;
+		recipe_information := csp_main.i_recipe_information^;
+		current_material_information := csp_main.i_current_material_information^;
+		next_material_information := csp_main.i_next_material_information^;
+		mark_bubd_information := csp_main.i_mark_bubd_information^;
+		
+		fsm_status := 30;
+		
+	30:
+		check_MES_variables := TRUE;
+		fsm_status := 40;
+
+	40:
+		IF MES_variables_valid
+		THEN
+		
+			check_MES_variables := FALSE;
+			fsm_status := 110;
+			csp_main.i_csp_data_ref^.Status.Job := 2;
+		ELSE
+			csp_main.i_csp_data_ref^.Status.Job.5 := NOT order_valid;
+			csp_main.i_csp_data_ref^.Status.Job.7 := NOT product_valid;
+			csp_main.i_csp_data_ref^.Status.Job.9 := NOT recipe_valid;
+			//csp_main.i_csp_data_ref^.Status.Job.11 := (NOT curr_material_valid OR NOT next_material_valid);
+			csp_main.i_csp_data_ref^.Status.Job.11 := NOT curr_material_valid;
+			csp_main.i_csp_data_ref^.Status.Job.13 := NOT mark_bubd_valid;
+			
+			fsm_status := 666;
+		END_IF
+	
+
+	110:
+		IF 	csp_main.i_cycle_enable_request
+			AND 
+			NOT csp_main.i_start_job_request
+		THEN
+			fsm_status := 555;
+		(*ELSIF	(NOT boolean_or_get_status(machine_setup_completed_bor))
+		THEN
+			execute_machine_setup := TRUE;
+			fsm_status := 100;*)
+		END_IF
+		
+	555:
+		start_job_running := FALSE;
+		start_job_done := TRUE;
+		
+		IF	NOT csp_main.i_cycle_enable_request
+		THEN
+			start_job_running := FALSE;
+			start_job_done := FALSE;
+
+			fsm_status := 0;
+		END_IF
+		
+	666:
+		start_job_running := FALSE;
+		start_job_done := FALSE;
+		
+		IF NOT csp_main.i_start_job_request
+		THEN
+			fsm_status := 0;
+		ELSE
+			IF NOT MES_variables_valid
+			THEN
+				fsm_status := 20;
+			END_IF
+		END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

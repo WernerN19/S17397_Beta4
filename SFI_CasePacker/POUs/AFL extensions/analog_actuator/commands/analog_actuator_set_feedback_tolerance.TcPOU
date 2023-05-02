@@ -1,0 +1,35 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_set_feedback_tolerance" Id="{70d913c6-057c-43ac-ab8e-605b4320a6a1}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Set Lower and Upper Feedback tolerance to the instance <b><i>this</i></b>,
+	The command is accepted only in <a href="#mode_enum"><i>MODE_OPERATIONAL</i></a>
+	and analog_actuator_add_ai_feedback has been called at startup
+	The method returns <i>TRUE</i> if the command is accepted, otherwise it returns <i>FALSE</i>.
+$*)
+FUNCTION analog_actuator_set_feedback_tolerance : BOOL
+VAR_INPUT
+	feedback_upper_tolerance:		REAL;			(*$ Upper Tolerance Physical Value $*)
+	feedback_lower_tolerance:		REAL;			(*$ Lower Tolerance Physical Value $*)
+END_VAR
+VAR_IN_OUT
+    CONVERSION_this:	analog_actuator;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	NOT (descriptor_mode_is_operational(CONVERSION_this.descriptor)
+		OR
+		descriptor_mode_is_test(CONVERSION_this.descriptor))
+	OR
+	NOT CONVERSION_this.has_ai_feedback
+THEN
+	analog_actuator_set_feedback_tolerance := FALSE;					(* command rejected *)
+ 	RETURN;
+END_IF
+
+CONVERSION_this.feedback_lower_tolerance := feedback_lower_tolerance;
+CONVERSION_this.feedback_upper_tolerance := feedback_upper_tolerance;
+
+analog_actuator_set_feedback_tolerance := TRUE;						(* command accepted *)]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

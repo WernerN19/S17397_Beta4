@@ -1,0 +1,219 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="analog_actuator" Id="{6618b2a8-bdb8-4a12-9640-d8cc199dd382}">
+    <Declaration><![CDATA[(*   Copyright (c) 2007-2008 G.D SpA
+*****************************************************************************************
+
+Date:      Time:     | Author:   				|    Time spent: | Tester:   	   |  Time spent
+*****************************************************************************************
+*)
+(*$
+	The <i>analog_actuator</i> class abstracts a digital actuation with an optional digital feedback.<br/>
+	The object is constructed with the <a href="#analog_actuator_init"><i>analog_actuator_init()</i></a> 
+	method and feedbacks <a href="#digital_input_object"><i>digital_input</i></a> are optionally <br/>
+	added through the two methods <a href="#analog_actuator_add_di_ready"><i>analog_actuator_add_di_ready()</i></a>
+	and <a href="#analog_actuator_add_di_inactive"><i>analog_actuator_add_di_inactive()</i></a>.
+	
+	<p>
+	If the active feedback is omitted then the actuator is declared active 
+	(i.e. <a href="#analog_actuator_is_active"><i>analog_actuator_is_active()</i></a> = <i>TRUE</i>) <br/>
+	after <a href="#analog_actuator_parameters"><i>active_time</i></a> parameter milliseconds are elapsed. <br/>
+	The same happens with the <a href="#analog_actuator_parameters"><i>inactive_time</i></a> parameter if the 
+	inactive feedback is omitted.
+	</p>
+
+	<p>
+	It is important to understand the actuation model of the class that manages a one 
+	<a href="#digital_output_object"><i>digital_output</i></a> object, <br/>
+	so the only stable states are two: 
+	<a href="#analog_actuator_status_enum"><i>ANALOG_ACTUATOR_STATUS_ACTIVE</i></a> and
+	<a href="#analog_actuator_status_enum"><i>ANALOG_ACTUATOR_STATUS_INACTIVE</i></a>.
+	</p>
+
+</p>
+	<p>
+	See also: <br/>
+	 <a href="#double_actuator_object"><i>double_actuator</i></a>
+	</p>
+$*)
+(* Last used errorID_1 := 19 *)
+TYPE
+	analog_actuator:	STRUCT
+	class_name:				STRING(MAX_OBJ_NAME_LENGTH) := ANALOG_ACTUATOR_CLASS_NAME;
+
+	object_name:			STRING(MAX_OBJ_NAME_LENGTH) := '';
+
+	descriptor:				descriptor;
+
+	status:					analog_actuator_status_enum := ANALOG_ACTUATOR_STATUS_INIT;
+	(*$M
+	desc := Internal status of the analog_actuator: value among those defined in the <br/>
+	enumerative <a href="#analog_actuator_status_enum"><i>analog_actuator_status_enum</i></a>; 
+	$*)
+	command:				analog_actuator_command_enum := ANALOG_ACTUATOR_CMD_INIT;
+												(*$ Command that the analog_actuator
+													is going to execute; value among
+													those defined in the enumerative
+													analog_actuator_command_enum $*)
+	operational_command:	analog_actuator_command_enum := ANALOG_ACTUATOR_CMD_INIT;
+												(*$ Command assigned when the analog_actuator
+													is in the "operational" mode; value among
+													those defined in the enumerative
+													analog_actuator_command_enum $*)
+
+	analog_physical_command: REAL := 0.0;
+
+	test:					analog_actuator_test;
+												(*$ This struct contains all the test's informations $*)
+
+	di_ready:				POINTER TO digital_input;
+	(*$U
+	desc := Reference to the <a href="#digital_input_object"><i>digital_input</i></a>
+	which check ready state (no alarm) of the analog_actuator.; 
+	$*)
+
+	ready_dchk:				digital_check;
+	(*$I
+	desc := if object has_di_ready is true, digital check is activated; 
+	$*)
+
+	di_active:				POINTER TO digital_input;
+	(*$U
+	desc := Reference to the <a href="#digital_input_object"><i>digital_input</i></a>
+	which check active signal from the analog_actuator when do_activate is true.; 
+	$*)
+
+	active_dchk:			digital_check;
+	(*$I
+	desc := if object has_di_active is true and actuator is activated, digital check is activated; 
+	$*)
+
+	inactive_dchk:			digital_check;
+	(*$I
+	desc := if object has_di_active is true and actuator is inactive, digital check is activated; 
+	$*)
+
+	do_activate:			POINTER TO digital_output;
+	(*$U
+	desc := Reference to the <a href="#digital_output_object"><i>digital_output</i></a>
+	which activates the analog_actuator.; 
+	$*)
+
+	ao_setpoint:			POINTER TO analog_output;
+	(*$U
+	desc := Reference to the <a href="#analog_output_object"><i>analog_output</i></a>
+	which controls the analog output to the analog_actuator.; 
+	$*)
+
+	ai_feedback:			POINTER TO analog_input;
+	(*$U
+	desc := Reference to the <a href="#analog_input_object"><i>analog_input</i></a>
+	which reads the feedback of the analog_actuator.; 
+	$*)
+
+	feedback_achk:			analog_check;
+	(*$I
+	desc := if object has_di_feedback is true, analog check is activated; 
+	$*)
+
+	feedback_upper_tolerance:	REAL := 10;		(*$P min :=  0; max :=  APPL; step := 1; unit := APPL;
+													desc := Tolerance for upper feedback pyhsical value analog check. If the related feedback
+													input is absent then this value is not used; 
+												$*)
+
+	feedback_lower_tolerance:	REAL := 10;		(*$P min :=  0; max :=  APPL; step := 1; unit := APPL;
+													desc := Tolerance for lower feedback pyhsical value analog check. If the related feedback
+													input is absent then this value is not used; 
+												$*)
+
+	has_di_ready:			BOOL := FALSE;		(*$ Info that states if the analog_actuator
+													has the reference to a digital_input that
+													performs ready status check; $*)
+
+	has_di_active:			BOOL := FALSE;		(*$ Info that states if the analog_actuator
+													has the reference to a digital_input that
+													performs active status check; $*)
+
+	has_do_activate:		BOOL := FALSE;		(*$ Info that states if the analog_actuator
+													has the reference to the digital_output that
+													performs the 'activation';
+													must be	TRUE $*)
+
+	has_ai_feedback:		BOOL := FALSE;		(*$ Info that states if the analog_actuator
+													has the reference to a analog_input that
+													performs feedback of the actuator; $*)
+
+	is_active:				BOOL := FALSE;		(*$ Info that states the analog_actuator is active $*)
+	is_inactive:			BOOL := FALSE;		(*$ Info that states the analog_actuator is inactive $*)
+	timer:					timer;				(*$I desc :=  Timer to monitor activation/deactivation timeouts. ; $*)
+
+	fault_reaction:			analog_actuator_fault_reaction_enum := ANALOG_ACTUATOR_FAULT_REACTION_DEACTIVATING;
+												(*$ Fault reaction strategy. See 
+													<a href="#analog_actuator_fault_reaction_enum"><i>reaction_enum</i></a> $*)
+	active_time:			UDINT := 100;		(*$P min :=  0; max :=  APPL; step := 1; unit := ms;
+													desc := Activation timeout. If the related feedback
+													input is absent then this value is used to declare
+													<a href="#analog_actuator_status_enum"><i>INACTIVE</i></a>; 
+												$*)
+
+	inactive_time:			UDINT := 100;		(*$P min :=  0; max :=  APPL; step := 1; unit := ms;
+													desc := Deactivation timeout. If the related feedback
+													input is absent then this value is used to declare
+													<a href="#analog_actuator_status_enum"><i>INACTIVE</i></a>; 
+											    $*)
+	out_of_lower_range_fem:	analog_actuator_snapshot;
+
+	active_fem:				analog_actuator_snapshot;
+(*$
+	 This message is activated when the active feedback sensor, if present, and  
+	analog_actuator <a href="#analog_actuator_status_enum"><i>status</i></a>
+ are inchoerent, or it is activated dynamically as a timeout of the activation movement.<br/><br/>
+	<a href="#message_behaviour_enum"><i>MESSAGE BEHAVIOUR:</i></a> <i>MESSAGE_BEHAVIOUR_EVENT </i><br/><br/>
+	<a href="#machine_reaction_enum"><i>MACHINE REACTION:</i></a> <i>MACHINE_REACTION_NORMAL_STOP </i><br/><br/>
+	 The fault codes are specified by ERROR_ID:
+	<br/>
+	<li> <b>ERRORID_1 = 9</b>: Timeout of activation movement when the <a href="#digital_input_object"><i>di_inactive</i></a>. 
+ feedback sensor is covered</li>	
+	<li> <b>ERRORID_1 = 10</b>: Timeout of activation movement when the <a href="#digital_input_object"><i>di_ready</i></a>. 
+ feedback sensor is not covered</li>	
+	<li> <b>ERRORID_1 = 13</b>: Actuator is in <a href="#analog_actuator_status_enum"><i>ANALOG_ACTUATOR_STATUS_ACTIVE</i></a>
+ status and the <a href="#digital_input_object"><i>di_ready</i></a> feedback sensor is not covered, or 
+ actuator is in <a href="#analog_actuator_status_enum"><i>ANALOG_ACTUATOR_STATUS_INACTIVE</i></a>
+ status and the <a href="#digital_input_object"><i>di_ready</i></a> feedback sensor is covered. </li>
+$*)
+
+	inactive_fem:			analog_actuator_snapshot;
+(*$
+	 This message is activated when the inactive feedback sensor, if present, and  
+	analog_actuator <a href="#analog_actuator_status_enum"><i>status</i></a>
+ are inchoerent, or it is activated dynamically as a timeout of the deactivation movement.<br/><br/>
+	<a href="#message_behaviour_enum"><i>MESSAGE BEHAVIOUR:</i></a><i> MESSAGE_BEHAVIOUR_EVENT</i><br/><br/>
+	<a href="#machine_reaction_enum"><i>MACHINE REACTION:</i></a><i> MACHINE_REACTION_NORMAL_STOP</i><br/><br/>
+	 The fault codes are specified by <i>ERROR_ID</i>:
+	<br/>
+	<ul>
+	<li> <b><i>ERRORID_1 = 11</i></b>: Timeout of deactivation movement when the <a href="#digital_input_object"><i>di_ready</i></a>. 
+ feedback sensor is covered</li>	
+	<li> <b><i>ERRORID_1 = 12</i></b>: Timeout of deactivation movement when the <a href="#digital_input_object"><i>di_inactive</i></a>. 
+ feedback sensor is not covered</li>	
+	<li> <b><i>ERRORID_1 = 14</i></b>: Actuator is in <a href="#analog_actuator_status_enum"><i>ANALOG_ACTUATOR_STATUS_INACTIVE</i></a>
+ status and the <a href="#digital_input_object"><i>di_inactive</i></a> feedback sensor is not covered, or 
+ actuator is in <a href="#analog_actuator_status_enum"><i>ANALOG_ACTUATOR_STATUS_ACTIVE</i></a>
+ status and the <a href="#digital_input_object"><i>di_inactive</i></a> feedback sensor is covered. </li>
+ </ul>
+$*)
+
+	CONVERSION_private:				analog_actuator_private;
+
+    active_elapsed_time: 	LREAL := 0.0;(*$M desc := Elapsed time from the "activate command" and execution finished.; $*)
+    deactive_elapsed_time:  LREAL := 0.0;(*$M desc := Elapsed time from the "deactivate command" and execution finished.; $*)
+
+   	ao_setpoint_value: 		LREAL := 0.0;(*$M desc := Analog Output Physical Value; $*)
+    ai_feedback_value: 		LREAL := 0.0;(*$M desc := Analog Input Physical Value; $*)
+
+	light_test_active:		BOOL := FALSE;						(*$H_RW desc := Light test is active; $*)
+
+	END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

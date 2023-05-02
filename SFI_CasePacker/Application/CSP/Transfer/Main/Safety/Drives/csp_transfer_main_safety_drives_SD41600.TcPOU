@@ -1,0 +1,185 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_main_safety_drives_SD41600" Id="{47e506f0-8416-48d0-becd-0fd0d9a9c68a}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/24 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R 
+	process_ref:= prc; 
+$*)
+PROGRAM csp_transfer_main_safety_drives_SD41600
+VAR
+	prc:					process;
+	prc_path:				STRING;	
+
+	sig:					safety_integrated_group;
+	chA_smes_sis:			safety_integrated_series;
+	chB_smes_sis:			safety_integrated_series;
+	
+END_VAR
+
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_objects_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+safety_integrated_series_close(chA_smes_sis);
+safety_integrated_series_close(chB_smes_sis);
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		;
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{63f23e43-640e-42ae-a37a-d8bbf8af0106}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{f3f749b1-fd67-45b6-b950-ecf3219d3640}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{d59c1f3c-7c3e-4acf-ae5f-72b801a974dc}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{77c09220-a987-4009-a08c-7cc229b85de8}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_main_safety_drives.prc', 
+		process						:= csp_transfer_main_safety.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+
+safety_integrated_group_init(
+        object_name				:=	CONCAT(prc_path, '_sig'), 
+		controller				:=	csp_transfer_main_safety_interface.SPLC40210_sic,
+        process					:=	prc,
+        CONVERSION_this			:=	sig);
+
+	(* Channel A SMES series *)
+	safety_integrated_series_init(
+		object_name				:=	CONCAT(prc_path, '_chA_smes_sis'), 
+		_type					:=	SAFETY_INTEGRATED_SERIES_TYPE_NO_RESET,
+		discrepancy_active		:=	TRUE,
+		forced_open_active		:=	TRUE,
+		process					:=	prc,
+		CONVERSION_this			:=	chA_smes_sis);
+
+	safety_integrated_series_add_safety_integrated_group(
+		group					:=	sig,
+		CONVERSION_this			:=	chA_smes_sis);
+
+	safety_integrated_series_add_safety_integrated_series(
+		series_active			:=	TRUE,
+		series_polarity_direct	:=	TRUE,
+		contact					:=	csp_transfer_main_safety_drives_commonConfiguration.rack_smes_sis, (*Marco : To be checked*)
+		CONVERSION_this			:=	chA_smes_sis);
+		
+	(* Channel B SMES series *)
+	safety_integrated_series_init(
+		object_name				:=	CONCAT(prc_path, '_chB_smes_sis'), 
+		_type					:=	SAFETY_INTEGRATED_SERIES_TYPE_NO_RESET,
+		discrepancy_active		:=	TRUE,
+		forced_open_active		:=	TRUE,
+		process					:=	prc,
+		CONVERSION_this			:=	chB_smes_sis);
+
+	safety_integrated_series_add_safety_integrated_group(
+		group					:=	sig,
+		CONVERSION_this			:=	chB_smes_sis);
+		
+	safety_integrated_series_add_safety_integrated_series(
+		series_active			:=	TRUE,
+		series_polarity_direct	:=	TRUE,
+		contact					:=	csp_transfer_main_safety_drives_commonConfiguration.rack_smes_sis, (*Marco : To be checked*)
+		CONVERSION_this			:=	chB_smes_sis);
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+  	safety_integrated_group_cycle(sig);
+	safety_integrated_series_cycle(chA_smes_sis);
+	safety_integrated_series_cycle(chB_smes_sis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{93a3d619-f2ce-4149-b9d2-6f56bc97c387}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{84427cdd-0655-46f3-b0ce-0a37c619ce30}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{99a9a2fc-d5e1-46bc-a134-de62f6fe1838}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{b47b9a45-788d-4697-9da9-8f201692d500}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

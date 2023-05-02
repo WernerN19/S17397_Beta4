@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.18">
+  <POU Name="_low" Id="{9af820cb-4933-4645-b893-38b5fbd04f1a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Low task
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	G.Cera 			Creation of the PRG
+
+**********************************************************************************************************)
+{attribute 'TcCallAfterOutputUpdate'}
+PROGRAM _low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* APPLICATION *)
+framework_lowtask_begin();
+
+application_status_manager_low();
+
+_csp_low();
+
+//dbg_low();
+
+framework_lowtask_end();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

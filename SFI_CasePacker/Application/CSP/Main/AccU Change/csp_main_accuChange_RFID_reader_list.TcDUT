@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_main_accuChange_RFID_reader_list" Id="{065721eb-6f4f-464b-8a90-f6fa4ba1e9f9}">
+    <Declaration><![CDATA[TYPE csp_main_accuChange_RFID_reader_list :
+(
+	NO_READER_SELECTED							:= 0,
+	CASE_FEED_EOAT_READER						:= 1,
+	LOADER_PUSHER_READER						:= 2, (* IN CODE *)
+	LOADER_GUIDE_PLATE_READER					:= 3, (* IN CODE *)
+	CLOSING_PADDLES_READER						:= 4  (* IN CODE *)
+):= NO_READER_SELECTED;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="iol_slave_mlg2prime_data" Id="{9f22d587-86f9-06ec-0746-645d3e002249}">
+    <Declaration><![CDATA[
+TYPE
+	iol_slave_mlg2prime_data:				STRUCT
+
+	teach_in_state:                   		SINT;		
+	quality_of_teach:						BYTE;
+	quality_of_run:							BYTE;
+	teach_result:							BYTE;
+	StdQA1Configuration:         			INT;		
+	CrossBeamEnable:						BYTE;		
+	temperature:							BYTE;		
+	system_status:							BYTE;
+	device_status:							BYTE;
+	blanking_teach_enable:					BYTE;
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

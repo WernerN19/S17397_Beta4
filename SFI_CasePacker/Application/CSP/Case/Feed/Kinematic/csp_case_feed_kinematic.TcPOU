@@ -1,0 +1,2451 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_kinematic" Id="{00554775-3c61-45d8-9842-17c4b7d7def6}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_kinematic
+VAR_INPUT
+	ext_cartesian_mode_request:						BOOL;
+	ext_phase_request:								BOOL;
+	ext_stop_request:								BOOL;
+END_VAR
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	in_stKinToPlc	AT %I*:							NcToPlc_NciChannel_Ref;
+	out_stPlcToKin	AT %Q*:							PlcTonc_NciChannel_Ref;
+	stAxesConfig:									ST_KinAxes;
+	stAxesPosIn:									ARRAY[1..8] OF LREAL;
+	stAxesPosOut:									ARRAY[1..8] OF LREAL;
+	uMetaInfoIn:									U_KinMetaInfo;
+	uMetaInfoOut:									U_KinMetaInfo;
+		
+	kin_config_execute:								BOOL := FALSE;
+	kin_config_cartesian_mode:						BOOL := FALSE;
+	fbConfigKinGroup:								FB_KinConfigGroup;
+	kin_config_group_aem:	 						message;	
+	kin_cacl_execute:								BOOL := FALSE;
+	fbCalcKinTrafo:									FB_KinCalcTRafo;
+	fbResetKinGroup:								FB_KinResetGroup;
+	
+	fsm_enable_condition:							BOOL := FALSE;
+	fsm_next_status:								csp_case_feed_kinematic_status_enum;
+	fsm_status:										csp_case_feed_kinematic_status_enum;
+			
+	kinematic_jog_on:								BOOL := FALSE; (*$P $*)
+	kinematic_jog_on_motcond:						motorization_conditioner;
+	
+	memo_cartesian_mode_request:					BOOL;
+	memo_phase_request:								BOOL;
+	memo_stop_request:								BOOL;
+	
+	cartesian_mode_active:							BOOL;
+	is_ok:											BOOL;
+	is_axis_enabled:								BOOL;
+	
+	disable_req:									BOOL := FALSE;
+	move_kinematic:									BOOL := TRUE;
+	enable_kinematic:								BOOL := TRUE;
+	engage_enable:									BOOL := FALSE;
+	disable_kinematic:								BOOL := TRUE;
+	
+	//Cmd	
+	joint_cartesian_mode:							BOOL := FALSE;
+	join_cartesian_mode_RTRIG:						R_TRIG;
+	
+	elbow_jog_plus:									BOOL := FALSE;
+	elbow_jog_minus:								BOOL := FALSE;
+	elbow_phase_move:								BOOL := FALSE;
+	elbow_copy_phase:								BOOL := FALSE;
+	
+	shoulder_jog_plus:								BOOL := FALSE;
+	shoulder_jog_minus:								BOOL := FALSE;
+	shoulder_phase_move:							BOOL := FALSE;
+	shoulder_copy_phase:							BOOL := FALSE;
+	
+	wrist_jog_plus:									BOOL := FALSE;
+	wrist_jog_minus:								BOOL := FALSE;
+	wrist_phase_move:								BOOL := FALSE;	
+	wrist_copy_phase:								BOOL := FALSE;	
+
+	x_jog_plus:										BOOL := FALSE;
+	x_jog_minus:									BOOL := FALSE;
+	x_phase_move:									BOOL := FALSE;
+	x_copy_phase:									BOOL := FALSE;
+	
+	y_jog_plus:										BOOL := FALSE;
+	y_jog_minus:									BOOL := FALSE;
+	y_phase_move:									BOOL := FALSE;
+	y_copy_phase:									BOOL := FALSE;
+	
+	tilt_jog_plus:									BOOL := FALSE;
+	tilt_jog_minus:									BOOL := FALSE;
+	tilt_phase_move:								BOOL := FALSE;	
+	tilt_copy_phase:								BOOL := FALSE;
+	
+	elbow_move_speed:								LREAL := 5.0; 		(*$P unit := °/s; $*)
+	shoulder_move_speed:							LREAL := 5.0;		(*$P unit := °/s; $*)
+	wrist_move_speed:								LREAL := 5.0;		(*$P unit := °/s; $*)
+	x_move_speed:									LREAL := 10.0;		(*$P unit := mm/s; $*)
+	y_move_speed:									LREAL := 10.0;		(*$P unit := mm/s; $*)
+	tilt_move_speed:								LREAL := 10.0;		(*$P unit := °/s; $*)
+	
+	phase_move_speed:								LREAL := 10;
+	phase_move_time:								LREAL;
+	x_phase_distance:								LREAL;
+	x_phase_move_speed:								LREAL;
+	y_phase_distance:								LREAL;	
+	y_phase_move_speed:								LREAL;	
+		
+	phase_request:									BOOL := FALSE;
+	elbow_phase_position:							LREAL := 0.0;		(*$P step := 0.001; unit := °; $*)
+	elbow_phase_position_pow:						parameter_overwrite;
+	shoulder_phase_position:						LREAL := 45.0;		(*$P step := 0.001; unit := °; $*)
+	shoulder_phase_position_pow:					parameter_overwrite;
+	wrist_phase_position:							LREAL := 0.0;		(*$P step := 0.001; unit := °; $*)
+	wrist_phase_position_pow:						parameter_overwrite;
+	x_phase_position:								LREAL := -554;		(*$P step := 0.001; unit := mm; $*)
+	x_phase_position_pow:							parameter_overwrite;
+	y_phase_position:								LREAL := -660.3;	(*$P step := 0.001; unit := mm; $*)
+	y_phase_position_pow:							parameter_overwrite;
+	tilt_phase_position:							LREAL := 45.0;		(*$P step := 0.001; unit := °; $*)
+	tilt_phase_position_pow:						parameter_overwrite;
+	
+	elbow_actual_position:							LREAL;				(*$M step := 0.001; unit := °; $*)
+	shoulder_actual_position:						LREAL;				(*$M step := 0.001; unit := °; $*)
+	wrist_actual_position:							LREAL;				(*$M step := 0.001; unit := °; $*)
+	x_actual_position:								LREAL;				(*$M step := 0.01; unit := mm; $*)
+	y_actual_position:								LREAL;				(*$M step := 0.01; unit := mm; $*)
+	tilt_actual_position:							LREAL;				(*$M step := 0.01; unit := °; $*)
+	axis_are_moving:								BOOL;
+	axis_are_phase_moving:							BOOL;
+	
+	//Visu variable management	
+	visu_disable_general_command:					BOOL;
+	visu_disable_ACS_command:						BOOL;
+	visu_disable_MCS_command:						BOOL;
+	visu_disable_ACS_jog_mode:						BOOL;
+	visu_disable_MCS_jog_mode:						BOOL;
+	visu_disable_phase_request:						BOOL;
+	
+	//HMI custom page variable management
+	hmi_joint_cartesian_mode_cbtn:					command_button;
+	hmi_phase_request_cbtn:							command_button;
+	hmi_phase_request_cbtn_is_pressed:				BOOL;	
+	
+	hmi_elbow_jog_plus_cbtn:						command_button;
+	hmi_elbow_jog_minus_cbtn:						command_button;
+	hmi_elbow_phase_move_cbtn:						command_button;
+	hmi_elbow_copy_phase_cbtn:						command_button;
+	hmi_elbow_activate_pendant_cbtn:				command_button;
+	hmi_elbow_activate_pendant_cbtn_is_pressed:		BOOL;
+	hmi_elbow_pendant_active:						BOOL := FALSE;
+	
+	hmi_shoulder_jog_plus_cbtn:						command_button;
+	hmi_shoulder_jog_minus_cbtn:					command_button;
+	hmi_shoulder_phase_move_cbtn:					command_button;
+	hmi_shoulder_copy_phase_cbtn:					command_button;
+	hmi_shoulder_activate_pendant_cbtn:				command_button;
+	hmi_shoulder_activate_pendant_cbtn_is_pressed:	BOOL;
+	hmi_shoulder_pendant_active:					BOOL := FALSE;
+	
+	hmi_wrist_jog_plus_cbtn:						command_button;
+	hmi_wrist_jog_minus_cbtn:						command_button;
+	hmi_wrist_phase_move_cbtn:						command_button;
+	hmi_wrist_copy_phase_cbtn:						command_button;
+	hmi_wrist_activate_pendant_cbtn:				command_button;
+	hmi_wrist_activate_pendant_cbtn_is_pressed:		BOOL;
+	hmi_wrist_pendant_active:						BOOL := FALSE;
+	
+	hmi_x_jog_plus_cbtn:							command_button;
+	hmi_x_jog_minus_cbtn:							command_button;
+	hmi_x_phase_move_cbtn:							command_button;
+	hmi_x_copy_phase_cbtn:							command_button;
+	hmi_x_activate_pendant_cbtn:					command_button;
+	hmi_x_activate_pendant_cbtn_is_pressed:			BOOL;
+	hmi_x_pendant_active:							BOOL := FALSE;
+	
+	hmi_y_jog_plus_cbtn:							command_button;
+	hmi_y_jog_minus_cbtn:							command_button;
+	hmi_y_phase_move_cbtn:							command_button;
+	hmi_y_copy_phase_cbtn:							command_button;
+	hmi_y_activate_pendant_cbtn:					command_button;
+	hmi_y_activate_pendant_cbtn_is_pressed:			BOOL;
+	hmi_y_pendant_active:							BOOL := FALSE;
+	
+	hmi_tilt_jog_plus_cbtn:							command_button;
+	hmi_tilt_jog_minus_cbtn:						command_button;
+	hmi_tilt_phase_move_cbtn:						command_button;
+	hmi_tilt_copy_phase_cbtn:						command_button;
+	hmi_tilt_activate_pendant_cbtn:					command_button;
+	hmi_tilt_activate_pendant_cbtn_is_pressed:		BOOL;
+	hmi_tilt_pendant_active:						BOOL := FALSE;
+	
+	hmi_pendant_active:								BOOL;
+	
+	hmi_enable_general_command_hgos:				hmi_graphic_object_status;
+	hmi_enable_joint_hgos:							hmi_graphic_object_status;
+	hmi_enable_cartesian_hgos:						hmi_graphic_object_status;
+	hmi_enable_ACS_command_hgos:					hmi_graphic_object_status;
+	hmi_enable_MCS_command_hgos:					hmi_graphic_object_status;
+	hmi_enable_ACS_jog_mode_hgos:					hmi_graphic_object_status;
+	hmi_enable_MCS_jog_mode_hgos:					hmi_graphic_object_status;
+	hmi_enable_phase_request_hgos:					hmi_graphic_object_status;
+	
+	debug_phase_elbow:								BOOL := FALSE;
+	debug_phase_shoulder:							BOOL := FALSE;
+	debug_phase_wrist:								BOOL := FALSE;
+	debug_state_machine:							BOOL := FALSE;
+	debug_state_machine_one_step:					BOOL := FALSE;
+	
+	master_scaling_deg:								LREAL := 1.0;
+	x_scaling_mm:									LREAL := 1.0;
+	x_old_scaling_mm:								LREAL := 1.0;
+	y_scaling_mm:									LREAL := 1.0;
+	y_old_scaling_mm:								LREAL := 1.0;
+	tilt_scaling_deg:								LREAL := 1.0;
+	tilt_old_scaling_deg:							LREAL := 1.0;		
+	Kinematic_tilt_error_aem: 						message;
+	Kinematic_tilt_clear_error:						BOOL:= FALSE;
+END_VAR
+
+VAR CONSTANT	
+	CONSTANTS:										csp_case_feed_kinematic_constant_struct;
+	COIDTRAFO:										UDINT := 16#01010030;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+_hmi_Management();
+
+(********************************* BODY *********************************)
+(* Kinematic trasformation		
+X		->		Shoulder (M1)
+Y		->		Elbow (M2)			
+Tilt	->		Wrist (M3)																											
+*)	
+
+stAxesConfig.nAxisIdsAcs[1] := csp_case_feed_arm_shoulder.axis.ax_ref.NcToPlc.AxisId; 
+stAxesConfig.nAxisIdsAcs[2] := csp_case_feed_arm_elbow.axis.ax_ref.NcToPlc.AxisId;
+stAxesConfig.nAxisIdsAcs[3] := csp_case_feed_arm_wrist.axis.ax_ref.NcToPlc.AxisId;
+
+stAxesConfig.nAxisIdsMcs[1] := csp_case_feed_kinematic_x.axis.ax_ref.NcToPlc.AxisId;
+stAxesConfig.nAxisIdsMcs[2] := csp_case_feed_kinematic_y.axis.ax_ref.NcToPlc.AxisId;
+stAxesConfig.nAxisIdsMcs[3] := csp_case_feed_kinematic_tilt.axis.ax_ref.NcToPlc.AxisId;
+
+fbConfigKinGroup(
+	bExecute		:= kin_config_execute
+					   OR
+					   (
+						   (
+							   NOT axis_is_ok(FALSE, csp_case_feed_arm_elbow.axis)
+							   OR
+							   NOT axis_is_ok(FALSE, csp_case_feed_arm_shoulder.axis)
+							   OR
+							   NOT axis_is_ok(FALSE, csp_case_feed_arm_wrist.axis)	
+							   OR
+							   fbConfigKinGroup.bError
+							)
+							AND
+ 							csp_main.o_reset_button
+					   ),
+	bCartesianMode	:= kin_config_cartesian_mode, 
+	stAxesList		:= stAxesConfig, 
+	stKinRefIn		:= in_stKinToPlc, 
+	bBusy			=> , 
+	bDone			=> , 
+	bError			=> , 
+	nErrorId		=> );
+	
+fbResetKinGroup(
+	bExecute		:= csp_main.o_reset_button
+					AND 
+					(in_stKinToPlc.ErrorCode <> 0), 
+	nItpChannelId	:= 0, 
+	stKinRefIn		:= in_stKinToPlc, 
+	stAxesList		:= stAxesConfig, 
+	bBusy			=> , 
+	bDone			=> , 
+	bError			=> , 
+	nErrorId		=> );
+	
+kin_cacl_execute :=	NOT cartesian_mode_active
+					AND
+					NOT fbCalcKinTrafo.bBusy;
+stAxesPosIn[1] := axis_get_actual_incremental_position(csp_case_feed_arm_shoulder.axis);
+stAxesPosIn[2] := axis_get_actual_incremental_position(csp_case_feed_arm_elbow.axis);
+stAxesPosIn[3] := axis_get_actual_incremental_position(csp_case_feed_arm_wrist.axis);
+fbCalcKinTrafo(
+	bExecute 		:= kin_cacl_execute,
+	bForward 		:= NOT kin_config_cartesian_mode,
+	oidTrafo 		:= COIDTRAFO,
+	stAxesPosIn 	:= stAxesPosIn,
+	stAxesPosOut 	:= stAxesPosOut,
+	uMetaInfoIn		:= uMetaInfoIn ,
+	uMetaInfoOut	:= uMetaInfoOut,
+	bBusy			=> ,
+	bDone			=> ,
+	bError			=> ,
+	nErrorId		=> );
+
+(*Status*)
+cartesian_mode_active := 
+	(in_stKinToPlc.ChnOperationState = 4);
+	
+is_axis_enabled := (fsm_status = CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED);
+	
+
+(* ALLOWS MACHINE TO RUN BECAUSE KINEMATIC IS NOT ON *)
+IF motorization_manager_is_starting(csp_main_motorization_manager.motm)
+AND NOT kinematic_jog_on
+	THEN
+		motorization_conditioner_start_done(kinematic_jog_on_motcond);
+END_IF 
+
+
+(*FSM Control*)
+is_ok := 
+	process_is_ready(prc)
+	AND
+	process_subtree_is_ready(prc)
+	AND
+	csp_case_feed_arm_elbow.servo_on_condition
+	AND
+	csp_case_feed_arm_shoulder.servo_on_condition
+	AND
+	csp_case_feed_arm_wrist.servo_on_condition
+	AND
+	axis_is_ok(FALSE, csp_case_feed_arm_elbow.axis)
+	AND
+	axis_is_ok(FALSE, csp_case_feed_arm_shoulder.axis)
+	AND
+	axis_is_ok(FALSE, csp_case_feed_arm_wrist.axis)						
+	AND						
+	axis_is_ok(FALSE, csp_case_feed_kinematic_x.axis)	
+	AND
+	axis_is_ok(FALSE, csp_case_feed_kinematic_y.axis)	
+	AND
+	axis_is_ok(FALSE, csp_case_feed_kinematic_tilt.axis)	
+	AND												
+	NOT fbConfigKinGroup.bError						
+	AND
+	NOT disable_req;
+fsm_enable_condition := 
+	is_ok
+	AND
+	(
+		csp_case_feed_virtualMaster.is_ok
+		OR
+		(
+			csp_main_accuChange.machine_size_running
+			AND
+			(
+				NOT csp_case_feed_kinematic_x.in_accu_safe_pos
+				OR
+				NOT csp_case_feed_kinematic_y.in_accu_safe_pos
+				OR
+				NOT csp_case_feed_kinematic_tilt.in_accu_safe_pos
+			)
+		)
+	);
+	
+IF	(
+		NOT fsm_enable_condition
+		OR
+		(
+			ext_stop_request 
+			AND 
+			NOT memo_stop_request
+		)
+	)
+	AND
+	fsm_status <> CSP_CASE_FEED_KINEMATIC_STATUS_DISABLED
+	AND
+	fsm_status < CSP_CASE_FEED_KINEMATIC_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_CASE_FEED_KINEMATIC_STATUS_DISABLE_REQUEST;
+	IF	ext_stop_request
+	THEN
+		fsm_next_status := fsm_status;
+	END_IF
+	phase_request:=FALSE;
+END_IF
+
+IF tilt_actual_position < 1200
+	AND tilt_actual_position > 0
+	AND csp_case_feed_kinematic_tilt.axis.actual_position < 1200   
+	AND NOT Kinematic_tilt_clear_error
+THEN
+	process_message_set(1, 1, 1, Kinematic_tilt_error_aem);
+ELSE
+	process_message_reset(Kinematic_tilt_error_aem);
+END_IF
+
+IF process_message_is_on(Kinematic_tilt_error_aem)
+	AND machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	process_message_reset(Kinematic_tilt_error_aem);
+END_IF
+
+CASE fsm_status OF
+	
+	CSP_CASE_FEED_KINEMATIC_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := FALSE, CONVERSION_this := csp_case_feed_arm_elbow.axis)
+			AND
+			axis_is_ok(return_when_absent := FALSE, CONVERSION_this := csp_case_feed_arm_shoulder.axis)
+			AND
+			axis_is_ok(return_when_absent := FALSE, CONVERSION_this := csp_case_feed_arm_wrist.axis)
+			AND
+			axis_is_ok(return_when_absent := FALSE, CONVERSION_this := csp_case_feed_kinematic_x.axis)
+			AND
+			axis_is_ok(return_when_absent := FALSE, CONVERSION_this := csp_case_feed_kinematic_y.axis)
+			AND
+			axis_is_ok(return_when_absent := FALSE, CONVERSION_this := csp_case_feed_kinematic_tilt.axis)
+        THEN
+            fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_DISABLED;
+        END_IF
+
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_DISABLED:
+		
+		IF	fsm_enable_condition
+			AND (
+					kinematic_jog_on
+					OR
+					motorization_manager_is_starting(csp_main_motorization_manager.motm)
+				)
+		THEN			
+			fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_ENABLE_REQUEST;
+		END_IF;
+
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_ENABLE_REQUEST:
+	
+		axis_enable(csp_case_feed_arm_elbow.axis);
+		axis_enable(csp_case_feed_arm_shoulder.axis);
+		axis_enable(csp_case_feed_arm_wrist.axis);
+		axis_enable(csp_case_feed_kinematic_x.axis);
+		axis_enable(csp_case_feed_kinematic_y.axis);
+		axis_enable(csp_case_feed_kinematic_tilt.axis);
+		
+		IF 	axis_is_standstill(csp_case_feed_arm_elbow.axis)
+			AND
+			axis_is_standstill(csp_case_feed_arm_shoulder.axis)
+			AND
+			axis_is_standstill(csp_case_feed_arm_wrist.axis)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_x.axis)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_y.axis)
+			AND
+			axis_is_standstill(csp_case_feed_kinematic_tilt.axis)
+		THEN			
+			IF NOT kin_config_cartesian_mode
+			   AND csp_main_accuChange.Brand_Change_Occurred
+			THEN
+				join_cartesian_mode_RTRIG(CLK:=FALSE);							
+			END_IF
+		
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED;				
+		END_IF;		
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED:
+	
+		axis_are_phase_moving := FALSE;
+		join_cartesian_mode_RTRIG(CLK := 
+			joint_cartesian_mode
+			OR
+			command_button_is_pressed(hmi_joint_cartesian_mode_cbtn)
+			OR
+			csp_main_accuChange.Brand_Change_Occurred);
+			
+		IF	join_cartesian_mode_RTRIG.Q
+		THEN
+			kin_config_execute := TRUE;
+			kin_config_cartesian_mode := NOT kin_config_cartesian_mode;
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_KIN_CONFIG;	
+		ELSIF ext_cartesian_mode_request
+			AND
+			NOT memo_cartesian_mode_request
+		THEN
+			kin_config_execute := TRUE;
+			kin_config_cartesian_mode := TRUE;
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_KIN_CONFIG;							
+		ELSIF phase_request
+		THEN
+			IF 	motorization_manager_is_idle(csp_main_motorization_manager.motm)
+			THEN			
+				IF 	move_kinematic
+				THEN
+					fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_PHASED;
+				ELSE
+					fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_PHASE_REQUEST;
+				END_IF
+			ELSE
+				phase_request := FALSE;
+			END_IF	
+		ELSIF ext_phase_request
+			AND
+			NOT memo_phase_request
+		THEN
+			phase_request := TRUE;	
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_READY_TO_ENGAGE;		
+		ELSIF elbow_jog_plus
+			OR
+			command_button_is_pressed(hmi_elbow_jog_plus_cbtn)
+			OR
+			(
+				hmi_elbow_pendant_active
+				AND
+				csp_main_jogManager.pendant_positive_cmd
+			)
+		THEN
+			axis_move_velocity(
+				velocity		:= elbow_move_speed,
+				acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= CONSTANTS.MAX_JERK_MMpSEC3,
+				buffer_mode		:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this	:= csp_case_feed_arm_elbow.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_JOG_ACS1;
+		ELSIF elbow_jog_minus
+			OR
+			command_button_is_pressed(hmi_elbow_jog_minus_cbtn)
+			OR
+			(
+				hmi_elbow_pendant_active
+				AND
+				csp_main_jogManager.pendant_negative_cmd
+			)
+		THEN
+			axis_move_velocity(
+				velocity		:= -elbow_move_speed,
+				acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= CONSTANTS.MAX_JERK_MMpSEC3,
+				buffer_mode		:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this	:= csp_case_feed_arm_elbow.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_JOG_ACS1;
+		ELSIF elbow_phase_move
+			OR
+			command_button_is_pressed(hmi_elbow_phase_move_cbtn)
+			OR
+			debug_phase_elbow
+		THEN
+			debug_phase_elbow := FALSE;
+			axis_are_phase_moving := TRUE;
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_MOVE_ACS1;			 
+		ELSIF elbow_copy_phase
+			OR
+			command_button_is_pressed(hmi_elbow_copy_phase_cbtn)
+		THEN		
+			parameter_overwrite_set_lreal_value(elbow_actual_position, elbow_phase_position_pow);			
+		ELSIF shoulder_jog_plus
+			OR
+			command_button_is_pressed(hmi_shoulder_jog_plus_cbtn)
+			OR
+			(
+				hmi_shoulder_pendant_active
+				AND
+				csp_main_jogManager.pendant_positive_cmd
+			)
+		THEN
+			axis_move_velocity(
+				velocity		:= shoulder_move_speed,
+				acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= CONSTANTS.MAX_JERK_MMpSEC3,
+				buffer_mode		:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this	:= csp_case_feed_arm_shoulder.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_JOG_ACS2;
+		ELSIF shoulder_jog_minus
+			OR
+			command_button_is_pressed(hmi_shoulder_jog_minus_cbtn)
+			OR
+			(
+				hmi_shoulder_pendant_active
+				AND
+				csp_main_jogManager.pendant_negative_cmd
+			)
+		THEN
+			axis_move_velocity(
+				velocity		:= -shoulder_move_speed,
+				acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= CONSTANTS.MAX_JERK_MMpSEC3,
+				buffer_mode		:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this	:= csp_case_feed_arm_shoulder.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_JOG_ACS2;
+		ELSIF shoulder_phase_move 
+			OR
+			command_button_is_pressed(hmi_shoulder_phase_move_cbtn)
+			OR
+			debug_phase_shoulder
+		THEN
+			debug_phase_shoulder := FALSE;
+			axis_are_phase_moving := TRUE;
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_MOVE_ACS2;	
+		ELSIF shoulder_copy_phase
+			OR
+			command_button_is_pressed(hmi_shoulder_copy_phase_cbtn)
+		THEN
+			parameter_overwrite_set_lreal_value(shoulder_actual_position, shoulder_phase_position_pow);							
+		ELSIF wrist_jog_plus
+			OR
+			command_button_is_pressed(hmi_wrist_jog_plus_cbtn)
+			OR
+			(
+				hmi_wrist_pendant_active
+				AND
+				csp_main_jogManager.pendant_positive_cmd
+			)
+		THEN
+			axis_move_velocity(
+				velocity		:= wrist_move_speed,
+				acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= CONSTANTS.MAX_JERK_MMpSEC3,
+				buffer_mode		:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this	:= csp_case_feed_arm_wrist.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_JOG_ACS3;
+		ELSIF wrist_jog_minus
+			OR
+			command_button_is_pressed(hmi_wrist_jog_minus_cbtn)
+			OR
+			(
+				hmi_wrist_pendant_active
+				AND
+				csp_main_jogManager.pendant_negative_cmd
+			)
+		THEN
+			axis_move_velocity(
+				velocity		:= -wrist_move_speed,
+				acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= CONSTANTS.MAX_JERK_MMpSEC3,
+				buffer_mode		:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this	:= csp_case_feed_arm_wrist.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_JOG_ACS3;
+		ELSIF wrist_phase_move
+			OR
+			command_button_is_pressed(hmi_wrist_phase_move_cbtn)
+			OR
+			debug_phase_wrist
+		THEN
+			debug_phase_wrist := FALSE;
+			axis_are_phase_moving := TRUE;
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_MOVE_ACS3;
+		ELSIF wrist_copy_phase
+			OR
+			command_button_is_pressed(hmi_wrist_copy_phase_cbtn)
+		THEN			
+			parameter_overwrite_set_lreal_value(wrist_actual_position, wrist_phase_position_pow);			
+		ELSIF x_jog_plus
+			OR
+			command_button_is_pressed(hmi_x_jog_plus_cbtn)
+			OR
+			(
+				hmi_x_pendant_active
+				AND
+				csp_main_jogManager.pendant_positive_cmd
+			)
+		THEN
+			axis_move_velocity(
+				velocity		:= x_move_speed,
+				acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= CONSTANTS.MAX_JERK_MMpSEC3,
+				buffer_mode		:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this	:= csp_case_feed_kinematic_x.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_JOG_MCS1;						
+		ELSIF x_jog_minus
+			OR
+			command_button_is_pressed(hmi_x_jog_minus_cbtn)
+			OR
+			(
+				hmi_x_pendant_active
+				AND
+				csp_main_jogManager.pendant_negative_cmd
+			)
+		THEN
+			axis_move_velocity(
+				velocity		:= -x_move_speed,
+				acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= CONSTANTS.MAX_JERK_MMpSEC3,
+				buffer_mode		:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this	:= csp_case_feed_kinematic_x.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_JOG_MCS1;
+		ELSIF x_phase_move
+			OR
+			command_button_is_pressed(hmi_x_phase_move_cbtn)
+		THEN
+			axis_are_phase_moving := TRUE;
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_MOVE_MCS1;
+		ELSIF x_copy_phase
+			OR
+			command_button_is_pressed(hmi_x_copy_phase_cbtn)
+		THEN			
+			parameter_overwrite_set_lreal_value(x_actual_position, x_phase_position_pow);			
+		ELSIF y_jog_plus
+			OR
+			command_button_is_pressed(hmi_y_jog_plus_cbtn)
+			OR
+			(
+				hmi_y_pendant_active
+				AND
+				csp_main_jogManager.pendant_positive_cmd
+			)
+		THEN
+			axis_move_velocity(
+				velocity		:= y_move_speed,
+				acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= CONSTANTS.MAX_JERK_MMpSEC3,
+				buffer_mode		:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this	:= csp_case_feed_kinematic_y.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_JOG_MCS2;
+		ELSIF y_jog_minus
+			OR
+			command_button_is_pressed(hmi_y_jog_minus_cbtn)
+			OR
+			(
+				hmi_y_pendant_active
+				AND
+				csp_main_jogManager.pendant_negative_cmd
+			)
+		THEN
+			axis_move_velocity(
+				velocity		:= -y_move_speed,
+				acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= CONSTANTS.MAX_JERK_MMpSEC3,
+				buffer_mode		:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this	:= csp_case_feed_kinematic_y.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_JOG_MCS2;
+		ELSIF y_phase_move
+			OR
+			command_button_is_pressed(hmi_y_phase_move_cbtn)
+		THEN
+			axis_are_phase_moving := TRUE;
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_MOVE_MCS2;		
+		ELSIF y_copy_phase
+			OR
+			command_button_is_pressed(hmi_y_copy_phase_cbtn)
+		THEN			
+			parameter_overwrite_set_lreal_value(y_actual_position, y_phase_position_pow);							
+		ELSIF tilt_jog_plus
+			OR
+			command_button_is_pressed(hmi_tilt_jog_plus_cbtn)
+			OR
+			(
+				hmi_tilt_pendant_active
+				AND
+				csp_main_jogManager.pendant_positive_cmd
+			)
+		THEN
+			axis_move_velocity(
+				velocity		:= tilt_move_speed,
+				acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= CONSTANTS.MAX_JERK_MMpSEC3,
+				buffer_mode		:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this	:= csp_case_feed_kinematic_tilt.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_JOG_MCS3;
+		ELSIF tilt_jog_minus
+			OR
+			command_button_is_pressed(hmi_tilt_jog_minus_cbtn)
+			OR
+			(
+				hmi_tilt_pendant_active
+				AND
+				csp_main_jogManager.pendant_negative_cmd
+			)
+		THEN
+			axis_move_velocity(
+				velocity		:= -tilt_move_speed,
+				acceleration	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk			:= CONSTANTS.MAX_JERK_MMpSEC3,
+				buffer_mode		:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this	:= csp_case_feed_kinematic_tilt.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_JOG_MCS3;
+		ELSIF tilt_phase_move
+			OR
+			command_button_is_pressed(hmi_tilt_phase_move_cbtn)
+		THEN
+			axis_are_phase_moving := TRUE;
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_MOVE_MCS3;		
+		ELSIF tilt_copy_phase
+			OR
+			command_button_is_pressed(hmi_tilt_copy_phase_cbtn)
+		THEN			
+			parameter_overwrite_set_lreal_value(tilt_actual_position, tilt_phase_position_pow);								
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_KIN_CONFIG:
+	
+		IF	fbConfigKinGroup.bDone
+			OR
+			fbConfigKinGroup.bError
+		THEN
+			move_kinematic := TRUE;	
+			kin_config_execute := FALSE;
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED;				
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_JOG_ACS1:
+	
+		IF	NOT elbow_jog_plus
+			AND
+			NOT elbow_jog_minus
+			AND
+			NOT command_button_is_pressed(hmi_elbow_jog_plus_cbtn)
+			AND
+			NOT command_button_is_pressed(hmi_elbow_jog_minus_cbtn)
+			AND
+			(
+				NOT hmi_elbow_pendant_active
+				OR
+				(
+					NOT csp_main_jogManager.pendant_positive_cmd
+					AND
+					axis_is_moving_forward(csp_case_feed_arm_elbow.axis)
+				)
+				OR
+				(
+					NOT csp_main_jogManager.pendant_negative_cmd
+					AND
+					axis_is_moving_backward(csp_case_feed_arm_elbow.axis)
+				)
+			)
+		THEN
+			axis_stop(
+		    	deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		    	jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3,
+		    	CONVERSION_this := csp_case_feed_arm_elbow.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_STOP_ACS1;
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_MOVE_ACS1:
+	
+		axis_move_absolute(
+			position 		:= elbow_phase_position,
+			velocity 		:= elbow_move_speed,
+			direction		:= AXIS_CURRENT_DIRECTION,
+			acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+			deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+			jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_case_feed_arm_elbow.axis);
+				
+		IF	axis_is_absolute_moving(csp_case_feed_arm_elbow.axis)
+		THEN
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_STOP_ACS1;
+		END_IF
+				
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_STOP_ACS1:
+	
+		IF	axis_is_standstill(csp_case_feed_arm_elbow.axis)
+		THEN			
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_JOG_ACS2:
+	
+		IF	NOT shoulder_jog_plus
+			AND
+			NOT shoulder_jog_minus
+			AND
+			NOT command_button_is_pressed(hmi_shoulder_jog_plus_cbtn)
+			AND
+			NOT command_button_is_pressed(hmi_shoulder_jog_minus_cbtn)
+			AND
+			(
+				NOT hmi_shoulder_pendant_active
+				OR
+				(
+					NOT csp_main_jogManager.pendant_positive_cmd
+					AND
+					axis_is_moving_forward(csp_case_feed_arm_shoulder.axis)
+				)
+				OR
+				(
+					NOT csp_main_jogManager.pendant_negative_cmd
+					AND
+					axis_is_moving_backward(csp_case_feed_arm_shoulder.axis)
+				)
+			)
+		THEN
+			axis_stop(
+		    	deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		    	jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3,
+		    	CONVERSION_this := csp_case_feed_arm_shoulder.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_STOP_ACS2;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_MOVE_ACS2:
+	
+		axis_move_absolute(
+			position 		:= shoulder_phase_position,
+			velocity 		:= shoulder_move_speed,
+			direction		:= AXIS_CURRENT_DIRECTION,
+			acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+			deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+			jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_case_feed_arm_shoulder.axis);
+				
+		IF	axis_is_absolute_moving(csp_case_feed_arm_shoulder.axis)
+		THEN
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_STOP_ACS2;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_STOP_ACS2:
+	
+		IF	axis_is_standstill(csp_case_feed_arm_shoulder.axis)
+		THEN			
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_JOG_ACS3:
+	
+		IF	NOT wrist_jog_plus
+			AND
+			NOT wrist_jog_minus
+			AND
+			NOT command_button_is_pressed(hmi_wrist_jog_plus_cbtn)
+			AND
+			NOT command_button_is_pressed(hmi_wrist_jog_minus_cbtn)
+			AND
+			(
+				NOT hmi_wrist_pendant_active
+				OR
+				(
+					NOT csp_main_jogManager.pendant_positive_cmd
+					AND
+					axis_is_moving_forward(csp_case_feed_arm_wrist.axis)
+				)
+				OR
+				(
+					NOT csp_main_jogManager.pendant_negative_cmd
+					AND
+					axis_is_moving_backward(csp_case_feed_arm_wrist.axis)
+				)
+			)
+		THEN
+			axis_stop(
+		    	deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		    	jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3,
+		    	CONVERSION_this := csp_case_feed_arm_wrist.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_STOP_ACS3;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_MOVE_ACS3:
+	
+		axis_move_absolute(
+			position 		:= wrist_phase_position,
+			velocity 		:= wrist_move_speed,
+			direction		:= AXIS_CURRENT_DIRECTION,
+			acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+			deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+			jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_case_feed_arm_wrist.axis);
+				
+		IF	axis_is_absolute_moving(csp_case_feed_arm_wrist.axis)
+		THEN
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_STOP_ACS3;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_STOP_ACS3:
+	
+		IF	axis_is_standstill(csp_case_feed_arm_wrist.axis)
+		THEN			
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_JOG_MCS1:
+	
+		IF	NOT x_jog_plus
+			AND
+			NOT x_jog_minus
+			AND
+			NOT command_button_is_pressed(hmi_x_jog_plus_cbtn)
+			AND
+			NOT command_button_is_pressed(hmi_x_jog_minus_cbtn)
+			AND
+			(
+				NOT hmi_x_pendant_active
+				OR
+				(
+					NOT csp_main_jogManager.pendant_positive_cmd
+					AND
+					axis_is_moving_forward(csp_case_feed_kinematic_x.axis)
+				)
+				OR
+				(
+					NOT csp_main_jogManager.pendant_negative_cmd
+					AND
+					axis_is_moving_backward(csp_case_feed_kinematic_x.axis)
+				)
+			)
+		THEN
+			axis_stop(
+		    	deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		    	jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3,
+		    	CONVERSION_this := csp_case_feed_kinematic_x.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_STOP_MCS1;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_MOVE_MCS1:
+	
+		axis_move_absolute(
+			position 		:= x_phase_position,
+			velocity 		:= x_move_speed,
+			direction		:= AXIS_CURRENT_DIRECTION,
+			acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+			deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+			jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_case_feed_kinematic_x.axis);
+				
+		IF	axis_is_absolute_moving(csp_case_feed_kinematic_x.axis)
+		THEN
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_STOP_MCS1;
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_STOP_MCS1:
+	
+		IF	axis_is_standstill(csp_case_feed_kinematic_x.axis)
+		THEN			
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_JOG_MCS2:
+	
+		IF	NOT y_jog_plus
+			AND
+			NOT y_jog_minus
+			AND
+			NOT command_button_is_pressed(hmi_y_jog_plus_cbtn)
+			AND
+			NOT command_button_is_pressed(hmi_y_jog_minus_cbtn)
+			AND
+			(
+				NOT hmi_y_pendant_active
+				OR
+				(
+					NOT csp_main_jogManager.pendant_positive_cmd
+					AND
+					axis_is_moving_forward(csp_case_feed_kinematic_y.axis)
+				)
+				OR
+				(
+					NOT csp_main_jogManager.pendant_negative_cmd
+					AND
+					axis_is_moving_backward(csp_case_feed_kinematic_y.axis)
+				)
+			)
+		THEN
+			axis_stop(
+		    	deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		    	jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3,
+		    	CONVERSION_this := csp_case_feed_kinematic_y.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_STOP_MCS2;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_MOVE_MCS2:
+	
+		axis_move_absolute(
+			position 		:= y_phase_position,
+			velocity 		:= y_move_speed,
+			direction		:= AXIS_CURRENT_DIRECTION,
+			acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+			deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+			jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_case_feed_kinematic_y.axis);
+				
+		IF	axis_is_absolute_moving(csp_case_feed_kinematic_y.axis)
+		THEN
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_STOP_MCS2;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_STOP_MCS2:
+	
+		IF	axis_is_standstill(csp_case_feed_kinematic_y.axis)
+		THEN			
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_JOG_MCS3:
+	
+		IF	NOT tilt_jog_plus
+			AND
+			NOT tilt_jog_minus
+			AND
+			NOT command_button_is_pressed(hmi_tilt_jog_plus_cbtn)
+			AND
+			NOT command_button_is_pressed(hmi_tilt_jog_minus_cbtn)
+			AND
+			(
+				NOT hmi_tilt_pendant_active
+				OR
+				(
+					NOT csp_main_jogManager.pendant_positive_cmd
+					AND
+					axis_is_moving_forward(csp_case_feed_kinematic_tilt.axis)
+				)
+				OR
+				(
+					NOT csp_main_jogManager.pendant_negative_cmd
+					AND
+					axis_is_moving_backward(csp_case_feed_kinematic_tilt.axis)
+				)
+			)
+		THEN
+			axis_stop(
+		    	deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		    	jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3,
+		    	CONVERSION_this := csp_case_feed_kinematic_tilt.axis);
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_STOP_MCS3;
+		END_IF
+	
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_MOVE_MCS3:
+	
+		axis_move_absolute(
+			position 		:= tilt_phase_position,
+			velocity 		:= tilt_move_speed,
+			direction		:= AXIS_CURRENT_DIRECTION,
+			acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+			deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+			jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this := csp_case_feed_kinematic_tilt.axis);
+				
+		IF	axis_is_absolute_moving(csp_case_feed_kinematic_tilt.axis)
+		THEN
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_STOP_MCS3;
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_STOP_MCS3:
+	
+		IF	axis_is_standstill(csp_case_feed_kinematic_tilt.axis)
+		THEN			
+			fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED;
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_PHASE_REQUEST:
+	
+		IF 	move_kinematic
+		THEN
+			x_phase_distance := ABS(axis_get_actual_incremental_position(csp_case_feed_kinematic_x.axis)-x_phase_position);
+			y_phase_distance := ABS(axis_get_actual_incremental_position(csp_case_feed_kinematic_y.axis)-y_phase_position);
+			phase_move_time := SQRT(x_phase_distance*x_phase_distance + y_phase_distance*y_phase_distance)/phase_move_speed;
+			IF	phase_move_time > 0
+			THEN 							
+				x_phase_move_speed := SEL(x_phase_distance > 1, x_move_speed, x_phase_distance/phase_move_time);
+				y_phase_move_speed := SEL(y_phase_distance > 1, y_move_speed, y_phase_distance/phase_move_time);
+			ELSE
+				x_phase_move_speed := x_move_speed;
+				y_phase_move_speed := y_move_speed;
+			END_IF
+	
+			axis_move_absolute(
+				position 		:= x_phase_position,
+				velocity 		:= x_phase_move_speed, //x_move_speed,
+				direction		:= AXIS_CURRENT_DIRECTION,
+				acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_kinematic_x.axis); 
+						
+			axis_move_absolute(
+				position 		:= y_phase_position,
+				velocity 		:= y_phase_move_speed, //y_move_speed,
+				direction		:= AXIS_CURRENT_DIRECTION,
+				acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_kinematic_y.axis); 
+			
+			axis_move_absolute(
+				position 		:= tilt_phase_position,
+				velocity 		:= tilt_move_speed,
+				direction		:= AXIS_CURRENT_DIRECTION,
+				acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_kinematic_tilt.axis); 
+			
+			IF 	axis_is_absolute_moving(csp_case_feed_kinematic_x.axis)
+				AND
+				axis_is_absolute_moving(csp_case_feed_kinematic_y.axis)
+				AND
+				axis_is_absolute_moving(csp_case_feed_kinematic_tilt.axis)
+			THEN
+				fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_PHASING;
+			END_IF
+		ELSE
+			axis_move_absolute(
+				position 		:= elbow_phase_position,
+				velocity 		:= elbow_move_speed,
+				direction		:= AXIS_CURRENT_DIRECTION,
+				acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_arm_elbow.axis); 
+			
+			 axis_move_absolute(
+				position 		:= shoulder_phase_position,
+				velocity 		:= shoulder_move_speed,
+				direction		:= AXIS_CURRENT_DIRECTION,
+				acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_arm_shoulder.axis); 
+			
+			axis_move_absolute(
+				position 		:= wrist_phase_position,
+				velocity 		:= wrist_move_speed,
+				direction		:= AXIS_CURRENT_DIRECTION,
+				acceleration 	:= CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+				deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+				jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := csp_case_feed_arm_wrist.axis); 
+			
+			IF 	axis_is_absolute_moving(csp_case_feed_arm_elbow.axis)
+				AND
+				axis_is_absolute_moving(csp_case_feed_arm_shoulder.axis)
+				AND
+				axis_is_absolute_moving(csp_case_feed_arm_wrist.axis)
+			THEN
+				fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_PHASING;
+			END_IF
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_PHASING:
+	
+		IF 	move_kinematic
+		THEN
+			IF 	axis_is_standstill(csp_case_feed_kinematic_x.axis)
+				AND
+				axis_is_standstill(csp_case_feed_kinematic_y.axis)
+				AND
+				axis_is_standstill(csp_case_feed_kinematic_tilt.axis)
+			THEN
+				IF	engage_enable
+				THEN
+					fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_READY_TO_ENGAGE;
+				ELSE
+					phase_request := FALSE;
+					fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED;
+				END_IF
+			END_IF
+		ELSE
+			IF 	axis_is_standstill(csp_case_feed_arm_elbow.axis)
+				AND
+				axis_is_standstill(csp_case_feed_arm_shoulder.axis)
+				AND
+				axis_is_standstill(csp_case_feed_arm_wrist.axis)
+			THEN
+				fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_PHASED;
+			END_IF
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_PHASED:
+	
+		IF 	enable_kinematic
+		THEN		
+			kin_config_execute := TRUE;
+			kin_config_cartesian_mode := TRUE;
+			IF	fbConfigKinGroup.bDone
+			THEN
+				kin_config_execute := FALSE;	
+				IF	move_kinematic
+				THEN
+					fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_PHASE_REQUEST;
+				ELSE
+					fsm_next_status	:= CSP_CASE_FEED_KINEMATIC_STATUS_READY_TO_ENGAGE;
+				END_IF				
+			END_IF
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_READY_TO_ENGAGE:
+	
+		move_kinematic := TRUE;		
+		IF 	engage_enable 
+			AND
+			motorization_manager_is_starting(csp_main_motorization_manager.motm)					
+		THEN			
+			fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_CAM_ENGAGED_REQ;
+		ELSIF NOT phase_request
+		THEN
+			fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_ENABLED;
+		END_IF
+				
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_CAM_ENGAGED_REQ:
+	
+		axis_engage_cam(
+			cam_id 				:= CASE_FEED_KINEMATIC_X_RUN_CAM,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_RELATIVE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_RELATIVE,
+			activation_mode 	:= AXIS_CAM_ACTIVATION_AT_MASTER_POSITION,
+			activation_position	:= (axis_get_actual_modulo_turns(csp_case_virtualMaster.axis)+1.0)*axis_get_modulo(csp_case_virtualMaster.axis),
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+			master_offset 		:= 0,
+			slave_offset 		:= 0,
+			master_scaling 		:= master_scaling_deg,
+			slave_scaling 		:= x_scaling_mm,
+			interpolation_type 	:= AXIS_CAM_INTERPOLATION_SYSTEM_DEFAULT,
+			master 				:= csp_case_virtualMaster.axis,
+			CONVERSION_this 	:= csp_case_feed_kinematic_x.axis);
+		x_old_scaling_mm := x_scaling_mm;
+		
+		axis_engage_cam(
+			cam_id 				:= CASE_FEED_KINEMATIC_Y_RUN_CAM,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_RELATIVE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_RELATIVE,
+			activation_mode 	:= AXIS_CAM_ACTIVATION_AT_MASTER_POSITION,
+			activation_position	:= (axis_get_actual_modulo_turns(csp_case_virtualMaster.axis)+1.0)*axis_get_modulo(csp_case_virtualMaster.axis),
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+			master_offset 		:= 0,
+			slave_offset 		:= 0,
+			master_scaling 		:= master_scaling_deg,
+			slave_scaling 		:= y_scaling_mm,
+			interpolation_type 	:= AXIS_CAM_INTERPOLATION_SYSTEM_DEFAULT,
+			master 				:= csp_case_virtualMaster.axis,
+			CONVERSION_this 	:= csp_case_feed_kinematic_y.axis);
+		y_old_scaling_mm := y_scaling_mm;
+		
+		axis_engage_cam(
+			cam_id 				:= CASE_FEED_KINEMATIC_TILT_RUN_CAM,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_RELATIVE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_RELATIVE,
+			activation_mode 	:= AXIS_CAM_ACTIVATION_AT_MASTER_POSITION,
+			activation_position	:= (axis_get_actual_modulo_turns(csp_case_virtualMaster.axis)+1.0)*axis_get_modulo(csp_case_virtualMaster.axis),
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+			master_offset 		:= 0,
+			slave_offset 		:= 0,
+			master_scaling 		:= master_scaling_deg,
+			slave_scaling 		:= tilt_scaling_deg,
+			interpolation_type 	:= AXIS_CAM_INTERPOLATION_SYSTEM_DEFAULT,
+			master 				:= csp_case_virtualMaster.axis,
+			CONVERSION_this 	:= csp_case_feed_kinematic_tilt.axis);
+		tilt_old_scaling_deg := tilt_scaling_deg;
+	
+		IF	axis_is_cam_engaged(csp_case_feed_kinematic_x.axis)
+			AND
+			axis_is_cam_engaged(csp_case_feed_kinematic_y.axis)
+			AND
+			axis_is_cam_engaged(csp_case_feed_kinematic_tilt.axis)
+		THEN
+	   		fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_CAM_ENGAGED;
+		END_IF;
+		IF	motorization_manager_is_stopped(csp_main_motorization_manager.motm) OR
+			(
+				NOT motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+				AND
+				motorization_manager_is_idle(csp_main_motorization_manager.motm)
+			)		
+		THEN
+			fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_STOP_REQUEST;
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_CAM_ENGAGED:
+	
+		IF 	(ABS(x_scaling_mm-x_old_scaling_mm) > 1)
+			OR
+			(ABS(y_scaling_mm-y_old_scaling_mm) > 1)
+			OR
+			(ABS(tilt_scaling_deg-tilt_old_scaling_deg) > 1)
+		THEN									
+			fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_CAM_ENGAGED_REQ;
+		END_IF
+		IF	motorization_manager_is_stopped(csp_main_motorization_manager.motm) OR
+			(
+				NOT motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+				AND
+				motorization_manager_is_idle(csp_main_motorization_manager.motm)
+			)
+		THEN
+			fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_STOP_REQUEST;
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_STOP_REQUEST:	
+			
+		axis_stop(
+		    deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		    jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3,
+		    CONVERSION_this := csp_case_feed_kinematic_x.axis);
+			
+		axis_stop(
+		    deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		    jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3,
+		    CONVERSION_this := csp_case_feed_kinematic_y.axis);
+			
+		axis_stop(
+		    deceleration 	:= CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		    jerk 			:= CONSTANTS.MAX_JERK_MMpSEC3,
+		    CONVERSION_this := csp_case_feed_kinematic_tilt.axis);
+
+		IF 	(
+				axis_is_standstill(csp_case_feed_kinematic_x.axis)
+				OR
+				NOT axis_is_ok(FALSE, csp_case_feed_kinematic_x.axis)
+				OR
+				axis_is_disabled(csp_case_feed_kinematic_x.axis)
+			)
+			AND
+			(
+				axis_is_standstill(csp_case_feed_kinematic_y.axis)
+				OR
+				NOT axis_is_ok(FALSE, csp_case_feed_kinematic_y.axis)
+				OR
+				axis_is_disabled(csp_case_feed_kinematic_y.axis)
+			)
+			AND
+			(
+				axis_is_standstill(csp_case_feed_kinematic_tilt.axis)
+				OR
+				NOT axis_is_ok(FALSE, csp_case_feed_kinematic_tilt.axis)
+				OR
+				axis_is_disabled(csp_case_feed_kinematic_tilt.axis)
+			)
+		THEN
+			IF	fsm_enable_condition
+			THEN
+				fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_READY_TO_ENGAGE;
+			ELSE
+				fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_DISABLE_REQUEST;
+			END_IF
+		END_IF		
+
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_DISABLE_REQUEST:
+	
+		IF	disable_kinematic
+		THEN
+			kin_config_execute := TRUE;
+			kin_config_cartesian_mode := FALSE;			
+			fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_DISABLING_KINEMATIC;
+		ELSE
+			fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_DISABLING_AXIS;
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_DISABLING_KINEMATIC:
+	
+		IF	fbConfigKinGroup.bDone
+			OR
+			fbConfigKinGroup.bError			
+        THEN
+			kin_config_execute := FALSE;
+			fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_DISABLING_AXIS;
+		END_IF
+		
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_DISABLING_AXIS:	
+	
+   		axis_disable(csp_case_feed_arm_elbow.axis);
+		axis_disable(csp_case_feed_arm_shoulder.axis);
+		axis_disable(csp_case_feed_arm_wrist.axis);
+		axis_disable(csp_case_feed_kinematic_x.axis);
+		axis_disable(csp_case_feed_kinematic_y.axis);
+		axis_disable(csp_case_feed_kinematic_tilt.axis);
+   		fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_DISABLING;
+
+		
+	CSP_CASE_FEED_KINEMATIC_STATUS_DISABLING:
+	
+        IF	axis_is_disabled(csp_case_feed_arm_elbow.axis)
+			AND
+			axis_is_disabled(csp_case_feed_arm_shoulder.axis)
+			AND
+			axis_is_disabled(csp_case_feed_arm_wrist.axis)
+			AND
+			axis_is_disabled(csp_case_feed_kinematic_x.axis)
+			AND
+			axis_is_disabled(csp_case_feed_kinematic_y.axis)
+			AND			
+			axis_is_disabled(csp_case_feed_kinematic_tilt.axis)			
+        THEN			
+            fsm_next_status := CSP_CASE_FEED_KINEMATIC_STATUS_DISABLED;
+        END_IF
+		
+END_CASE
+
+IF 	NOT debug_state_machine
+	OR
+	debug_state_machine_one_step
+THEN
+	fsm_status := fsm_next_status;
+	debug_state_machine_one_step := FALSE;
+END_IF
+
+memo_cartesian_mode_request := ext_cartesian_mode_request;
+memo_phase_request := ext_phase_request;
+memo_stop_request := ext_stop_request;
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{c8a6369f-8a0d-459d-b140-2d6b9306621b}">
+      <Implementation>
+        <ST><![CDATA[IF	fbConfigKinGroup.bError
+THEN
+	process_message_set(
+		errorID_1			:= fbConfigKinGroup.nErrorId,
+		errorID_2			:= 0,
+		errorID_3			:= 0,
+		CONVERSION_this 	:= kin_config_group_aem);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{89433c5c-f01a-45ba-aac0-89de213599f6}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_hmi_management" Id="{719a35d5-f014-4479-af6c-e7b6c0a60113}">
+      <Implementation>
+        <ST><![CDATA[//Joint/Cartesian selection
+command_button_led_set_status(
+	status				:= SEL(fbConfigKinGroup.bBusy, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_FAST_BLINKING), 		
+	CONVERSION_this		:= hmi_joint_cartesian_mode_cbtn);
+command_button_led_set_color(
+	color				:= SEL(kin_config_cartesian_mode, HMI_LED_COLOR_YELLOW, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_joint_cartesian_mode_cbtn);
+
+//Phase request
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_phase_request_cbtn);
+command_button_led_set_color(
+	color				:= SEL(phase_request, HMI_LED_COLOR_YELLOW, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_phase_request_cbtn);
+IF	command_button_is_pressed(hmi_phase_request_cbtn)
+	AND
+	NOT hmi_phase_request_cbtn_is_pressed
+THEN
+	phase_request		:= NOT phase_request;
+END_IF	
+hmi_phase_request_cbtn_is_pressed := command_button_is_pressed(hmi_phase_request_cbtn);
+
+//Elbow command
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_elbow_jog_plus_cbtn);
+command_button_led_set_color(
+	color				:= SEL(elbow_jog_plus, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_elbow_jog_plus_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_elbow_jog_minus_cbtn);
+command_button_led_set_color(
+	color				:= SEL(elbow_jog_minus, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_elbow_jog_minus_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_elbow_phase_move_cbtn);
+command_button_led_set_color(
+	color				:= SEL(axis_is_moving(csp_case_feed_arm_elbow.axis), HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_elbow_phase_move_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_elbow_activate_pendant_cbtn);
+command_button_led_set_color(
+	color				:= SEL(hmi_elbow_pendant_active, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_elbow_activate_pendant_cbtn);
+IF	command_button_is_pressed(hmi_elbow_activate_pendant_cbtn)
+	AND
+	NOT hmi_elbow_activate_pendant_cbtn_is_pressed
+THEN
+	hmi_elbow_pendant_active := NOT hmi_elbow_pendant_active;
+	IF	hmi_elbow_pendant_active
+	THEN
+		jog_manager_reset_pendant_active(csp_main_jogManager.jog_manager_real);
+		hmi_shoulder_pendant_active := FALSE;
+		hmi_wrist_pendant_active := FALSE;
+		hmi_x_pendant_active := FALSE;
+		hmi_y_pendant_active := FALSE;
+		hmi_tilt_pendant_active := FALSE;
+	END_IF
+END_IF
+hmi_elbow_activate_pendant_cbtn_is_pressed := command_button_is_pressed(hmi_elbow_activate_pendant_cbtn);
+
+//Shoulder command
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_shoulder_jog_plus_cbtn);
+command_button_led_set_color(
+	color				:= SEL(shoulder_jog_plus, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_shoulder_jog_plus_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_shoulder_jog_minus_cbtn);
+command_button_led_set_color(
+	color				:= SEL(shoulder_jog_minus, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_shoulder_jog_minus_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_shoulder_phase_move_cbtn);
+command_button_led_set_color(
+	color				:= SEL(axis_is_moving(csp_case_feed_arm_shoulder.axis), HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_shoulder_phase_move_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_shoulder_activate_pendant_cbtn);
+command_button_led_set_color(
+	color				:= SEL(hmi_shoulder_pendant_active, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_shoulder_activate_pendant_cbtn);
+IF	command_button_is_pressed(hmi_shoulder_activate_pendant_cbtn)
+	AND
+	NOT hmi_shoulder_activate_pendant_cbtn_is_pressed
+THEN
+	hmi_shoulder_pendant_active := NOT hmi_shoulder_pendant_active;
+	IF	hmi_shoulder_pendant_active
+	THEN
+		jog_manager_reset_pendant_active(csp_main_jogManager.jog_manager_real);
+		hmi_elbow_pendant_active := FALSE;
+		hmi_wrist_pendant_active := FALSE;
+		hmi_x_pendant_active := FALSE;
+		hmi_y_pendant_active := FALSE;
+		hmi_tilt_pendant_active := FALSE;
+	END_IF
+END_IF
+hmi_shoulder_activate_pendant_cbtn_is_pressed := command_button_is_pressed(hmi_shoulder_activate_pendant_cbtn);
+
+//Wrist command
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_wrist_jog_plus_cbtn);
+command_button_led_set_color(
+	color				:= SEL(wrist_jog_plus, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_wrist_jog_plus_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_wrist_jog_minus_cbtn);
+command_button_led_set_color(
+	color				:= SEL(wrist_jog_minus, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_wrist_jog_minus_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_wrist_phase_move_cbtn);
+command_button_led_set_color(
+	color				:= SEL(axis_is_moving(csp_case_feed_arm_wrist.axis), HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_wrist_phase_move_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_wrist_activate_pendant_cbtn);
+command_button_led_set_color(
+	color				:= SEL(hmi_wrist_pendant_active, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_wrist_activate_pendant_cbtn);
+IF	command_button_is_pressed(hmi_wrist_activate_pendant_cbtn)
+	AND
+	NOT hmi_wrist_activate_pendant_cbtn_is_pressed
+THEN
+	hmi_wrist_pendant_active := NOT hmi_wrist_pendant_active;
+	IF	hmi_wrist_pendant_active
+	THEN
+		jog_manager_reset_pendant_active(csp_main_jogManager.jog_manager_real);
+		hmi_shoulder_pendant_active := FALSE;
+		hmi_elbow_pendant_active := FALSE;
+		hmi_x_pendant_active := FALSE;
+		hmi_y_pendant_active := FALSE;
+		hmi_tilt_pendant_active := FALSE;
+	END_IF
+END_IF
+hmi_wrist_activate_pendant_cbtn_is_pressed := command_button_is_pressed(hmi_wrist_activate_pendant_cbtn);
+
+//X command
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_x_jog_plus_cbtn);
+command_button_led_set_color(
+	color				:= SEL(x_jog_plus, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_x_jog_plus_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_x_jog_minus_cbtn);
+command_button_led_set_color(
+	color				:= SEL(x_jog_minus, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_x_jog_minus_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_x_phase_move_cbtn);
+command_button_led_set_color(
+	color				:= SEL(axis_is_moving(csp_case_feed_kinematic_x.axis), HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_x_phase_move_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_x_activate_pendant_cbtn);
+command_button_led_set_color(
+	color				:= SEL(hmi_x_pendant_active, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_x_activate_pendant_cbtn);
+IF	command_button_is_pressed(hmi_x_activate_pendant_cbtn)
+	AND
+	NOT hmi_x_activate_pendant_cbtn_is_pressed
+THEN
+	hmi_x_pendant_active := NOT hmi_x_pendant_active;
+	IF	hmi_x_pendant_active
+	THEN
+		jog_manager_reset_pendant_active(csp_main_jogManager.jog_manager_real);
+		hmi_shoulder_pendant_active := FALSE;
+		hmi_elbow_pendant_active := FALSE;
+		hmi_wrist_pendant_active := FALSE;
+		hmi_y_pendant_active := FALSE;
+		hmi_tilt_pendant_active := FALSE;
+	END_IF
+END_IF
+hmi_x_activate_pendant_cbtn_is_pressed := command_button_is_pressed(hmi_x_activate_pendant_cbtn);
+
+//Y command
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_y_jog_plus_cbtn);
+command_button_led_set_color(
+	color				:= SEL(y_jog_plus, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_y_jog_plus_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_y_jog_minus_cbtn);
+command_button_led_set_color(
+	color				:= SEL(y_jog_minus, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_y_jog_minus_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_y_phase_move_cbtn);
+command_button_led_set_color(
+	color				:= SEL(axis_is_moving(csp_case_feed_kinematic_y.axis), HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_y_phase_move_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_y_activate_pendant_cbtn);
+command_button_led_set_color(
+	color				:= SEL(hmi_y_pendant_active, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_y_activate_pendant_cbtn);
+IF	command_button_is_pressed(hmi_y_activate_pendant_cbtn)
+	AND
+	NOT hmi_y_activate_pendant_cbtn_is_pressed
+THEN
+	hmi_y_pendant_active := NOT hmi_y_pendant_active;
+	IF	hmi_y_pendant_active
+	THEN
+		jog_manager_reset_pendant_active(csp_main_jogManager.jog_manager_real);
+		hmi_shoulder_pendant_active := FALSE;
+		hmi_elbow_pendant_active := FALSE;
+		hmi_wrist_pendant_active := FALSE;
+		hmi_x_pendant_active := FALSE;
+		hmi_tilt_pendant_active := FALSE;
+	END_IF
+END_IF
+hmi_y_activate_pendant_cbtn_is_pressed := command_button_is_pressed(hmi_y_activate_pendant_cbtn);
+
+//Tilt command
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_tilt_jog_plus_cbtn);
+command_button_led_set_color(
+	color				:= SEL(tilt_jog_plus, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_tilt_jog_plus_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_tilt_jog_minus_cbtn);
+command_button_led_set_color(
+	color				:= SEL(tilt_jog_minus, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_tilt_jog_minus_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_tilt_phase_move_cbtn);
+command_button_led_set_color(
+	color				:= SEL(axis_is_moving(csp_case_feed_kinematic_tilt.axis), HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_tilt_phase_move_cbtn);
+command_button_led_set_status(
+	status				:= HMI_OBJECT_STATUS_ON, 		
+	CONVERSION_this		:= hmi_tilt_activate_pendant_cbtn);
+command_button_led_set_color(
+	color				:= SEL(hmi_tilt_pendant_active, HMI_LED_COLOR_GREY, HMI_LED_COLOR_GREEN), 		
+	CONVERSION_this		:= hmi_tilt_activate_pendant_cbtn);
+IF	command_button_is_pressed(hmi_tilt_activate_pendant_cbtn)
+	AND
+	NOT hmi_tilt_activate_pendant_cbtn_is_pressed
+THEN
+	hmi_tilt_pendant_active := NOT hmi_tilt_pendant_active;
+	IF	hmi_tilt_pendant_active
+	THEN
+		jog_manager_reset_pendant_active(csp_main_jogManager.jog_manager_real);
+		hmi_shoulder_pendant_active := FALSE;
+		hmi_elbow_pendant_active := FALSE;
+		hmi_wrist_pendant_active := FALSE;
+		hmi_x_pendant_active := FALSE;
+		hmi_y_pendant_active := FALSE;
+	END_IF
+END_IF
+hmi_tilt_activate_pendant_cbtn_is_pressed := command_button_is_pressed(hmi_tilt_activate_pendant_cbtn);
+
+//External pendant selection
+hmi_pendant_active := 
+	hmi_elbow_pendant_active
+	OR
+	hmi_shoulder_pendant_active
+	OR
+	hmi_wrist_pendant_active
+	OR
+	hmi_x_pendant_active
+	OR
+	hmi_y_pendant_active
+	OR
+	hmi_tilt_pendant_active;
+IF	hmi_pendant_active
+	AND
+	jog_manager_is_pendant_active(csp_main_jogManager.jog_manager_real)
+THEN
+	hmi_elbow_pendant_active := FALSE;
+	hmi_shoulder_pendant_active := FALSE;
+	hmi_wrist_pendant_active := FALSE;
+	hmi_x_pendant_active := FALSE;
+	hmi_y_pendant_active := FALSE;
+	hmi_tilt_pendant_active := FALSE;
+END_IF
+
+//Object status
+hmi_graphic_object_set_status(
+	status  			:= SEL(visu_disable_general_command, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),
+	CONVERSION_this    	:= hmi_enable_general_command_hgos);
+
+hmi_graphic_object_set_status(
+	status  			:= SEL(kin_config_cartesian_mode, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+	CONVERSION_this    	:= hmi_enable_joint_hgos);
+
+hmi_graphic_object_set_status(
+	status  			:= SEL(NOT kin_config_cartesian_mode, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+	CONVERSION_this    	:= hmi_enable_cartesian_hgos);
+	
+hmi_graphic_object_set_status(
+	status  			:= SEL(visu_disable_ACS_command, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),
+	CONVERSION_this    	:= hmi_enable_ACS_command_hgos);
+	
+hmi_graphic_object_set_status(
+	status  			:= SEL(visu_disable_MCS_command, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),
+	CONVERSION_this    	:= hmi_enable_MCS_command_hgos);
+command_button_set_status(
+	status				:= SEL(visu_disable_MCS_jog_mode OR hmi_x_pendant_active, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),	
+	CONVERSION_this    	:= hmi_x_jog_plus_cbtn);
+command_button_set_status(
+	status				:= SEL(visu_disable_MCS_jog_mode OR hmi_x_pendant_active, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),	
+	CONVERSION_this    	:= hmi_x_jog_minus_cbtn);
+command_button_set_status(
+	status				:= SEL(visu_disable_MCS_jog_mode OR hmi_y_pendant_active, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),	
+	CONVERSION_this    	:= hmi_y_jog_plus_cbtn);
+command_button_set_status(
+	status				:= SEL(visu_disable_MCS_jog_mode OR hmi_y_pendant_active, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),	
+	CONVERSION_this    	:= hmi_y_jog_minus_cbtn);
+command_button_set_status(
+	status				:= SEL(visu_disable_MCS_jog_mode OR hmi_tilt_pendant_active, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),	
+	CONVERSION_this    	:= hmi_tilt_jog_plus_cbtn);
+command_button_set_status(
+	status				:= SEL(visu_disable_MCS_jog_mode OR hmi_tilt_pendant_active, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),	
+	CONVERSION_this    	:= hmi_tilt_jog_minus_cbtn);
+	
+hmi_graphic_object_set_status(
+	status  			:= SEL(visu_disable_ACS_jog_mode, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),
+	CONVERSION_this    	:= hmi_enable_ACS_jog_mode_hgos);
+command_button_set_status(
+	status				:= SEL(visu_disable_ACS_jog_mode OR hmi_elbow_pendant_active, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),	
+	CONVERSION_this    	:= hmi_elbow_jog_plus_cbtn);
+command_button_set_status(
+	status				:= SEL(visu_disable_ACS_jog_mode OR hmi_elbow_pendant_active, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),	
+	CONVERSION_this    	:= hmi_elbow_jog_minus_cbtn);
+command_button_set_status(
+	status				:= SEL(visu_disable_ACS_jog_mode OR hmi_shoulder_pendant_active, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),	
+	CONVERSION_this    	:= hmi_shoulder_jog_plus_cbtn);
+command_button_set_status(
+	status				:= SEL(visu_disable_ACS_jog_mode OR hmi_shoulder_pendant_active, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),	
+	CONVERSION_this    	:= hmi_shoulder_jog_minus_cbtn);
+command_button_set_status(
+	status				:= SEL(visu_disable_ACS_jog_mode OR hmi_wrist_pendant_active, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),	
+	CONVERSION_this    	:= hmi_wrist_jog_plus_cbtn);
+command_button_set_status(
+	status				:= SEL(visu_disable_ACS_jog_mode OR hmi_wrist_pendant_active, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),	
+	CONVERSION_this    	:= hmi_wrist_jog_minus_cbtn);
+	
+hmi_graphic_object_set_status(
+	status  			:= SEL(visu_disable_MCS_jog_mode, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),
+	CONVERSION_this    	:= hmi_enable_MCS_jog_mode_hgos);
+	
+hmi_graphic_object_set_status(
+	status  			:= SEL(visu_disable_phase_request, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_LOCKED),
+	CONVERSION_this    	:= hmi_enable_phase_request_hgos);
+	
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{f839fb69-9928-44eb-b0f8-3ca6791bea97}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{ea16f36f-b6d3-4c19-8b9e-83bbb8670f3f}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_feed_kinematic.prc', 
+		process						:= csp_case_feed.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+		
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_kin_config_group_aem'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout				:= 0,
+		disableable					:= TRUE,
+		individual_reset			:= FALSE,
+		machine_reaction			:= MACHINE_REACTION_NORMAL_STOP,
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:= prc,
+		CONVERSION_this				:= kin_config_group_aem);
+		
+	//Parameter overwrite
+	parameter_overwrite_lreal_init(
+		object_name 				:= CONCAT(prc_path, '_elbow_phase_position_pow'),
+		out_of_range				:= PARAMETER_OVERWRITE_OUT_OF_RANGE_NONE,
+		parameter					:= elbow_phase_position,
+		process						:= prc,
+		CONVERSION_this 			:= elbow_phase_position_pow);
+	
+	parameter_overwrite_lreal_init(
+		object_name 				:= CONCAT(prc_path, '_shoulder_phase_position_pow'),
+		out_of_range				:= PARAMETER_OVERWRITE_OUT_OF_RANGE_NONE,
+		parameter					:= shoulder_phase_position,
+		process						:= prc,
+		CONVERSION_this 			:= shoulder_phase_position_pow);
+	
+	parameter_overwrite_lreal_init(
+		object_name 				:= CONCAT(prc_path, '_wrist_phase_position_pow'),
+		out_of_range				:= PARAMETER_OVERWRITE_OUT_OF_RANGE_NONE,
+		parameter					:= wrist_phase_position,
+		process						:= prc,
+		CONVERSION_this 			:= wrist_phase_position_pow);
+		
+	parameter_overwrite_lreal_init(
+		object_name 				:= CONCAT(prc_path, '_x_phase_position_pow'),
+		out_of_range				:= PARAMETER_OVERWRITE_OUT_OF_RANGE_NONE,
+		parameter					:= x_phase_position,
+		process						:= prc,
+		CONVERSION_this 			:= x_phase_position_pow);
+	
+	parameter_overwrite_lreal_init(
+		object_name 				:= CONCAT(prc_path, '_y_phase_position_pow'),
+		out_of_range				:= PARAMETER_OVERWRITE_OUT_OF_RANGE_NONE,
+		parameter					:= y_phase_position,
+		process						:= prc,
+		CONVERSION_this 			:= y_phase_position_pow);
+	
+	parameter_overwrite_lreal_init(
+		object_name 				:= CONCAT(prc_path, '_tilt_phase_position_pow'),
+		out_of_range				:= PARAMETER_OVERWRITE_OUT_OF_RANGE_NONE,
+		parameter					:= tilt_phase_position,
+		process						:= prc,
+		CONVERSION_this 			:= tilt_phase_position_pow);
+	
+	//HMI custom page variable management	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_joint_cartesian_mode_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_joint_cartesian_mode_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_phase_request_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_phase_request_cbtn);
+
+		
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_elbow_jog_plus_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_elbow_jog_plus_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_elbow_jog_minus_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_elbow_jog_minus_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_elbow_phase_move_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_elbow_phase_move_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_elbow_copy_phase_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_elbow_copy_phase_cbtn);
+		
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_elbow_activate_pendant_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_elbow_activate_pendant_cbtn);
+	
+				
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_shoulder_jog_plus_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_shoulder_jog_plus_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_shoulder_jog_minus_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_shoulder_jog_minus_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_shoulder_phase_move_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_shoulder_phase_move_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_shoulder_copy_phase_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_shoulder_copy_phase_cbtn);
+
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_shoulder_activate_pendant_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_shoulder_activate_pendant_cbtn);
+	
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_wrist_jog_plus_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_wrist_jog_plus_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_wrist_jog_minus_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_wrist_jog_minus_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_wrist_phase_move_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_wrist_phase_move_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_wrist_copy_phase_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_wrist_copy_phase_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_wrist_activate_pendant_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_wrist_activate_pendant_cbtn);
+	
+		
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_x_jog_plus_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_x_jog_plus_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_x_jog_minus_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_x_jog_minus_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_x_phase_move_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_x_phase_move_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_x_copy_phase_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_x_copy_phase_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_x_activate_pendant_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_x_activate_pendant_cbtn);
+	
+		
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_y_jog_plus_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_y_jog_plus_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_y_jog_minus_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_y_jog_minus_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_y_phase_move_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_y_phase_move_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi__copy_phase_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_y_copy_phase_cbtn);	
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_y_activate_pendant_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_y_activate_pendant_cbtn);
+	
+		
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_tilt_jog_plus_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_tilt_jog_plus_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_tilt_jog_minus_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_tilt_jog_minus_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_tilt_phase_move_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_tilt_phase_move_cbtn);
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_tilt_copy_phase_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_tilt_copy_phase_cbtn);	
+	
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_tilt_activate_pendant_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_tilt_activate_pendant_cbtn);
+	
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_enable_general_command_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_enable_general_command_hgos);
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_enable_joint_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_enable_joint_hgos);
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_enable_cartesian_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_enable_cartesian_hgos);
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_enable_ACS_command_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_enable_ACS_command_hgos);
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_enable_MCS_command_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_enable_MCS_command_hgos);
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_enable_ACS_jog_mode_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_enable_ACS_jog_mode_hgos);
+	
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_enable_MCS_jog_mode_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_enable_MCS_jog_mode_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_enable_phase_request_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_enable_phase_request_hgos);
+	
+		
+	motorization_conditioner_init(
+		object_name					:=	CONCAT(prc_path, '_kinematic_jog_on_motcond'),
+		velocity_limit				:=	0.0,
+		velocity_limit_active		:=	FALSE,
+		idle_handshake_active		:=	FALSE,
+		execute_handshake_active	:=	TRUE,
+		hold_handshake_active		:=	FALSE,
+		suspend_handshake_active	:=	FALSE,
+		complete_handshake_active	:=	FALSE,
+		abort_handshake_active		:=	FALSE,
+		stop_handshake_active		:=	FALSE,
+		origin						:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:=	csp_main_motorization_manager.motm,
+		process						:=	prc,
+		CONVERSION_this				:=	kinematic_jog_on_motcond);
+		
+		
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_Kinematic_tilt_error_aem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= FALSE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, //MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL, //MESSAGE_TYPOLOGY_ABNORMAL,
+        process:= prc,
+        CONVERSION_this:= Kinematic_tilt_error_aem);	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	(*axis_cycle(axis);*)
+	
+	motorization_conditioner_cycle(kinematic_jog_on_motcond);
+	
+	command_button_cycle(hmi_joint_cartesian_mode_cbtn);
+	command_button_cycle(hmi_phase_request_cbtn);
+	command_button_cycle(hmi_elbow_jog_plus_cbtn);
+	command_button_cycle(hmi_elbow_jog_minus_cbtn);
+	command_button_cycle(hmi_elbow_phase_move_cbtn);
+	command_button_cycle(hmi_elbow_copy_phase_cbtn);
+	command_button_cycle(hmi_elbow_activate_pendant_cbtn);
+	command_button_cycle(hmi_shoulder_jog_plus_cbtn);
+	command_button_cycle(hmi_shoulder_jog_minus_cbtn);
+	command_button_cycle(hmi_shoulder_phase_move_cbtn);
+	command_button_cycle(hmi_shoulder_copy_phase_cbtn);
+	command_button_cycle(hmi_shoulder_activate_pendant_cbtn);
+	command_button_cycle(hmi_wrist_jog_plus_cbtn);
+	command_button_cycle(hmi_wrist_jog_minus_cbtn);
+	command_button_cycle(hmi_wrist_phase_move_cbtn);
+	command_button_cycle(hmi_wrist_copy_phase_cbtn);
+	command_button_cycle(hmi_wrist_activate_pendant_cbtn);
+	command_button_cycle(hmi_x_jog_plus_cbtn);
+	command_button_cycle(hmi_x_jog_minus_cbtn);
+	command_button_cycle(hmi_x_phase_move_cbtn);
+	command_button_cycle(hmi_x_copy_phase_cbtn);
+	command_button_cycle(hmi_x_activate_pendant_cbtn);
+	command_button_cycle(hmi_y_jog_plus_cbtn);
+	command_button_cycle(hmi_y_jog_minus_cbtn);
+	command_button_cycle(hmi_y_phase_move_cbtn);
+	command_button_cycle(hmi_y_copy_phase_cbtn);
+	command_button_cycle(hmi_y_activate_pendant_cbtn);
+	command_button_cycle(hmi_tilt_jog_plus_cbtn);
+	command_button_cycle(hmi_tilt_jog_minus_cbtn);
+	command_button_cycle(hmi_tilt_phase_move_cbtn);
+	command_button_cycle(hmi_tilt_copy_phase_cbtn);
+	command_button_cycle(hmi_tilt_activate_pendant_cbtn);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{b0d4e81d-e83f-4c35-b46d-03456e33da9f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{3529e4e1-faec-4935-b0dc-e4274cb32321}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{6249b19a-2a63-4c9b-aaf3-841eb53350bb}">
+      <Implementation>
+        <ST><![CDATA[elbow_actual_position			:= axis_get_actual_incremental_position(csp_case_feed_arm_elbow.axis);
+shoulder_actual_position		:= axis_get_actual_incremental_position(csp_case_feed_arm_shoulder.axis);
+wrist_actual_position			:= axis_get_actual_incremental_position(csp_case_feed_arm_wrist.axis);
+x_actual_position				:= SEL(cartesian_mode_active, stAxesPosOut[1], axis_get_actual_incremental_position(csp_case_feed_kinematic_x.axis));
+y_actual_position				:= SEL(cartesian_mode_active, stAxesPosOut[2], axis_get_actual_incremental_position(csp_case_feed_kinematic_y.axis));
+tilt_actual_position			:= SEL(cartesian_mode_active, stAxesPosOut[3], axis_get_actual_incremental_position(csp_case_feed_kinematic_tilt.axis));
+
+axis_are_moving :=
+	axis_is_moving(csp_case_feed_arm_elbow.axis)
+	OR
+	axis_is_moving(csp_case_feed_arm_shoulder.axis)
+	OR
+	axis_is_moving(csp_case_feed_arm_wrist.axis)
+	OR
+	axis_is_moving(csp_case_feed_kinematic_x.axis)
+	OR
+	axis_is_moving(csp_case_feed_kinematic_y.axis)
+	OR
+	axis_is_moving(csp_case_feed_kinematic_tilt.axis);
+	
+visu_disable_general_command :=
+	axis_are_moving
+	OR 
+	phase_request
+	OR
+	fbConfigKinGroup.bBusy
+	OR
+	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_execute(csp_main_motorization_manager.motm);	
+
+visu_disable_ACS_command := 
+	visu_disable_general_command
+	OR
+	kin_config_cartesian_mode;
+
+visu_disable_MCS_command := 
+	visu_disable_general_command
+	OR
+	NOT kin_config_cartesian_mode;
+	
+visu_disable_ACS_jog_mode :=
+	kin_config_cartesian_mode 
+	OR
+	axis_are_phase_moving
+	OR
+	phase_request
+	OR
+	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_execute(csp_main_motorization_manager.motm);	
+
+visu_disable_MCS_jog_mode :=
+	NOT kin_config_cartesian_mode 
+	OR
+	axis_are_phase_moving
+	OR
+	phase_request
+	OR
+	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_execute(csp_main_motorization_manager.motm);	
+
+visu_disable_phase_request := 
+	axis_are_moving
+	OR
+	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_execute(csp_main_motorization_manager.motm);	
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{7b5bcfae-1fbf-46dc-b5e1-322d9f09737b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_case_feed_kinematic">
+      <LineId Id="1559" Count="1335" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_kinematic._handle_messages">
+      <LineId Id="2" Count="6" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_kinematic._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_kinematic._hmi_management">
+      <LineId Id="2" Count="368" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_kinematic._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_kinematic._object_manager">
+      <LineId Id="2" Count="339" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_kinematic._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_kinematic._read_var_input">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_kinematic._set_runtime_properties">
+      <LineId Id="2" Count="68" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_feed_kinematic._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

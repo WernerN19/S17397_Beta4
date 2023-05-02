@@ -1,0 +1,177 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_main_cabinet" Id="{233b8b78-38ef-435b-91b3-e879f6e8eec5}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/07/08 	0000.00	 	N.Diskin		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_case_main_cabinet
+VAR
+	prc:												process;
+	prc_path:											STRING;
+	
+	temperature_fault_di:								digital_input;
+	temperature_fault_dchk:								digital_check;
+	
+	ups_battery_charge_di:								digital_input;
+	ups_battery_mode_di:								digital_input;
+	ups_alarm_di:										digital_input;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{86497123-96e8-4329-bd22-038902511703}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{97925ed3-0c07-48df-a30d-45774038f74b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{1d55736a-47f9-4dbc-a3da-e4407eb16988}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{b8e3a658-36d0-47d2-afb5-b92f5b08d939}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_main_cabinet.prc', 
+		process						:= csp_case_main.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	
+
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_temperature_fault_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= temperature_fault_di);
+		
+	digital_check_init(
+		object_name					:= CONCAT(prc_path, '_temperature_fault_dchk'),
+		alarm_if_input_off			:= FALSE,
+		alarm_delay					:= 1000,
+		enabled_at_powerup			:= TRUE,
+		process						:= prc,
+		CONVERSION_this				:= temperature_fault_dchk);
+
+	digital_check_add_di(
+		di							:= temperature_fault_di,
+		CONVERSION_this				:= temperature_fault_dchk);
+		
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_ups_battery_charge_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= ups_battery_charge_di);
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_ups_battery_mode_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= ups_battery_mode_di);
+		
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_ups_alarm_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= ups_alarm_di);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	digital_check_cycle(temperature_fault_dchk);
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{16d24ab1-8dec-4210-a55d-0dee4e563bad}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{ac65648d-e774-4afd-bbb2-dc340406f0cb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{2f48d7c5-52b8-4d76-8771-beb25d9507fb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{e77df5e2-7ae3-4ae5-9540-0b2f12fc5052}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,583 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_main_safety_interface" Id="{83e60514-b349-4cae-bc0e-57a08fbca3c3}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine safety interfaces definition
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/24 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_case_main_safety_interface
+VAR
+	prc:						process;
+	prc_path:					STRING;
+	
+	SPLC5000_sic: 				safety_integrated_controller; (*CASE*)
+	SPLC5000_sig:				safety_integrated_group;
+	
+	flexlink_estop_sio:			safety_integrated_object;
+	
+	(* SAFETY INTERFACE *)
+	_SPLC5000Slot3:				safety_integrated_controller_connection_interface;
+	_SPLC5000Slot4:				safety_integrated_controller_connection_interface;
+	_SPLC5000Slot5:				safety_integrated_controller_connection_interface;
+	_SPLC5000Slot7:				safety_integrated_controller_connection_interface;
+	_SPLC5000Slot9:				safety_integrated_controller_connection_interface;
+	_SPLC5000Slot11:			safety_integrated_controller_connection_interface;
+
+	(* DRIVES RACK *)
+	_SD2100_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD2100_drv_ChB:			safety_integrated_controller_connection_interface;
+	_SD2200_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD2200_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD2300_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD2300_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD2400_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD2400_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD2500_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD2500_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD12000_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD12000_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD8000_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD8000_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD8100_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD8100_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD8200_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD8200_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD8300_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD8300_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD8400_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD8400_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD8500_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD8500_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD8600_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD8600_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD10000_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD10000_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD10100_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD10100_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD10200_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD10200_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD10300_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD10300_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD10400_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD10400_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD11000_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD11000_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD15000_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD15000_drv_ChB:			safety_integrated_controller_connection_interface;				
+	_SD26000_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD26000_drv_ChB:			safety_integrated_controller_connection_interface;		
+	_SD26100_drv_ChA:			safety_integrated_controller_connection_interface;
+	_SD26100_drv_ChB:			safety_integrated_controller_connection_interface;		
+	
+	
+	
+END_VAR
+VAR CONSTANT
+	lock_timeout_ncn:				UDINT := 2000;	(*ms*)
+	open_timeout_ncn:				UDINT := 10000;	(*ms*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{fd6130ef-8c2f-43f5-95bd-42dde8ab61c5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{f767142f-df7a-4a19-b752-181a415f251d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{c1191513-4a58-403c-b1c3-25559b60accb}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{dc144e55-968e-409d-b35e-a2da64ccb0bb}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_case_main_safety_interface.prc', 
+		process									:= csp_case_main_safety.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+	
+	safety_integrated_controller_init(
+        object_name 			:= CONCAT(prc_path, '_SPLC5000_sic'),
+        process     			:= prc,
+        CONVERSION_this        	:=SPLC5000_sic);
+
+	safety_integrated_controller_configure(
+		_type					:= SAFETY_INTEGRATED_CONTROLLER_TYPE_EL,
+		device_name				:= 'SPLC5000',
+		ethercat_master			:= csp_main.cabinet_ethercat_master,
+		CONVERSION_this			:= SPLC5000_sic);
+		
+	safety_integrated_group_init(
+        object_name 			:= CONCAT(prc_path, '_SPLC5000_sig'),
+    	controller 				:= SPLC5000_sic,
+        process 				:= prc,
+        CONVERSION_this 		:= SPLC5000_sig);
+	
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SPLC5000Slot3',
+		connection_interface					:= _SPLC5000Slot3,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+	
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SPLC5000Slot4',
+		connection_interface					:= _SPLC5000Slot4,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+	
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SPLC5000Slot5',
+		connection_interface					:= _SPLC5000Slot5,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SPLC5000Slot7',
+		connection_interface					:= _SPLC5000Slot7,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);	
+	
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SPLC5000Slot9',
+		connection_interface					:= _SPLC5000Slot9,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+	
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SPLC5000Slot11',
+		connection_interface					:= _SPLC5000Slot11,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+	
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD2100',
+		connection_interface					:= _SD2100_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD2100',
+		connection_interface					:= _SD2100_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD2200',
+		connection_interface					:= _SD2200_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD2200',
+		connection_interface					:= _SD2200_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD2300',
+		connection_interface					:= _SD2300_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD2300',
+		connection_interface					:= _SD2300_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+			safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD2400',
+		connection_interface					:= _SD2400_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD2400',
+		connection_interface					:= _SD2400_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+			safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD2500',
+		connection_interface					:= _SD2500_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD2500',
+		connection_interface					:= _SD2500_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+			safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD12000',
+		connection_interface					:= _SD12000_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD12000',
+		connection_interface					:= _SD12000_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8000',
+		connection_interface					:= _SD8000_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8000',
+		connection_interface					:= _SD8000_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8100',
+		connection_interface					:= _SD8100_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8100',
+		connection_interface					:= _SD8100_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8200',
+		connection_interface					:= _SD8200_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8200',
+		connection_interface					:= _SD8200_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8300',
+		connection_interface					:= _SD8300_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8300',
+		connection_interface					:= _SD8300_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8400',
+		connection_interface					:= _SD8400_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8400',
+		connection_interface					:= _SD8400_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8500',
+		connection_interface					:= _SD8500_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8500',
+		connection_interface					:= _SD8500_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8600',
+		connection_interface					:= _SD8600_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD8600',
+		connection_interface					:= _SD8600_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD10000',
+		connection_interface					:= _SD10000_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD10000',
+		connection_interface					:= _SD10000_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD10100',
+		connection_interface					:= _SD10100_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD10100',
+		connection_interface					:= _SD10100_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD10200',
+		connection_interface					:= _SD10200_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD10200',
+		connection_interface					:= _SD10200_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD10300',
+		connection_interface					:= _SD10300_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD10300',
+		connection_interface					:= _SD10300_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD10400',
+		connection_interface					:= _SD10400_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD10400',
+		connection_interface					:= _SD10400_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD11000',
+		connection_interface					:= _SD11000_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD11000',
+		connection_interface					:= _SD11000_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD15000',
+		connection_interface					:= _SD15000_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD15000',
+		connection_interface					:= _SD15000_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD26000',
+		connection_interface					:= _SD26000_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD26000',
+		connection_interface					:= _SD26000_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD26100',
+		connection_interface					:= _SD26100_drv_ChA,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+
+	safety_integrated_controller_add_connection_interface(
+		device_name								:= 'SD26100',
+		connection_interface					:= _SD26100_drv_ChB,
+		ethercat_master							:= csp_main.cabinet_ethercat_master,
+		group									:= SPLC5000_sig,
+		CONVERSION_this							:= SPLC5000_sic);
+		
+		(* Flexlink EStop *)	
+	safety_integrated_object_init(
+		object_name								:= CONCAT(prc_path, '_flexlink_estop_sio'), 
+		_type									:= SAFETY_INTEGRATED_OBJECT_WITH_LOCK_AND_UNLOCK_ON_RISING_EDGE_TYPE, 
+		discrepancy_active						:= TRUE, 
+		process									:= prc, 
+		CONVERSION_this							:= flexlink_estop_sio);
+		
+	safety_integrated_object_add_safety_integrated_group(
+		group									:= SPLC5000_sig, 
+		CONVERSION_this							:= flexlink_estop_sio);
+		
+	safety_integrated_object_lock_init(
+		discrepancy_active						:= TRUE, 
+		safely_locked_input_polarity_direct		:= TRUE, 
+		CONVERSION_this							:= flexlink_estop_sio);
+		
+	safety_integrated_object_set_lock_timeout(
+		value									:= lock_timeout_ncn,
+		CONVERSION_this							:= flexlink_estop_sio);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	safety_integrated_controller_cycle(SPLC5000_sic);
+	safety_integrated_group_cycle(SPLC5000_sig);
+	safety_integrated_object_cycle(flexlink_estop_sio);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{2e833069-8c78-497f-beaf-2827eacd6ec7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{de239ef0-f62c-41c5-b5ee-d119051f6cad}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{c4764c21-5daf-4716-8e45-7f45d866ce88}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{ca271b02-8d52-4620-a944-7c847676aa14}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

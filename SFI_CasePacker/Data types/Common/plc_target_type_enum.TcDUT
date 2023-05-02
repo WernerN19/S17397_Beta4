@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="plc_target_type_enum" Id="{b4dd8e0d-2f27-47cb-a8ff-04207180bfdb}">
+    <Declaration><![CDATA[TYPE plc_target_type_enum :
+(
+	PLC_TARGET_MACHINE 			:= 0, 		(*PLC works connected to a real machine*)
+	PLC_TARGET_LOCAL 			:= 1,		(*PLC works connected to a local simulator*)
+	PLC_TARGET_LOCAL_IP			:= 2		(*PLC works connected to a local simulator with Industrial Physics*)
+) := PLC_TARGET_LOCAL;
+
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,197 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_flapControl_backStop" Id="{131d8716-b546-445a-a545-f7a33c2ac17a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_flapControl_backStop
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	extend_do:										digital_output;
+	extend_sact:									digital_actuator;
+	present_di:										digital_input;
+	
+	backstop_present_lost_aem:						message;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT:
+		digital_actuator_activate(CONVERSION_this:=extend_sact);
+		digital_output_set(CONVERSION_this := extend_do);
+		RETURN;
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+IF 	csp.o_machine_is_running //(csp.mch)
+	AND NOT digital_input_is_active(present_di)
+THEN
+	process_message_set(1,1,1, backstop_present_lost_aem);
+END_IF
+
+IF 	machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	process_message_reset(backstop_present_lost_aem);
+END_IF
+
+
+IF 	csp.o_machine_is_running
+	OR
+	csp.o_machine_is_ready
+THEN
+	digital_actuator_activate(CONVERSION_this:=extend_sact);
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{a988de6a-ed81-45e0-a989-67bd3820a28c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{7eed864a-bd66-4fe0-b0a6-4a077341fe10}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{8241d815-716b-4a17-83b4-161b9aa65eff}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{b7b11de4-549b-4752-89b8-66e8e47bd2f2}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_flapControl_backStop.prc', 
+		process						:= csp_case_flapControl.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* OUPUTS *)
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_extend_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= extend_do);
+	
+	(* INPUTS *)
+	digital_input_init(
+		object_name 			:= CONCAT(prc_path, '_present_di'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= present_di);
+	
+	digital_actuator_init(			
+		object_name					:=CONCAT(prc_path, '_extend_sact'), 
+		_type           			:= DIGITAL_ACTUATOR_TYPE_IN_Ax,
+		fault_reaction 				:= DIGITAL_ACTUATOR_FAULT_REACTION_IGNORE,
+		active_time     			:= 2000,
+		inactive_time   			:= 2000,
+		dout            			:= extend_do,
+		process         			:= prc,
+		conversion_this 			:= extend_sact);
+
+	digital_actuator_add_di_active(
+		di_active					:=present_di,
+	 	CONVERSION_this				:=extend_sact);
+		
+		
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_backstop_present_lost_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_EMERGENCY_STOP, 
+		typology:= MESSAGE_TYPOLOGY_EMERGENCY, 
+		process:= prc, 
+		CONVERSION_this:= backstop_present_lost_aem);	
+	
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	digital_actuator_cycle(extend_sact);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{b3217271-48a8-4dd1-8899-fc788a251e7c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{e764dd64-bf7b-475a-8d59-5b98aee497da}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{b29b221a-a3f9-4c56-b8b1-ead0247fd988}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{9fe89b43-3af0-4bc9-920d-8038bc143cf4}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

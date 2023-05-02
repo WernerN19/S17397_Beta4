@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_transfer_infeed_low" Id="{a16c60f6-74c6-43da-960c-487402c5f6ee}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_transfer_infeed_low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* TRANSFER *)
+	(* INFEED *)
+		(* ACC-U-CHANGE *)
+		(* DEPTH *)
+		csp_transfer_infeed_accU_depth();
+		(* WATERFALL ADJUST *)
+		csp_transfer_infeed_accU_waterfallAdjust();
+		(* METERING *)
+			csp_transfer_infeed_metering_belt();
+			csp_transfer_infeed_metering_jam();
+		(* WATERFALL *)
+			csp_transfer_infeed_waterfall_belt();
+		(* ACCUMULATION *)
+			(* LEVEL *)
+			csp_transfer_infeed_accumulation_belt();
+			csp_transfer_infeed_accumulation_level();
+			csp_transfer_infeed_accumulation_level_min();
+			csp_transfer_infeed_accumulation_level_low();
+			csp_transfer_infeed_accumulation_level_normal();
+			csp_transfer_infeed_accumulation_level_max();
+			
+		(* REJECT *)
+		;
+		(* SENSORS *)
+		;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

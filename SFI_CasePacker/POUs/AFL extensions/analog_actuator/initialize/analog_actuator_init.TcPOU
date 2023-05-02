@@ -1,0 +1,169 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_init" Id="{01762c0d-047d-41d1-b13f-24afdefb4fe5}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Initializes the instance specified by the parameter <b><i>this</i></b>. <br/>
+	<p>
+	This function should be called at startup only.<br/>	
+	Against errors on the input parameters the cpu is stopped, in this case the cause <br/>
+	can be inspected in the global struct <i>framework.abort_error</i>: <br/>
+	<br/>
+	<li> <b>ERRORID_1 = 1</b>: <b><i>object_name</i></b> is illegal </li>
+	</p>
+$*)
+FUNCTION analog_actuator_init : VOID
+VAR_INPUT
+	object_name:	STRING(MAX_OBJ_NAME_LENGTH);	(*$ The instance name as <i>STRING</i> $*)
+	fault_reaction:	analog_actuator_fault_reaction_enum;
+													(*$ Reaction strategy in case of fault $*)
+	active_time:	UDINT;
+	(*$
+		Activation time: see <a href="#analog_actuator_parameters"><i>active_time</i></a>
+		parameter description. 
+	$*)
+	inactive_time:	UDINT;
+	(*$
+		Deactivation time: see <a href="#analog_actuator_parameters"><i>inactive_time</i></a>
+		parameter description. 
+	$*)
+END_VAR
+VAR_IN_OUT
+	analog_out:		analog_output;		(*$ <a href="#analog_output_object"><i>analog_output</i></a> object to drive $*)
+	process:		process;			(*$ <a href="#process_object"><i>process</i></a> membership $*)
+	CONVERSION_this:			analog_actuator;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF CONVERSION_this.CONVERSION_private.initialized
+THEN
+	RETURN;
+END_IF
+
+IF analog_output_is_not_initialized(analog_out)
+   OR
+   process_is_not_initialized(process)
+THEN
+	IF framework_initialization()
+	THEN
+		RETURN;
+	END_IF
+END_IF
+
+IF analog_output_is_not_initialized(analog_out)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(analog_out),
+		object_size := SIZEOF(analog_out),
+		abort := TRUE,
+		error_str_1 := 'object not initialized', 
+		error_str_2 := CONCAT('Please check analog_actuator_init of ',CONVERSION_this.object_name)				
+	);
+    RETURN;
+END_IF
+
+IF process_is_not_initialized(process)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(process), 
+		object_size := SIZEOF(process), 
+		abort := TRUE,
+		error_str_1 := 'object not initialized', 
+		error_str_2 := CONCAT('Please check analog_actuator_init of ',CONVERSION_this.object_name)			
+	);
+    RETURN;
+END_IF
+
+IF object_name = ''
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(CONVERSION_this), 
+		object_size := SIZEOF(CONVERSION_this), 
+		abort := TRUE,
+		error_str_1 := 'object name is null', 
+		error_str_2 := ''
+	);
+    RETURN;
+END_IF
+
+IF obj_name_find_illegal_characters(object_name)
+THEN
+    abort(
+		object_name := object_name,
+        errorID_1 := 1,
+        errorID_2 := 0,
+        errorID_3 := 0,
+        error_str_1 := CONCAT(CONCAT(CONCAT(CONCAT('(', ANALOG_ACTUATOR_CLASS_NAME), ') '), object_name), ' object name is invalid'),
+		error_str_2 := ''
+    );
+    RETURN;
+END_IF
+
+CONVERSION_this.object_name := object_name;
+
+CONVERSION_this.CONVERSION_private.my_address := ADR(CONVERSION_this);
+
+descriptor_init(
+	object_name := CONCAT(CONVERSION_this.object_name,'.descriptor'),
+	process := process,
+	CONVERSION_this := CONVERSION_this.descriptor
+	);
+
+CONVERSION_this.ao_setpoint := ADR(analog_out);
+analog_output_percent_write(0, analog_out);
+
+CONVERSION_this.fault_reaction := fault_reaction;
+CONVERSION_this.active_time := active_time;
+CONVERSION_this.inactive_time := inactive_time;
+
+CONVERSION_this.is_active := FALSE;
+CONVERSION_this.is_inactive := FALSE;
+
+timer_init(
+	object_name := CONCAT(CONVERSION_this.object_name,'.timer'),
+	process := process,
+	CONVERSION_this := CONVERSION_this.timer
+);
+
+CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_INIT;
+CONVERSION_this.command := ANALOG_ACTUATOR_CMD_INIT;
+CONVERSION_this.test.command := ANALOG_ACTUATOR_TEST_CMD_IDLE;
+
+analog_actuator_init_snapshot(
+	message_name := 'inactive_fem',
+    behaviour :=  MESSAGE_BEHAVIOUR_EVENT,
+	reset_timeout := 0,
+	disableable := FALSE,
+	individual_reset := FALSE,
+	machine_reaction := MACHINE_REACTION_NORMAL_STOP,
+	typology := MESSAGE_TYPOLOGY_ABNORMAL,
+    analog_actuator := CONVERSION_this,
+	CONVERSION_this := CONVERSION_this.inactive_fem
+);
+
+analog_actuator_init_snapshot(
+	message_name := 'active_fem',
+    behaviour :=  MESSAGE_BEHAVIOUR_EVENT,
+	reset_timeout := 0,
+	disableable := FALSE,
+	individual_reset := FALSE,
+	machine_reaction := MACHINE_REACTION_NORMAL_STOP,
+	typology := MESSAGE_TYPOLOGY_ABNORMAL,
+	analog_actuator := CONVERSION_this,
+	CONVERSION_this := CONVERSION_this.active_fem
+);
+
+analog_actuator_init_snapshot(
+	message_name := 'out_of_lower_range_fem',
+    behaviour :=  MESSAGE_BEHAVIOUR_EVENT,
+	reset_timeout := 0,
+	disableable := FALSE,
+	individual_reset := FALSE,
+	machine_reaction := MACHINE_REACTION_NORMAL_STOP,
+	typology := MESSAGE_TYPOLOGY_ABNORMAL,
+    analog_actuator := CONVERSION_this,
+	CONVERSION_this := CONVERSION_this.out_of_lower_range_fem
+);
+
+CONVERSION_this.CONVERSION_private.initialized := TRUE;]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

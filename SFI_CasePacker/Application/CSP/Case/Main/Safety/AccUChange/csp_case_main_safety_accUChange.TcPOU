@@ -1,0 +1,163 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.18">
+  <POU Name="csp_case_main_safety_accUChange" Id="{6e3e2ce5-17ed-45af-9f1c-af34e7e4e4b2}" SpecialFunc="None">
+    <Declaration><![CDATA[(********************* G.D S.p.A. - Technical Department *****************************
+
+Date			Version		Author			Description             
+----------      -------		-----------		----------------------------------------------
+2020/03/26		0000.00		M. Grasso		Initial Release
+
+DESCRIPTION:	
+
+NOTES:        		 
+
+**************************************************************************************)
+(*$R process_ref := prc; $*)
+
+PROGRAM csp_case_main_safety_accUChange
+VAR
+	prc:							process;
+	prc_path:						STRING;
+
+	sis:							safety_integrated_series;
+	sig:							safety_integrated_group;
+
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+_objects_manager();
+
+IF g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode (CONVERSION_this := prc) OF
+
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+_set_runtime_properties();
+
+(*************************************************************************************
+**************************************************************************************)
+(*BODY*)
+safety_integrated_series_close(sis);
+
+(*************************************************************************************
+**************************************************************************************)
+
+_handle_messages();
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{9ded5f08-56cc-44e0-98f8-1b760a0abd5b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{f5e130bd-639d-4339-bb00-98d774e1b629}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{8da9dffb-4591-496f-9151-342934f55630}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(CONVERSION_this := prc)
+THEN
+    process_apply_mode_req_first_step(CONVERSION_this := prc);
+    CASE process_get_mode(CONVERSION_this := prc) OF
+        MODE_TO_ABSENT:
+            ;
+        MODE_TO_INACTIVE:
+            ;
+        MODE_TO_TEST:
+            ;
+        MODE_TO_OPERATIONAL:
+            ;
+    END_CASE
+    process_apply_mode_req_second_step(CONVERSION_this := prc);
+END_IF;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{a544c40a-2520-4324-94ca-f117305d62fb}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+    sub_process_init(
+        object_name 				:= 'csp_case_main_safety_accUChange.prc',
+        process						:= csp_case_main_safety.prc,
+        CONVERSION_this						:= prc);
+
+	prc_path 						:= process_get_path(prc);
+
+	safety_integrated_group_init(
+        object_name					:=	CONCAT(prc_path, '_sig'),
+		controller					:=	csp_case_main_safety_interface.SPLC5000_sic,
+        process						:=	prc,
+        CONVERSION_this						:=	sig);
+
+	safety_integrated_series_init(
+		object_name					:=	CONCAT(prc_path, '_sis'),
+		_type						:=	SAFETY_INTEGRATED_SERIES_TYPE_NO_RESET,
+		discrepancy_active			:= 	TRUE,
+		forced_open_active			:=	TRUE,
+		process						:=	prc,
+		CONVERSION_this						:=	sis);
+
+	safety_integrated_series_closure_diagnosis_deactivate(sis);
+	safety_integrated_series_opening_diagnosis_activate(sis);
+
+	safety_integrated_series_add_safety_integrated_group(
+		group						:=	sig,
+		CONVERSION_this				:=	sis);
+
+  	safety_integrated_series_add_safety_integrated_series(
+		series_active 				:= 	TRUE,
+		series_polarity_direct 		:= 	TRUE,
+        contact 					:= 	csp_case_main_safety_emergency.delayed_sis,
+        CONVERSION_this 			:= 	sis);
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+
+	safety_integrated_group_cycle(sig);
+	safety_integrated_series_cycle(sis);
+
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{771e872b-c39e-4263-a339-af2d0f4e8ca7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{f5ddbf86-6d62-4d99-9c01-7948a77eb2fa}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{8c8b9065-99b2-474c-baa2-f3a31e4b982a}">
+      <Implementation>
+        <ST><![CDATA[safety_integrated_series_series_on_series_activate(
+		contact := csp_case_main_safety_emergency.delayed_sis,
+		CONVERSION_this := sis);]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{e2587945-9c97-4cd4-8e2a-ae30f1542221}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

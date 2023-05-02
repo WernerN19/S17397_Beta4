@@ -1,0 +1,2079 @@
+<?xml version="1.0"?>
+<TcSmItem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2012/07/TcSmProject" TcSmVersion="1.0" TcVersion="3.1.4024.7" ClassName="CFlbTermDef" SubType="9099">
+	<DataTypes>
+		<DataType>
+			<Name GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety" TcBaseType="true">FSOE_6</Name>
+			<BitSize>48</BitSize>
+			<SubItem>
+				<Name>FSoE CMD</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>FSoE Data</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000032}">BITARR8</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>FSoE CRC_0</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000005}">UINT</Type>
+				<BitSize>16</BitSize>
+				<BitOffs>16</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>FSoE ConnID</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000005}">UINT</Type>
+				<BitSize>16</BitSize>
+				<BitOffs>32</BitOffs>
+			</SubItem>
+		</DataType>
+		<DataType>
+			<Name GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}" AutoDeleteType="true">FSOE_7</Name>
+			<BitSize>56</BitSize>
+			<SubItem>
+				<Name>FSoE CMD</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>FSoE Data 0</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000033}">BITARR16</Type>
+				<BitSize>16</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>FSoE CRC_0</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000005}">UINT</Type>
+				<BitSize>16</BitSize>
+				<BitOffs>24</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>FSoE ConnID</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000005}">UINT</Type>
+				<BitSize>16</BitSize>
+				<BitOffs>40</BitOffs>
+			</SubItem>
+			<Hides>
+				<Hide GUID="{DFA8D4FD-47A3-4AE7-8AC9-DBDC7DEC52DF}"/>
+			</Hides>
+		</DataType>
+		<DataType>
+			<Name GUID="{18071995-0000-0000-0000-002000000002}" IecBaseType="true" AutoDeleteType="true" HideSubItems="true">ARRAY [0..1] OF BIT</Name>
+			<BitSize>2</BitSize>
+			<BaseType GUID="{18071995-0000-0000-0000-000000000010}">BIT</BaseType>
+			<ArrayInfo>
+				<LBound>0</LBound>
+				<Elements>2</Elements>
+			</ArrayInfo>
+		</DataType>
+		<DataType>
+			<Name GUID="{96A14884-0391-D304-B951-29DC4C13D4AF}" AutoDeleteType="true">INFODATA_1916657131</Name>
+			<BitSize>40</BitSize>
+			<SubItem>
+				<Name>State</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Diag</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 1.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>16</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 1.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>17</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 2.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>18</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 2.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>19</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 3.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>20</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 3.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>21</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 4.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>22</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 4.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>23</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 5.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>24</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 5.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>25</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 6.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>26</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 6.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>27</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 7.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>28</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 7.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>29</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 8.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>30</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 8.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>31</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 1.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>32</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 2.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>33</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 3.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>34</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 4.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>35</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 5.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>36</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 6.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>37</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 7.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>38</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 8.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>39</BitOffs>
+			</SubItem>
+		</DataType>
+		<DataType>
+			<Name GUID="{8EA147D6-69F3-6C3B-79EE-020724104888}" AutoDeleteType="true">INFODATA_1525530285</Name>
+			<BitSize>32</BitSize>
+			<SubItem>
+				<Name>State</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Diag</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data OutputChannel1</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>24</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data OutputChannel2</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>25</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data OutputChannel3</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>26</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data OutputChannel4</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>27</BitOffs>
+			</SubItem>
+		</DataType>
+		<DataType>
+			<Name GUID="{B208A071-D569-BBDE-3F1F-5D1BE42630FF}" AutoDeleteType="true">INFODATA_3795782120</Name>
+			<BitSize>32</BitSize>
+			<SubItem>
+				<Name>State</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Diag</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[0]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>16</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[1]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>17</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[2]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>18</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[3]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>19</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[4]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>20</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[5]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>21</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[6]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>22</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[7]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>23</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[0]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>24</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[1]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>25</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[2]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>26</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[3]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>27</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[4]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>28</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[5]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>29</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[6]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>30</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[7]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>31</BitOffs>
+			</SubItem>
+		</DataType>
+		<DataType>
+			<Name GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}" AutoDeleteType="true">INFODATA_260366207</Name>
+			<BitSize>48</BitSize>
+			<SubItem>
+				<Name>State</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Diag</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMESStatus</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>16</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMSTStatus</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>17</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM1Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>18</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM2Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>19</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM3Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>20</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM4Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>21</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM5Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>22</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM6Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>23</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM7Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>24</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM8Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>25</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM9Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>26</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM10Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>27</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM11Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>28</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM12Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>29</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data EncoderStandstill</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>30</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SafetyStatus</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>31</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data ModeSelectionSignal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>32</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data EmergencyStopSignal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>33</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data EnablingControl</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>34</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM1Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>35</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM2Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>36</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM3Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>37</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM4Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>38</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM5Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>39</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM6Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>40</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM7Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>41</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM8Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>42</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM9Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>43</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM10Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>44</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM11Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>45</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM12Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>46</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SafeOutput_local</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>47</BitOffs>
+			</SubItem>
+			<Hides>
+				<Hide GUID="{B1FC1127-5E8D-4199-A068-4638F17A5DFD}"/>
+			</Hides>
+		</DataType>
+		<DataType>
+			<Name GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}" AutoDeleteType="true">INFODATA_GRP_3</Name>
+			<BitSize>16</BitSize>
+			<SubItem>
+				<Name>State</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Diag</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<Hides>
+				<Hide GUID="{4CD4796F-0A9C-46B0-B367-9C1C98E7C6B7}"/>
+			</Hides>
+		</DataType>
+		<DataType>
+			<Name GUID="{18071995-0000-0000-0000-002000000010}" IecBaseType="true" AutoDeleteType="true" HideSubItems="true">ARRAY [0..1] OF BYTE</Name>
+			<BitSize>16</BitSize>
+			<BaseType GUID="{18071995-0000-0000-0000-000000000001}">BYTE</BaseType>
+			<ArrayInfo>
+				<LBound>0</LBound>
+				<Elements>2</Elements>
+			</ArrayInfo>
+		</DataType>
+	</DataTypes>
+	<ImageDatas>
+		<ImageData Id="1000">424dd6020000000000003600000028000000100000000e0000000100180000000000a002000074120000741200000000000000000000ff00ffff00ffff00ffff00ffff00ffff00ff008066008099008066008099008066ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffff00000000ffff000000008099ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffff00ffff00ffff00ffff008066ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffff00ffff00ffff00ffff008099ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffff00000000ffff000000008066ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffffff000000ffffff0000008099ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffff00ffff00ffff00ffff008066ff00ffff00ffff00ffff00ffff00ff66009999006666009999006666009999006600ffff00000000ffff000000008099ff00ffff00ffff00ffff00ffff00ff99006666009999006666009999006666009900ffff0000ff00ffff0000ff008066ff00ffff00ffff00ffff00ffff00ff66009999006666009999006666009999006600ffff00ffff00ffff00ffff008099ff00ffff00ffff00ffff00ffff00ff99006666009999006666009999006666009900ffff00000000ffff000000008066ff00ffff00ffff00ffff00ffff00ff66009999006666009999006666009999006600ffff00ffff00ffff00ffff008099ff00ffff00ffff00ffff00ffff00ff99006666009999006666009999006666009900ffff00800000ffff008000008066ff00ffff00ffff00ffff00ffff00ff66009999006666009999006666009999006600ffff00ffff00ffff00ffff008099ff00ffff00ffff00ffff00ffff00ff</ImageData>
+	</ImageDatas>
+	<Box Id="24" BoxType="9099" BoxFlags="#x00000020">
+		<Name>__FILENAME__</Name>
+		<ImageId>1000</ImageId>
+		<EtherCAT SlaveType="2" PdiType="#x0005" MboxDataLinkLayer="true" StateMBoxPolling="true" CycleMBoxPollingTime="0" CoeType="3" FoeType="1" VendorId="#x00000002" ProductCode="#x1afe3052" RevisionNo="#x00110000" InfoDataAddr="true" RepeatSupport="true" TimeoutMailbox2="10000" TComSupport="true" CheckRevisionNoType="3" PortPhys="51" SafetyLogicSupported="true" MaxSlotCount="256" MaxSlotGroupCount="1" SlotPdoIncrement="1" SlotIndexIncrement="16" Type="EL6910, TwinSAFE PLC" Desc="EL6910">
+			<SyncMan>001000012600010001000000000100010001001026010000</SyncMan>
+			<SyncMan>001100012200010002000000000100010001001122010000</SyncMan>
+			<SyncMan>001271012400010003000000000000000200001224010000</SyncMan>
+			<SyncMan>001dc7022000010004000000000000000200001d20010000</SyncMan>
+			<SyncMan>002e00002400000003000000000000000000002e24000000</SyncMan>
+			<SyncMan>002f00002000000004000000000000000000002f20000000</SyncMan>
+			<Fmmu>0000000000000000001200020100000001000000060000000200000000000000</Fmmu>
+			<Fmmu>0000000000000000001d00010100000002000000060000000300000000000000</Fmmu>
+			<Fmmu>00000000000000000d0800010100000003000000000000000000000000000000</Fmmu>
+			<Fmmu>0000000000000000000000020000000001000000060000000400010000000000</Fmmu>
+			<Fmmu>0000000000000000000000010000000002000000060000000500010000000000</Fmmu>
+			<BootStrapData>0010f400f410f400</BootStrapData>
+			<SuName>su_SPLC5000</SuName>
+			<MBoxUserCmdData>004003000a00000000000000030010000000000000000000000000000000000020f3100502000000010000</MBoxUserCmdData>
+			<Pdo Name="ConnectionInputs" Index="#x1a00" Flags="#x2011" SyncMan="3">
+				<Entry Name="Interface.SPLC5000Slot3_59 TxPDO" Index="#x7000" Sub="#x01">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot7_60 TxPDO" Index="#x7000" Sub="#x02">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot4_243 TxPDO" Index="#x7000" Sub="#x03">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot5_244 TxPDO" Index="#x7000" Sub="#x04">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot9_287 TxPDO" Index="#x7000" Sub="#x05">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot11_289 TxPDO" Index="#x7000" Sub="#x06">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210_357 TxPDO" Index="#x7000" Sub="#x07">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="SD2100.SD2100_ChA_215 TxPDO" Index="#x7000" Sub="#x08">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2100.SD2100_ChB_216 TxPDO" Index="#x7000" Sub="#x09">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2200.SD2200_ChA_217 TxPDO" Index="#x7000" Sub="#x0a">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2200.SD2200_ChB_218 TxPDO" Index="#x7000" Sub="#x0b">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2300.SD2300_ChA_219 TxPDO" Index="#x7000" Sub="#x0c">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2300.SD2300_ChB_220 TxPDO" Index="#x7000" Sub="#x0d">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2400.SD2400_ChA_221 TxPDO" Index="#x7000" Sub="#x0e">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2400.SD2400_ChB_222 TxPDO" Index="#x7000" Sub="#x0f">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2500.SD2500_ChA_223 TxPDO" Index="#x7000" Sub="#x10">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2500.SD2500_ChB_224 TxPDO" Index="#x7000" Sub="#x11">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD12000.SD12000_ChA_211 TxPDO" Index="#x7000" Sub="#x12">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD12000.SD12000_ChB_212 TxPDO" Index="#x7000" Sub="#x13">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8000.SD8000_ChA_229 TxPDO" Index="#x7000" Sub="#x14">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8000.SD8000_ChB_230 TxPDO" Index="#x7000" Sub="#x15">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8100.SD8100_ChA_231 TxPDO" Index="#x7000" Sub="#x16">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8100.SD8100_ChB_232 TxPDO" Index="#x7000" Sub="#x17">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8200.SD8200_ChA_233 TxPDO" Index="#x7000" Sub="#x18">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8200.SD8200_ChB_234 TxPDO" Index="#x7000" Sub="#x19">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8300.SD8300_ChA_235 TxPDO" Index="#x7000" Sub="#x1a">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8300.SD8300_ChB_236 TxPDO" Index="#x7000" Sub="#x1b">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8400.SD8400_ChA_237 TxPDO" Index="#x7000" Sub="#x1c">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8400.SD8400_ChB_238 TxPDO" Index="#x7000" Sub="#x1d">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8500.SD8500_ChA_239 TxPDO" Index="#x7000" Sub="#x1e">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8500.SD8500_ChB_240 TxPDO" Index="#x7000" Sub="#x1f">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8600.SD8600_ChA_241 TxPDO" Index="#x7000" Sub="#x20">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8600.SD8600_ChB_242 TxPDO" Index="#x7000" Sub="#x21">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10000.SD10000_ChA_72 TxPDO" Index="#x7000" Sub="#x22">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10000.SD10000_ChB_73 TxPDO" Index="#x7000" Sub="#x23">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10100.SD10100_ChA_201 TxPDO" Index="#x7000" Sub="#x24">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10100.SD10100_ChB_202 TxPDO" Index="#x7000" Sub="#x25">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10200.SD10200_ChA_203 TxPDO" Index="#x7000" Sub="#x26">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10200.SD10200_ChB_204 TxPDO" Index="#x7000" Sub="#x27">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10300.SD10300_ChA_205 TxPDO" Index="#x7000" Sub="#x28">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10300.SD10300_ChB_206 TxPDO" Index="#x7000" Sub="#x29">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10400.SD10400_ChA_207 TxPDO" Index="#x7000" Sub="#x2a">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10400.SD10400_ChB_208 TxPDO" Index="#x7000" Sub="#x2b">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD11000.SD11000_ChA_209 TxPDO" Index="#x7000" Sub="#x2c">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD15000.SD15000_ChA_213 TxPDO" Index="#x7000" Sub="#x2d">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD15000.SD15000_ChB_214 TxPDO" Index="#x7000" Sub="#x2e">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD26000.SD26000_ChA_225 TxPDO" Index="#x7000" Sub="#x2f">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD26000.SD26000_ChB_226 TxPDO" Index="#x7000" Sub="#x30">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD26100.SD26100_ChA_227 TxPDO" Index="#x7000" Sub="#x31">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD26100.SD26100_ChB_228 TxPDO" Index="#x7000" Sub="#x32">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="ConnectionOutputs" Index="#x1600" InOut="1" Flags="#x2011" SyncMan="2">
+				<Entry Name="Interface.SPLC5000Slot3_59 RxPDO" Index="#x6000" Sub="#x01">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot7_60 RxPDO" Index="#x6000" Sub="#x02">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot4_243 RxPDO" Index="#x6000" Sub="#x03">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot5_244 RxPDO" Index="#x6000" Sub="#x04">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot9_287 RxPDO" Index="#x6000" Sub="#x05">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot11_289 RxPDO" Index="#x6000" Sub="#x06">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210_357 RxPDO" Index="#x6000" Sub="#x07">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="SD2100.SD2100_ChA_215 RxPDO" Index="#x6000" Sub="#x08">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2100.SD2100_ChB_216 RxPDO" Index="#x6000" Sub="#x09">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2200.SD2200_ChA_217 RxPDO" Index="#x6000" Sub="#x0a">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2200.SD2200_ChB_218 RxPDO" Index="#x6000" Sub="#x0b">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2300.SD2300_ChA_219 RxPDO" Index="#x6000" Sub="#x0c">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2300.SD2300_ChB_220 RxPDO" Index="#x6000" Sub="#x0d">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2400.SD2400_ChA_221 RxPDO" Index="#x6000" Sub="#x0e">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2400.SD2400_ChB_222 RxPDO" Index="#x6000" Sub="#x0f">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2500.SD2500_ChA_223 RxPDO" Index="#x6000" Sub="#x10">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD2500.SD2500_ChB_224 RxPDO" Index="#x6000" Sub="#x11">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD12000.SD12000_ChA_211 RxPDO" Index="#x6000" Sub="#x12">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD12000.SD12000_ChB_212 RxPDO" Index="#x6000" Sub="#x13">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8000.SD8000_ChA_229 RxPDO" Index="#x6000" Sub="#x14">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8000.SD8000_ChB_230 RxPDO" Index="#x6000" Sub="#x15">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8100.SD8100_ChA_231 RxPDO" Index="#x6000" Sub="#x16">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8100.SD8100_ChB_232 RxPDO" Index="#x6000" Sub="#x17">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8200.SD8200_ChA_233 RxPDO" Index="#x6000" Sub="#x18">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8200.SD8200_ChB_234 RxPDO" Index="#x6000" Sub="#x19">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8300.SD8300_ChA_235 RxPDO" Index="#x6000" Sub="#x1a">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8300.SD8300_ChB_236 RxPDO" Index="#x6000" Sub="#x1b">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8400.SD8400_ChA_237 RxPDO" Index="#x6000" Sub="#x1c">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8400.SD8400_ChB_238 RxPDO" Index="#x6000" Sub="#x1d">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8500.SD8500_ChA_239 RxPDO" Index="#x6000" Sub="#x1e">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8500.SD8500_ChB_240 RxPDO" Index="#x6000" Sub="#x1f">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8600.SD8600_ChA_241 RxPDO" Index="#x6000" Sub="#x20">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD8600.SD8600_ChB_242 RxPDO" Index="#x6000" Sub="#x21">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10000.SD10000_ChA_72 RxPDO" Index="#x6000" Sub="#x22">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10000.SD10000_ChB_73 RxPDO" Index="#x6000" Sub="#x23">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10100.SD10100_ChA_201 RxPDO" Index="#x6000" Sub="#x24">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10100.SD10100_ChB_202 RxPDO" Index="#x6000" Sub="#x25">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10200.SD10200_ChA_203 RxPDO" Index="#x6000" Sub="#x26">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10200.SD10200_ChB_204 RxPDO" Index="#x6000" Sub="#x27">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10300.SD10300_ChA_205 RxPDO" Index="#x6000" Sub="#x28">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10300.SD10300_ChB_206 RxPDO" Index="#x6000" Sub="#x29">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10400.SD10400_ChA_207 RxPDO" Index="#x6000" Sub="#x2a">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD10400.SD10400_ChB_208 RxPDO" Index="#x6000" Sub="#x2b">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD11000.SD11000_ChA_209 RxPDO" Index="#x6000" Sub="#x2c">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD15000.SD15000_ChA_213 RxPDO" Index="#x6000" Sub="#x2d">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD15000.SD15000_ChB_214 RxPDO" Index="#x6000" Sub="#x2e">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD26000.SD26000_ChA_225 RxPDO" Index="#x6000" Sub="#x2f">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD26000.SD26000_ChB_226 RxPDO" Index="#x6000" Sub="#x30">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD26100.SD26100_ChA_227 RxPDO" Index="#x6000" Sub="#x31">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD26100.SD26100_ChB_228 RxPDO" Index="#x6000" Sub="#x32">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="StandardInputs" Index="#x1bf0" Flags="#x2011" SyncMan="3">
+				<Entry Name="DrivesCommonConfiguration.csp_case_main_safety_drives_commonConfiguration.rack_smes_sis.safely_closed_input.status_54" Index="#x7000" Sub="#x01">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply.csp_case_main_safety_drives_PS2000.sis.safely_closed_input.status_55" Index="#x7000" Sub="#x02">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply.csp_case_main_safety_drives_PS2000.sis.discrepancy_input.status_56" Index="#x7000" Sub="#x03">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_emergency.HMI_button_sio.protection_safely_closed_input.status_58" Index="#x7000" Sub="#x04">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.csp_case_main_safety_emergency.HMI_button_sio.protection_discrepancy_input.status_61" Index="#x7000" Sub="#x05">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.csp_case_main_safety_emergency.delayed_sis.safely_closed_input.status_62" Index="#x7000" Sub="#x06">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.csp_case_main_safety_emergency.sis.safely_closed_input.status_63" Index="#x7000" Sub="#x07">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10000.csp_case_main_safety_drives_SD10000.chA_smes_sis.safely_closed_input.status_68" Index="#x7000" Sub="#x08">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10000.csp_case_main_safety_drives_SD10000.chB_smes_sis.safely_closed_input.status_69" Index="#x7000" Sub="#x09">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10000.csp_case_main_safety_drives_SD10000.sig.safety_group_com_err_input.status_70" Index="#x7000" Sub="#x0a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10000.csp_case_main_safety_drives_SD10000.sig.safety_group_fb_err_input.status_71" Index="#x7000" Sub="#x0b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10100.csp_case_main_safety_drives_SD10100.chA_smes_sis.safely_closed_input.status_76" Index="#x7000" Sub="#x0c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10100.csp_case_main_safety_drives_SD10100.chB_smes_sis.safely_closed_input.status_77" Index="#x7000" Sub="#x0d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10100.csp_case_main_safety_drives_SD10100.sig.safety_group_fb_err_input.status_78" Index="#x7000" Sub="#x0e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10100.csp_case_main_safety_drives_SD10100.sig.safety_group_com_err_input.status_79" Index="#x7000" Sub="#x0f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10200.csp_case_main_safety_drives_SD10200.chA_smes_sis.safely_closed_input.status_82" Index="#x7000" Sub="#x10">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10200.csp_case_main_safety_drives_SD10200.chB_smes_sis.safely_closed_input.status_83" Index="#x7000" Sub="#x11">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10200.csp_case_main_safety_drives_SD10200.sig.safety_group_com_err_input.status_84" Index="#x7000" Sub="#x12">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10200.csp_case_main_safety_drives_SD10200.sig.safety_group_fb_err_input.status_85" Index="#x7000" Sub="#x13">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10300.csp_case_main_safety_drives_SD10300.chA_smes_sis.safely_closed_input.status_88" Index="#x7000" Sub="#x14">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10300.csp_case_main_safety_drives_SD10300.chB_smes_sis.safely_closed_input.status_89" Index="#x7000" Sub="#x15">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10300.csp_case_main_safety_drives_SD10300.sig.safety_group_fb_err_input.status_90" Index="#x7000" Sub="#x16">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10300.csp_case_main_safety_drives_SD10300.sig.safety_group_com_err_input.status_91" Index="#x7000" Sub="#x17">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10400.csp_case_main_safety_drives_SD10400.chA_smes_sis.safely_closed_input.status_94" Index="#x7000" Sub="#x18">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10400.csp_case_main_safety_drives_SD10400.chB_smes_sis.safely_closed_input.status_95" Index="#x7000" Sub="#x19">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10400.csp_case_main_safety_drives_SD10400.sig.safety_group_com_err_input.status_96" Index="#x7000" Sub="#x1a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10400.csp_case_main_safety_drives_SD10400.sig.safety_group_fb_err_input.status_97" Index="#x7000" Sub="#x1b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD11000.csp_case_main_safety_drives_SD11000.chA_smes_sis.safely_closed_input.status_100" Index="#x7000" Sub="#x1c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD11000.csp_case_main_safety_drives_SD11000.sig.safety_group_fb_err_input.status_102" Index="#x7000" Sub="#x1d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD11000.csp_case_main_safety_drives_SD11000.sig.safety_group_com_err_input.status_103" Index="#x7000" Sub="#x1e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD12000.csp_case_main_safety_drives_SD12000.chA_smes_sis.safely_closed_input.status_106" Index="#x7000" Sub="#x1f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD12000.csp_case_main_safety_drives_SD12000.chB_smes_sis.safely_closed_input.status_107" Index="#x7000" Sub="#x20">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD12000.csp_case_main_safety_drives_SD12000.sig.safety_group_com_err_input.status_108" Index="#x7000" Sub="#x21">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD12000.csp_case_main_safety_drives_SD12000.sig.safety_group_fb_err_input.status_109" Index="#x7000" Sub="#x22">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD15000.csp_case_main_safety_drives_SD15000.chA_smes_sis.safely_closed_input.status_112" Index="#x7000" Sub="#x23">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD15000.csp_case_main_safety_drives_SD15000.chB_smes_sis.safely_closed_input.status_113" Index="#x7000" Sub="#x24">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD15000.csp_case_main_safety_drives_SD15000.sig.safety_group_com_err_input.status_114" Index="#x7000" Sub="#x25">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD15000.csp_case_main_safety_drives_SD15000.sig.safety_group_fb_err_input.status_115" Index="#x7000" Sub="#x26">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2100.csp_case_main_safety_drives_SD2100.chA_smes_sis.safely_closed_input.status_118" Index="#x7000" Sub="#x27">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2100.csp_case_main_safety_drives_SD2100.chB_smes_sis.safely_closed_input.status_119" Index="#x7000" Sub="#x28">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2100.csp_case_main_safety_drives_SD2100.sig.safety_group_com_err_input.status_120" Index="#x7000" Sub="#x29">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2100.csp_case_main_safety_drives_SD2100.sig.safety_group_fb_err_input.status_121" Index="#x7000" Sub="#x2a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2200.csp_case_main_safety_drives_SD2200.chA_smes_sis.safely_closed_input.status_124" Index="#x7000" Sub="#x2b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2200.csp_case_main_safety_drives_SD2200.chB_smes_sis.safely_closed_input.status_125" Index="#x7000" Sub="#x2c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2200.csp_case_main_safety_drives_SD2200.sig.safety_group_com_err_input.status_126" Index="#x7000" Sub="#x2d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2200.csp_case_main_safety_drives_SD2200.sig.safety_group_fb_err_input.status_127" Index="#x7000" Sub="#x2e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2300.csp_case_main_safety_drives_SD2300.chA_smes_sis.safely_closed_input.status_130" Index="#x7000" Sub="#x2f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2300.csp_case_main_safety_drives_SD2300.chB_smes_sis.safely_closed_input.status_131" Index="#x7000" Sub="#x30">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2300.csp_case_main_safety_drives_SD2300.sig.safety_group_com_err_input.status_132" Index="#x7000" Sub="#x31">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2300.csp_case_main_safety_drives_SD2300.sig.safety_group_fb_err_input.status_133" Index="#x7000" Sub="#x32">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2400.csp_case_main_safety_drives_SD2400.chA_smes_sis.safely_closed_input.status_136" Index="#x7000" Sub="#x33">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2400.csp_case_main_safety_drives_SD2400.chB_smes_sis.safely_closed_input.status_137" Index="#x7000" Sub="#x34">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2400.csp_case_main_safety_drives_SD2400.sig.safety_group_com_err_input.status_138" Index="#x7000" Sub="#x35">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2400.csp_case_main_safety_drives_SD2400.sig.safety_group_fb_err_input.status_139" Index="#x7000" Sub="#x36">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2500.csp_case_main_safety_drives_SD2500.chA_smes_sis.safely_closed_input.status_142" Index="#x7000" Sub="#x37">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2500.csp_case_main_safety_drives_SD2500.chB_smes_sis.safely_closed_input.status_143" Index="#x7000" Sub="#x38">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2500.csp_case_main_safety_drives_SD2500.sig.safety_group_com_err_input.status_144" Index="#x7000" Sub="#x39">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2500.csp_case_main_safety_drives_SD2500.sig.safety_group_fb_err_input.status_145" Index="#x7000" Sub="#x3a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26000.csp_case_main_safety_drives_SD26000.chA_smes_sis.safely_closed_input.status_148" Index="#x7000" Sub="#x3b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26000.csp_case_main_safety_drives_SD26000.chB_smes_sis.safely_closed_input.status_149" Index="#x7000" Sub="#x3c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26000.csp_case_main_safety_drives_SD26000.sig.safety_group_com_err_input.status_150" Index="#x7000" Sub="#x3d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26000.csp_case_main_safety_drives_SD26000.sig.safety_group_fb_err_input.status_151" Index="#x7000" Sub="#x3e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26100.csp_case_main_safety_drives_SD26100.chA_smes_sis.safely_closed_input.status_154" Index="#x7000" Sub="#x3f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26100.csp_case_main_safety_drives_SD26100.chB_smes_sis.safely_closed_input.status_155" Index="#x7000" Sub="#x40">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26100.csp_case_main_safety_drives_SD26100.sig.safety_group_com_err_input.status_156" Index="#x7000" Sub="#x41">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26100.csp_case_main_safety_drives_SD26100.sig.safety_group_fb_err_input.status_157" Index="#x7000" Sub="#x42">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8000.csp_case_main_safety_drives_SD8000.chA_smes_sis.safely_closed_input.status_160" Index="#x7000" Sub="#x43">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8000.csp_case_main_safety_drives_SD8000.chB_smes_sis.safely_closed_input.status_161" Index="#x7000" Sub="#x44">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8000.csp_case_main_safety_drives_SD8000.sig.safety_group_com_err_input.status_162" Index="#x7000" Sub="#x45">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8000.csp_case_main_safety_drives_SD8000.sig.safety_group_fb_err_input.status_163" Index="#x7000" Sub="#x46">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8100.csp_case_main_safety_drives_SD8100.chA_smes_sis.safely_closed_input.status_166" Index="#x7000" Sub="#x47">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8100.csp_case_main_safety_drives_SD8100.chB_smes_sis.safely_closed_input.status_167" Index="#x7000" Sub="#x48">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8100.csp_case_main_safety_drives_SD8100.sig.safety_group_com_err_input.status_168" Index="#x7000" Sub="#x49">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8100.csp_case_main_safety_drives_SD8100.sig.safety_group_fb_err_input.status_169" Index="#x7000" Sub="#x4a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8200.csp_case_main_safety_drives_SD8200.chA_smes_sis.safely_closed_input.status_172" Index="#x7000" Sub="#x4b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8200.csp_case_main_safety_drives_SD8200.chB_smes_sis.safely_closed_input.status_173" Index="#x7000" Sub="#x4c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8200.csp_case_main_safety_drives_SD8200.sig.safety_group_com_err_input.status_174" Index="#x7000" Sub="#x4d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8200.csp_case_main_safety_drives_SD8200.sig.safety_group_fb_err_input.status_175" Index="#x7000" Sub="#x4e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8300.csp_case_main_safety_drives_SD8300.chA_smes_sis.safely_closed_input.status_179" Index="#x7000" Sub="#x4f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8300.csp_case_main_safety_drives_SD8300.chB_smes_sis.safely_closed_input.status_180" Index="#x7000" Sub="#x50">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8300.csp_case_main_safety_drives_SD8300.sig.safety_group_com_err_input.status_181" Index="#x7000" Sub="#x51">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8300.csp_case_main_safety_drives_SD8300.sig.safety_group_fb_err_input.status_182" Index="#x7000" Sub="#x52">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8400.csp_case_main_safety_drives_SD8400.chA_smes_sis.safely_closed_input.status_185" Index="#x7000" Sub="#x53">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8400.csp_case_main_safety_drives_SD8400.chB_smes_sis.safely_closed_input.status_186" Index="#x7000" Sub="#x54">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8400.csp_case_main_safety_drives_SD8400.sig.safety_group_com_err_input.status_187" Index="#x7000" Sub="#x55">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8400.csp_case_main_safety_drives_SD8400.sig.safety_group_fb_err_input.status_188" Index="#x7000" Sub="#x56">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8500.csp_case_main_safety_drives_SD8500.chA_smes_sis.safely_closed_input.status_191" Index="#x7000" Sub="#x57">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8500.csp_case_main_safety_drives_SD8500.chB_smes_sis.safely_closed_input.status_192" Index="#x7000" Sub="#x58">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8500.csp_case_main_safety_drives_SD8500.sig.safety_group_com_err_input.status_193" Index="#x7000" Sub="#x59">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8500.csp_case_main_safety_drives_SD8500.sig.safety_group_fb_err_input.status_194" Index="#x7000" Sub="#x5a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8600.csp_case_main_safety_drives_SD8600.chA_smes_sis.safely_closed_input.status_197" Index="#x7000" Sub="#x5b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8600.csp_case_main_safety_drives_SD8600.chB_smes_sis.safely_closed_input.status_198" Index="#x7000" Sub="#x5c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8600.csp_case_main_safety_drives_SD8600.sig.safety_group_com_err_input.status_199" Index="#x7000" Sub="#x5d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8600.csp_case_main_safety_drives_SD8600.sig.safety_group_fb_err_input.status_200" Index="#x7000" Sub="#x5e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.csp_case_main_safety_accUChange.sis.safely_closed_input.status_250" Index="#x7000" Sub="#x5f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.csp_case_main_safety_accUChange.sis.discrepancy_input.status_265" Index="#x7000" Sub="#x60">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SafetyToken.csp_case_main_safety_token.sis.discrepancy_input.status_270" Index="#x7000" Sub="#x61">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SafetyToken.csp_case_main_safety_token.sio.protection_safely_closed_input.status_271" Index="#x7000" Sub="#x62">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SafetyToken.csp_case_main_safety_token.sis.safely_closed_input.status_272" Index="#x7000" Sub="#x63">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_case_main_safety_guards.sis.safely_closed_input.status_284" Index="#x7000" Sub="#x64">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_case_main_safety_guards.sio_door_2.safely_closed_and_locked_input.status_TEST_294" Index="#x7000" Sub="#x65">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_case_main_safety_guards.sio_door_2.protection_discrepancy_input.status_TEST_295" Index="#x7000" Sub="#x66">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_case_main_safety_guards.sio_door_2.safely_locked_input.status_TEST_296" Index="#x7000" Sub="#x67">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_case_main_safety_guards.sio_door_1.safely_closed_and_locked_input.status_TEST_298" Index="#x7000" Sub="#x68">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_case_main_safety_guards.sio_door_1.safely_locked_input.status_TEST_299" Index="#x7000" Sub="#x69">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_case_main_safety_guards.sio_door_1.protection_discrepancy_input.status_TEST_300" Index="#x7000" Sub="#x6a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_case_main_safety_guards.delayed_sis.safely_closed_input.status_303" Index="#x7000" Sub="#x6b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Conveyor.csp_case_main_safety_conveyor.sis.safely_closed_input.status_352" Index="#x7000" Sub="#x6c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Air.csp_case_main_safety_air.sis.safely_closed_input.status_356" Index="#x7000" Sub="#x6d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface.flexlink_estop_sio.protection_safely_closed_input.status_358" Index="#x7000" Sub="#x6e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry>
+					<Type GUID="{18071995-0000-0000-0000-002000000002}">ARRAY [0..1] OF BIT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="StandardOutputs" Index="#x17f0" InOut="1" Flags="#x2011" SyncMan="2">
+				<Entry Name="DrivesCommonConfiguration.ErrorAcknowledgement_1" Index="#x6000" Sub="#x01">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesCommonConfiguration.Run_2" Index="#x6000" Sub="#x02">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply.ErrorAcknowledgement_3" Index="#x6000" Sub="#x03">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply.Run_4" Index="#x6000" Sub="#x04">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.ErrorAcknowledgement_5" Index="#x6000" Sub="#x05">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.Run_6" Index="#x6000" Sub="#x06">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.ErrorAcknowledgement_7" Index="#x6000" Sub="#x07">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.Run_8" Index="#x6000" Sub="#x08">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2100.ErrorAcknowledgement_9" Index="#x6000" Sub="#x09">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2100.Run_10" Index="#x6000" Sub="#x0a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2200.ErrorAcknowledgement_11" Index="#x6000" Sub="#x0b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2200.Run_12" Index="#x6000" Sub="#x0c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2300.ErrorAcknowledgement_13" Index="#x6000" Sub="#x0d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2300.Run_14" Index="#x6000" Sub="#x0e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2400.ErrorAcknowledgement_15" Index="#x6000" Sub="#x0f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2400.Run_16" Index="#x6000" Sub="#x10">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2500.ErrorAcknowledgement_17" Index="#x6000" Sub="#x11">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2500.Run_18" Index="#x6000" Sub="#x12">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD12000.ErrorAcknowledgement_19" Index="#x6000" Sub="#x13">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD12000.Run_20" Index="#x6000" Sub="#x14">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8000.ErrorAcknowledgement_21" Index="#x6000" Sub="#x15">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8000.Run_22" Index="#x6000" Sub="#x16">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8100.ErrorAcknowledgement_23" Index="#x6000" Sub="#x17">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8100.Run_24" Index="#x6000" Sub="#x18">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8200.ErrorAcknowledgement_25" Index="#x6000" Sub="#x19">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8200.Run_26" Index="#x6000" Sub="#x1a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8300.ErrorAcknowledgement_27" Index="#x6000" Sub="#x1b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8300.Run_28" Index="#x6000" Sub="#x1c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8400.ErrorAcknowledgement_29" Index="#x6000" Sub="#x1d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8400.Run_30" Index="#x6000" Sub="#x1e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8500.ErrorAcknowledgement_31" Index="#x6000" Sub="#x1f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8500.Run_32" Index="#x6000" Sub="#x20">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8600.ErrorAcknowledgement_33" Index="#x6000" Sub="#x21">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8600.Run_34" Index="#x6000" Sub="#x22">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10000.ErrorAcknowledgement_35" Index="#x6000" Sub="#x23">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10000.Run_36" Index="#x6000" Sub="#x24">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10100.ErrorAcknowledgement_37" Index="#x6000" Sub="#x25">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10100.Run_38" Index="#x6000" Sub="#x26">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10200.ErrorAcknowledgement_39" Index="#x6000" Sub="#x27">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10200.Run_40" Index="#x6000" Sub="#x28">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10300.ErrorAcknowledgement_41" Index="#x6000" Sub="#x29">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10300.Run_42" Index="#x6000" Sub="#x2a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10400.ErrorAcknowledgement_43" Index="#x6000" Sub="#x2b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10400.Run_44" Index="#x6000" Sub="#x2c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD11000.ErrorAcknowledgement_45" Index="#x6000" Sub="#x2d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD11000.Run_46" Index="#x6000" Sub="#x2e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD15000.ErrorAcknowledgement_47" Index="#x6000" Sub="#x2f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD15000.Run_48" Index="#x6000" Sub="#x30">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26000.ErrorAcknowledgement_49" Index="#x6000" Sub="#x31">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26000.Run_50" Index="#x6000" Sub="#x32">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26100.ErrorAcknowledgement_51" Index="#x6000" Sub="#x33">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26100.Run_52" Index="#x6000" Sub="#x34">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesCommonConfiguration.csp_case_main_safety_drives_commonConfiguration.rack_smes_sis.open_output.status_53" Index="#x6000" Sub="#x35">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply.csp_case_main_safety_drives_PS2000.sis.open_output.status_57" Index="#x6000" Sub="#x36">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.csp_case_main_safety_emergency.delayed_sis.open_output.status_64" Index="#x6000" Sub="#x37">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.csp_case_main_safety_emergency.sis.open_output.status_65" Index="#x6000" Sub="#x38">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10000.csp_case_main_safety_drives_SD10000.chA_smes_sis.open_output.status_66" Index="#x6000" Sub="#x39">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10000.csp_case_main_safety_drives_SD10000.chB_smes_sis.open_output.status_67" Index="#x6000" Sub="#x3a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10100.csp_case_main_safety_drives_SD10100.chA_smes_sis.open_output.status_74" Index="#x6000" Sub="#x3b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10100.csp_case_main_safety_drives_SD10100.chB_smes_sis.open_output.status_75" Index="#x6000" Sub="#x3c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10200.csp_case_main_safety_drives_SD10200.chA_smes_sis.open_output.status_80" Index="#x6000" Sub="#x3d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10200.csp_case_main_safety_drives_SD10200.chB_smes_sis.open_output.status_81" Index="#x6000" Sub="#x3e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10300.csp_case_main_safety_drives_SD10300.chA_smes_sis.open_output.status_86" Index="#x6000" Sub="#x3f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10300.csp_case_main_safety_drives_SD10300.chB_smes_sis.open_output.status_87" Index="#x6000" Sub="#x40">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10400.csp_case_main_safety_drives_SD10400.chA_smes_sis.open_output.status_92" Index="#x6000" Sub="#x41">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD10400.csp_case_main_safety_drives_SD10400.chB_smes_sis.open_output.status_93" Index="#x6000" Sub="#x42">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD11000.csp_case_main_safety_drives_SD11000.chA_smes_sis.open_output.status_98" Index="#x6000" Sub="#x43">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD12000.csp_case_main_safety_drives_SD12000.chA_smes_sis.open_output.status_104" Index="#x6000" Sub="#x44">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD12000.csp_case_main_safety_drives_SD12000.chB_smes_sis.open_output.status_105" Index="#x6000" Sub="#x45">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD15000.csp_case_main_safety_drives_SD15000.chA_smes_sis.open_output.status_110" Index="#x6000" Sub="#x46">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD15000.csp_case_main_safety_drives_SD15000.chB_smes_sis.open_output.status_111" Index="#x6000" Sub="#x47">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2100.csp_case_main_safety_drives_SD2100.chA_smes_sis.open_output.status_116" Index="#x6000" Sub="#x48">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2100.csp_case_main_safety_drives_SD2100.chB_smes_sis.open_output.status_117" Index="#x6000" Sub="#x49">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2200.csp_case_main_safety_drives_SD2200.chA_smes_sis.open_output.status_122" Index="#x6000" Sub="#x4a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2200.csp_case_main_safety_drives_SD2200.chB_smes_sis.open_output.status_123" Index="#x6000" Sub="#x4b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2300.csp_case_main_safety_drives_SD2300.chA_smes_sis.open_output.status_128" Index="#x6000" Sub="#x4c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2300.csp_case_main_safety_drives_SD2300.chB_smes_sis.open_output.status_129" Index="#x6000" Sub="#x4d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2400.csp_case_main_safety_drives_SD2400.chA_smes_sis.open_output.status_134" Index="#x6000" Sub="#x4e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2400.csp_case_main_safety_drives_SD2400.chB_smes_sis.open_output.status_135" Index="#x6000" Sub="#x4f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2500.csp_case_main_safety_drives_SD2500.chA_smes_sis.open_output.status_140" Index="#x6000" Sub="#x50">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD2500.csp_case_main_safety_drives_SD2500.chB_smes_sis.open_output.status_141" Index="#x6000" Sub="#x51">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26000.csp_case_main_safety_drives_SD26000.chA_smes_sis.open_output.status_146" Index="#x6000" Sub="#x52">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26000.csp_case_main_safety_drives_SD26000.chB_smes_sis.open_output.status_147" Index="#x6000" Sub="#x53">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26100.csp_case_main_safety_drives_SD26100.chA_smes_sis.open_output.status_152" Index="#x6000" Sub="#x54">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD26100.csp_case_main_safety_drives_SD26100.chB_smes_sis.open_output.status_153" Index="#x6000" Sub="#x55">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8000.csp_case_main_safety_drives_SD8000.chA_smes_sis.open_output.status_158" Index="#x6000" Sub="#x56">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8000.csp_case_main_safety_drives_SD8000.chB_smes_sis.open_output.status_159" Index="#x6000" Sub="#x57">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8100.csp_case_main_safety_drives_SD8100.chA_smes_sis.open_output.status_164" Index="#x6000" Sub="#x58">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8100.csp_case_main_safety_drives_SD8100.chB_smes_sis.open_output.status_165" Index="#x6000" Sub="#x59">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8200.csp_case_main_safety_drives_SD8200.chA_smes_sis.open_output.status_170" Index="#x6000" Sub="#x5a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8200.csp_case_main_safety_drives_SD8200.chB_smes_sis.open_output.status_171" Index="#x6000" Sub="#x5b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8300.csp_case_main_safety_drives_SD8300.chA_smes_sis.open_output.status_176" Index="#x6000" Sub="#x5c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8300.csp_case_main_safety_drives_SD8300.chB_smes_sis.open_output.status_177" Index="#x6000" Sub="#x5d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8400.csp_case_main_safety_drives_SD8400.chA_smes_sis.open_output.status_183" Index="#x6000" Sub="#x5e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8400.csp_case_main_safety_drives_SD8400.chB_smes_sis.open_output.status_184" Index="#x6000" Sub="#x5f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8500.csp_case_main_safety_drives_SD8500.chA_smes_sis.open_output.status_189" Index="#x6000" Sub="#x60">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8500.csp_case_main_safety_drives_SD8500.chB_smes_sis.open_output.status_190" Index="#x6000" Sub="#x61">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8600.csp_case_main_safety_drives_SD8600.chA_smes_sis.open_output.status_195" Index="#x6000" Sub="#x62">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD8600.csp_case_main_safety_drives_SD8600.chB_smes_sis.open_output.status_196" Index="#x6000" Sub="#x63">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.ErrorAcknowledgement_245" Index="#x6000" Sub="#x64">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Run_246" Index="#x6000" Sub="#x65">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.csp_case_main_safety_accUChange.sis.open_output.status_249" Index="#x6000" Sub="#x66">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data24_251" Index="#x6000" Sub="#x67">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data26_252" Index="#x6000" Sub="#x68">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data31_253" Index="#x6000" Sub="#x69">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data34_254" Index="#x6000" Sub="#x6a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data36_255" Index="#x6000" Sub="#x6b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data39_256" Index="#x6000" Sub="#x6c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data41_257" Index="#x6000" Sub="#x6d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data44_258" Index="#x6000" Sub="#x6e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data46_259" Index="#x6000" Sub="#x6f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data49_260" Index="#x6000" Sub="#x70">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data29_261" Index="#x6000" Sub="#x71">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data51_262" Index="#x6000" Sub="#x72">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data55_263" Index="#x6000" Sub="#x73">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info_Data57_264" Index="#x6000" Sub="#x74">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.ErrorAcknowledgement_266" Index="#x6000" Sub="#x75">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.Run_267" Index="#x6000" Sub="#x76">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SafetyToken.ErrorAcknowledgement_268" Index="#x6000" Sub="#x77">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SafetyToken.Run_269" Index="#x6000" Sub="#x78">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SafetyToken.csp_case_main_safety_token.sis.open_output.status_273" Index="#x6000" Sub="#x79">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_case_main_safety_guards.sis.open_output.status_274" Index="#x6000" Sub="#x7a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_case_main_safety_guards.sio_door_2.unlock_output.status_TEST_297" Index="#x6000" Sub="#x7b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_case_main_safety_guards.sio_door_1.unlock_output.status_TEST_301" Index="#x6000" Sub="#x7c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_case_main_safety_guards.delayed_sis.open_output.status_302" Index="#x6000" Sub="#x7d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_guards_debug_request_lock_304" Index="#x6000" Sub="#x7e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_guards_debug_request_lock_door_1_305" Index="#x6000" Sub="#x7f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD2100_ChA_306" Index="#x6000" Sub="#x80">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD2100_ChB_307" Index="#x6000" Sub="#x81">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD2200_ChA_308" Index="#x6000" Sub="#x82">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD2200_ChB_309" Index="#x6000" Sub="#x83">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD26000_ChA_310" Index="#x6000" Sub="#x84">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD26000_ChB_311" Index="#x6000" Sub="#x85">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD26100_ChA_312" Index="#x6000" Sub="#x86">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD26100_ChB_313" Index="#x6000" Sub="#x87">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD15000_ChA_314" Index="#x6000" Sub="#x88">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD15000_ChB_315" Index="#x6000" Sub="#x89">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD11000_ChA_316" Index="#x6000" Sub="#x8a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD10400_ChA_317" Index="#x6000" Sub="#x8b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD10400_ChB_318" Index="#x6000" Sub="#x8c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD10300_ChA_319" Index="#x6000" Sub="#x8d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD10300_ChB_320" Index="#x6000" Sub="#x8e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD10200_ChA_321" Index="#x6000" Sub="#x8f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD10200_ChB_322" Index="#x6000" Sub="#x90">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD10100_ChA_323" Index="#x6000" Sub="#x91">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD10100_ChB_324" Index="#x6000" Sub="#x92">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD10000_ChA_325" Index="#x6000" Sub="#x93">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD10000_ChB_326" Index="#x6000" Sub="#x94">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD2300_ChA_327" Index="#x6000" Sub="#x95">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD2300_ChB_328" Index="#x6000" Sub="#x96">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD2400_ChA_329" Index="#x6000" Sub="#x97">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD2400_ChB_330" Index="#x6000" Sub="#x98">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD2500_ChA_331" Index="#x6000" Sub="#x99">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD2500_ChB_332" Index="#x6000" Sub="#x9a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD12000_ChA_333" Index="#x6000" Sub="#x9b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD12000_ChB_334" Index="#x6000" Sub="#x9c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8000_ChA_335" Index="#x6000" Sub="#x9d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8000_ChB_336" Index="#x6000" Sub="#x9e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8100_ChA_337" Index="#x6000" Sub="#x9f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8100_ChB_338" Index="#x6000" Sub="#xa0">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8200_ChA_339" Index="#x6000" Sub="#xa1">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8200_ChB_340" Index="#x6000" Sub="#xa2">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8300_ChA_341" Index="#x6000" Sub="#xa3">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8300_ChB_342" Index="#x6000" Sub="#xa4">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8400_ChA_343" Index="#x6000" Sub="#xa5">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8400_ChB_344" Index="#x6000" Sub="#xa6">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8500_ChA_345" Index="#x6000" Sub="#xa7">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8500_ChB_346" Index="#x6000" Sub="#xa8">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8600_ChA_347" Index="#x6000" Sub="#xa9">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_case_main_safety_interface_shutdown_SD8600_ChB_348" Index="#x6000" Sub="#xaa">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Conveyor.ErrorAcknowledgement_349" Index="#x6000" Sub="#xab">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Conveyor.Run_350" Index="#x6000" Sub="#xac">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Conveyor.csp_case_main_safety_conveyor.sis.open_output.status_351" Index="#x6000" Sub="#xad">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Air.ErrorAcknowledgement_353" Index="#x6000" Sub="#xae">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Air.Run_354" Index="#x6000" Sub="#xaf">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Air.csp_case_main_safety_air.sis.open_output.status_355" Index="#x6000" Sub="#xb0">
+					<Type>BIT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Connection Info Data" Index="#x1bf9" Flags="#x2011" SyncMan="3">
+				<Entry Name="Interface.SPLC5000Slot3_59 Info Data" Index="#x7000" Sub="#x01">
+					<Type GUID="{96A14884-0391-D304-B951-29DC4C13D4AF}">INFODATA_1916657131</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot7_60 Info Data" Index="#x7000" Sub="#x02">
+					<Type GUID="{8EA147D6-69F3-6C3B-79EE-020724104888}">INFODATA_1525530285</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot4_243 Info Data" Index="#x7000" Sub="#x03">
+					<Type GUID="{96A14884-0391-D304-B951-29DC4C13D4AF}">INFODATA_1916657131</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot5_244 Info Data" Index="#x7000" Sub="#x04">
+					<Type GUID="{8EA147D6-69F3-6C3B-79EE-020724104888}">INFODATA_1525530285</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot9_287 Info Data" Index="#x7000" Sub="#x05">
+					<Type GUID="{8EA147D6-69F3-6C3B-79EE-020724104888}">INFODATA_1525530285</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000Slot11_289 Info Data" Index="#x7000" Sub="#x06">
+					<Type GUID="{8EA147D6-69F3-6C3B-79EE-020724104888}">INFODATA_1525530285</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210_357 Info Data" Index="#x7000" Sub="#x07">
+					<Type GUID="{B208A071-D569-BBDE-3F1F-5D1BE42630FF}">INFODATA_3795782120</Type>
+				</Entry>
+				<Entry Name="SD2100.SD2100_ChA_215 Info Data" Index="#x7000" Sub="#x08">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD2100.SD2100_ChB_216 Info Data" Index="#x7000" Sub="#x09">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD2200.SD2200_ChA_217 Info Data" Index="#x7000" Sub="#x0a">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD2200.SD2200_ChB_218 Info Data" Index="#x7000" Sub="#x0b">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD2300.SD2300_ChA_219 Info Data" Index="#x7000" Sub="#x0c">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD2300.SD2300_ChB_220 Info Data" Index="#x7000" Sub="#x0d">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD2400.SD2400_ChA_221 Info Data" Index="#x7000" Sub="#x0e">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD2400.SD2400_ChB_222 Info Data" Index="#x7000" Sub="#x0f">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD2500.SD2500_ChA_223 Info Data" Index="#x7000" Sub="#x10">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD2500.SD2500_ChB_224 Info Data" Index="#x7000" Sub="#x11">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD12000.SD12000_ChA_211 Info Data" Index="#x7000" Sub="#x12">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD12000.SD12000_ChB_212 Info Data" Index="#x7000" Sub="#x13">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8000.SD8000_ChA_229 Info Data" Index="#x7000" Sub="#x14">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8000.SD8000_ChB_230 Info Data" Index="#x7000" Sub="#x15">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8100.SD8100_ChA_231 Info Data" Index="#x7000" Sub="#x16">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8100.SD8100_ChB_232 Info Data" Index="#x7000" Sub="#x17">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8200.SD8200_ChA_233 Info Data" Index="#x7000" Sub="#x18">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8200.SD8200_ChB_234 Info Data" Index="#x7000" Sub="#x19">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8300.SD8300_ChA_235 Info Data" Index="#x7000" Sub="#x1a">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8300.SD8300_ChB_236 Info Data" Index="#x7000" Sub="#x1b">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8400.SD8400_ChA_237 Info Data" Index="#x7000" Sub="#x1c">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8400.SD8400_ChB_238 Info Data" Index="#x7000" Sub="#x1d">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8500.SD8500_ChA_239 Info Data" Index="#x7000" Sub="#x1e">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8500.SD8500_ChB_240 Info Data" Index="#x7000" Sub="#x1f">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8600.SD8600_ChA_241 Info Data" Index="#x7000" Sub="#x20">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD8600.SD8600_ChB_242 Info Data" Index="#x7000" Sub="#x21">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD10000.SD10000_ChA_72 Info Data" Index="#x7000" Sub="#x22">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD10000.SD10000_ChB_73 Info Data" Index="#x7000" Sub="#x23">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD10100.SD10100_ChA_201 Info Data" Index="#x7000" Sub="#x24">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD10100.SD10100_ChB_202 Info Data" Index="#x7000" Sub="#x25">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD10200.SD10200_ChA_203 Info Data" Index="#x7000" Sub="#x26">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD10200.SD10200_ChB_204 Info Data" Index="#x7000" Sub="#x27">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD10300.SD10300_ChA_205 Info Data" Index="#x7000" Sub="#x28">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD10300.SD10300_ChB_206 Info Data" Index="#x7000" Sub="#x29">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD10400.SD10400_ChA_207 Info Data" Index="#x7000" Sub="#x2a">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD10400.SD10400_ChB_208 Info Data" Index="#x7000" Sub="#x2b">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD11000.SD11000_ChA_209 Info Data" Index="#x7000" Sub="#x2c">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD15000.SD15000_ChA_213 Info Data" Index="#x7000" Sub="#x2d">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD15000.SD15000_ChB_214 Info Data" Index="#x7000" Sub="#x2e">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD26000.SD26000_ChA_225 Info Data" Index="#x7000" Sub="#x2f">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD26000.SD26000_ChB_226 Info Data" Index="#x7000" Sub="#x30">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD26100.SD26100_ChA_227 Info Data" Index="#x7000" Sub="#x31">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD26100.SD26100_ChB_228 Info Data" Index="#x7000" Sub="#x32">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="TwinSAFE Group Info Data" Index="#x1bfa" Flags="#x2011" SyncMan="3">
+				<Entry Name="DrivesCommonConfiguration Info Data" Index="#x7000" Sub="#x01">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply Info Data" Index="#x7000" Sub="#x02">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit Info Data" Index="#x7000" Sub="#x03">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="Interface Info Data" Index="#x7000" Sub="#x04">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD2100 Info Data" Index="#x7000" Sub="#x05">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD2200 Info Data" Index="#x7000" Sub="#x06">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD2300 Info Data" Index="#x7000" Sub="#x07">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD2400 Info Data" Index="#x7000" Sub="#x08">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD2500 Info Data" Index="#x7000" Sub="#x09">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD12000 Info Data" Index="#x7000" Sub="#x0a">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD8000 Info Data" Index="#x7000" Sub="#x0b">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD8100 Info Data" Index="#x7000" Sub="#x0c">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD8200 Info Data" Index="#x7000" Sub="#x0d">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD8300 Info Data" Index="#x7000" Sub="#x0e">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD8400 Info Data" Index="#x7000" Sub="#x0f">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD8500 Info Data" Index="#x7000" Sub="#x10">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD8600 Info Data" Index="#x7000" Sub="#x11">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD10000 Info Data" Index="#x7000" Sub="#x12">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD10100 Info Data" Index="#x7000" Sub="#x13">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD10200 Info Data" Index="#x7000" Sub="#x14">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD10300 Info Data" Index="#x7000" Sub="#x15">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD10400 Info Data" Index="#x7000" Sub="#x16">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD11000 Info Data" Index="#x7000" Sub="#x17">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD15000 Info Data" Index="#x7000" Sub="#x18">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD26000 Info Data" Index="#x7000" Sub="#x19">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD26100 Info Data" Index="#x7000" Sub="#x1a">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO Info Data" Index="#x7000" Sub="#x1b">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="Guards Info Data" Index="#x7000" Sub="#x1c">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SafetyToken Info Data" Index="#x7000" Sub="#x1d">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Device Info Data" Index="#x1bfe" Flags="#x2011" SyncMan="3">
+				<Entry Name="Project CRC" Index="#x7000" Sub="#x01">
+					<Type>WORD</Type>
+				</Entry>
+				<Entry Name="Serial Number" Index="#x7000" Sub="#x02">
+					<Type>UDINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="FSLOGIC Inputs" Index="#x1bff" Flags="#x0011" SyncMan="3">
+				<Entry Name="Safe Logic State" Index="#xf100" Sub="#x01">
+					<Type>USINT</Type>
+				</Entry>
+				<Entry Name="Cycle Counter" Index="#xf100" Sub="#x02">
+					<Type>USINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="FSLOGIC Outputs" Index="#x17ff" InOut="1" Flags="#x0011" SyncMan="2">
+				<Entry>
+					<Type GUID="{18071995-0000-0000-0000-002000000010}">ARRAY [0..1] OF BYTE</Type>
+				</Entry>
+			</Pdo>
+			<CoeProfile ProfileNo="5001"/>
+		</EtherCAT>
+	</Box>
+</TcSmItem>

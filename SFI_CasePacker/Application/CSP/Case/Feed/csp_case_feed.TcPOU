@@ -1,0 +1,139 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed" Id="{6e9dd78c-d591-40ea-818d-37fb943b58fc}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	Feed_request:									BOOL;
+	case_at_loading_sr: 							DINT := 26;
+END_VAR
+
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF (shift_register_step_has_status_item(
+	step_id := case_at_loading_sr,
+	status_bits_to_be_true := ITEM_HAS_LS_LOWER_FLAP + ITEM_HAS_LS_UPPER_FLAP + ITEM_HAS_OS_LOWER_FLAP + ITEM_HAS_OS_UPPER_FLAP,
+	status_bits_to_be_false := 0,
+	CONVERSION_this :=csp_case_main_statistics.sr)
+   
+	AND
+	(csp_case_feed_virtualMaster.axis.actual_modulo_position > 340 
+	AND NOT csp_case_loader_virtualMaster.product_loaded))   
+	AND csp_case_loader.load_ready_at_loader	           
+	THEN		 
+		Feed_request :=FALSE;
+	ELSIF NOT csp_case_transport_virtualMaster.stop_for_reject 
+		THEN  
+		Feed_request :=TRUE;
+              
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{4b9ca8e4-b074-489b-9aef-7506d5a16d28}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{8cd5bcc8-7cfc-4ea6-9e0e-d7ab210d4121}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{1176692b-a0a1-4e39-93f5-09143ba7a252}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{da0a1554-15f4-45c1-9e76-d7c735f96f83}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_feed.prc', 
+		process						:= csp_case.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{f67b7deb-bb47-44b1-a32a-c380d4ebdcdf}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{02613b58-c40a-40db-ba2e-fe0b3f44da32}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{8eb1f011-7f73-4c46-aa1c-cb8d938b26b1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{5471892b-fa5c-49ef-86f0-ab2a20b88c37}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

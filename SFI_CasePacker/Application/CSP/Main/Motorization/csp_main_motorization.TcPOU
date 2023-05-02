@@ -1,0 +1,494 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_motorization" Id="{8defcb32-3773-4b9b-bdf6-dc02f9f10dff}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp motorization head program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/18 	0000.00	 	G.Cera 			Creation of the PRG
+2019/04/27	0000.01		G.Cera			Creation of the _connection FSM
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_motorization
+VAR
+	prc:												process;
+	prc_path:											STRING;
+	
+	connection_conditions:								BOOL;
+	connection_running:									BOOL;
+	connection_done:									BOOL;
+	connection_timeout:									BOOL;
+	connection_status:									csp_main_motorization_connection_status_enum;
+	connection_status_mem:								csp_main_motorization_connection_status_enum;
+	connection_tmr:										timer;
+	connection_done_motcond:							motorization_conditioner;
+	
+	machine_test_rtrig:									R_TRIG;
+	machine_test_ftrig:									F_TRIG;
+
+	fault_aem:											csp_main_motorization_snapshot;	
+
+	motorization_axis_redefined_at_powerup:				BOOL := FALSE;	
+	
+	empty_command:										BOOL; (*$P $*)
+	empty_command_overwrite:							parameter_overwrite;
+
+	STOP_Check: 										BOOL := FALSE;
+	
+	abort_axes:											BOOL := FALSE; (*$P $*)
+	
+	execute_BIT: 										BOOL;
+	not_execute_BIT: 									BOOL;
+	First_Scan: 										BOOL := TRUE;
+	abort_axes_auto_reset: 								Ton;
+	held_BIT: 											BOOL;
+	HOLD_BYPASS: 										BOOL := FALSE;
+	unhold_latch_carton_detected: 						BOOL;
+	carton_detected_unhold_timer: 						TON;
+	counter: 											INT;
+	test_cu:											int;
+	test_never: 										BOOL;
+	abort_axes1: 										BOOL;
+END_VAR
+
+VAR CONSTANT
+	MULTIGEAR_ACCDEC:									LREAL:= 2000.0;
+	CONNECTION_TIMEOUT_S:								INT := 10;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF 	NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		connection_conditions := FALSE;
+		connection_done := FALSE;
+		connection_status := csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_CONNECTION_NOT_COMPLETED_STATUS_999;
+		RETURN;
+		
+	MODE_TEST:
+		_handle_process_test();
+		
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+IF First_Scan
+	//OR csp_transfer_crosspusher.estop_occured_in_crosspush_reject //this only stays on while the machine is estopped during a reject. Once machine is reset this goes false
+THEN
+	abort_axes1 := TRUE;
+ELSE
+	abort_axes1 := FALSE;
+END_IF
+
+IF abort_axes
+	OR
+	abort_axes1
+THEN
+	test_cu := 1;
+	counter := counter +1;
+	connection_status := csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_CONNECTION_NOT_COMPLETED_STATUS_999;
+	motorization_axis_redefined_at_powerup := FALSE;
+	csp_retain_data.motorization_axis_position := 0;
+END_IF
+
+
+(* TURNS OFF EMPTY COMMAND IF RUN OUT COMPLETE *)
+IF process_message_is_on(csp_case_virtualMaster.runout_complete)
+	AND machine_is_stopped(csp.mch)
+	AND NOT axis_is_moving(csp_main_motorization_virtualManager.axis)
+THEN
+	parameter_overwrite_set_bool_value(FALSE, empty_command_overwrite);
+END_IF
+
+machine_test_ftrig(CLK := machine_is_in_test(csp.mch));
+machine_test_rtrig(CLK := machine_is_in_test(csp.mch));
+
+IF	motorization_manager_is_emptying(csp_main_motorization_manager.motm)
+THEN
+	motorization_manager_empty_done(csp_main_motorization_manager.motm);
+END_IF
+
+IF 	machine_test_rtrig.Q
+	OR
+	machine_test_ftrig.Q
+THEN
+	connection_conditions := FALSE;
+	connection_done := FALSE;
+	connection_status := csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_CONNECTION_NOT_COMPLETED_STATUS_999;
+END_IF
+
+
+IF csp_main_motorization_manager.suspend_conditions
+	AND csp_transfer_infeed_accumulation_level_max.di.field.status
+THEN
+	unhold_latch_carton_detected := TRUE;
+END_IF
+
+IF 	csp_transfer_infeed_accumulation_level.level_status >= CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_LOW
+	OR carton_detected_unhold_timer.Q
+THEN
+	unhold_latch_carton_detected := FALSE;
+END_IF
+
+carton_detected_unhold_timer(IN:= unhold_latch_carton_detected , PT:=T#20S , Q=>  , ET=> );
+
+	
+IF 	csp_case_main_statistics.SHIFT_case_at_loader 
+	AND csp_case_main_statistics.SHIFT_case_at_feed
+THEN
+	motorization_manager_set_velocity_limit_change_acceleration(
+		acceleration:= 100,
+		conversion_this:= csp_main_motorization_manager.motm);
+ELSE
+	motorization_manager_set_velocity_limit_change_acceleration(
+		acceleration:= 5,
+		conversion_this:= csp_main_motorization_manager.motm);
+END_IF
+
+IF	(ABS(axis_get_actual_modulo_position(csp_main_motorization_virtualManager.axis) - csp_retain_data.motorization_axis_position) > 1E-2)
+ 	AND
+	motorization_axis_redefined_at_powerup
+THEN
+	csp_retain_data.motorization_axis_position := axis_get_actual_modulo_position(csp_main_motorization_virtualManager.axis);
+END_IF
+
+held_BIT := motorization_manager_is_held(csp_main_motorization_manager.motm);
+execute_BIT := motorization_manager_is_execute(csp_main_motorization_manager.motm);
+not_execute_BIT := NOT motorization_manager_is_execute(csp_main_motorization_manager.motm);
+
+
+abort_axes_auto_reset(IN:= abort_axes , PT:=T#2S , Q=>  , ET=> );
+
+IF abort_axes_auto_reset.Q
+THEN
+	abort_axes := FALSE; //sets abort axes false after 2 seconds of being on to make sure all logic looking at this bit is scanned before truning off
+END_IF
+
+
+connection();
+(************************************************************************)
+
+_handle_messages();
+_write_output();
+First_Scan := FALSE;]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{df8e6279-fb2c-482b-aa87-e318c2d6bba2}">
+      <Implementation>
+        <ST><![CDATA[IF connection_timeout
+THEN
+	csp_main_motorization_set_snapshot(
+		errorID_1			:= 1, 
+		errorID_2			:= 0, 
+		errorID_3			:= 0, 
+		reason				:= 'CONNECTION TIMEOUT', 
+		connection_status	:= connection_status_mem, 
+		CONVERSION_this		:= fault_aem);
+ELSIF	NOT connection_conditions
+		AND
+		csp.o_machine_is_running
+THEN
+	csp_main_motorization_set_snapshot(
+		errorID_1			:= 2, 
+		errorID_2			:= 0, 
+		errorID_3			:= 0, 
+		reason				:= 'GROUP NOT READY', 
+		connection_status	:= connection_status_mem, 
+		CONVERSION_this		:= fault_aem);	
+ELSIF	descriptor_get_reset_edge(prc.descriptor)
+THEN
+	message_reset(fault_aem.message);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{9ffb89f0-9f00-4cf0-a41e-d244c635d2fb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{6284a11e-5f1f-4fc9-8594-a623eb5e2347}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+		connection_conditions := FALSE;
+		connection_done := FALSE;
+		connection_status := csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_CONNECTION_NOT_COMPLETED_STATUS_999;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{c024ca3b-b097-46e8-a4ae-2e07d5d8b4e7}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_main_motorization.prc', 
+		process									:= csp_main.prc, 
+		CONVERSION_this							:= prc);
+			
+	prc_path 									:= process_get_path(prc);
+	
+	(* Connection timer *)
+	timer_init(
+		object_name								:= CONCAT(prc_path, '_connection_tmr'), 
+		process									:= prc, 
+		CONVERSION_this							:= connection_tmr);
+		
+	(* Connection done conditioner *)
+	motorization_conditioner_init(
+		object_name								:=	CONCAT(prc_path, '_connection_done_motcond'),
+		velocity_limit							:=	100.0,
+		velocity_limit_active					:=	FALSE,
+		idle_handshake_active					:=	FALSE,
+		execute_handshake_active				:=	FALSE,
+		hold_handshake_active					:=	FALSE,
+		suspend_handshake_active				:=	FALSE,
+		complete_handshake_active				:=	FALSE,
+		abort_handshake_active					:=	FALSE,
+		stop_handshake_active					:=	FALSE,
+		origin									:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager									:=	csp_main_motorization_manager.motm,
+		process									:=	prc,
+		CONVERSION_this							:=	connection_done_motcond);
+		
+	(* Snapshot *)
+	csp_main_motorization_init_snapshot(
+		message_name							:= CONCAT(prc_path, '_fault_aem'), 
+		behaviour								:= MESSAGE_BEHAVIOUR_EVENT, 
+		reset_timeout							:= 0, 
+		disableable								:= FALSE, 
+		individual_reset						:= FALSE, 
+		machine_reaction						:= MACHINE_REACTION_NO_STOP, 
+		typology								:= MESSAGE_TYPOLOGY_GENERIC_1, 
+		process									:= prc, 
+		CONVERSION_this							:= fault_aem);	
+		
+		
+		
+	parameter_overwrite_bool_init(
+		object_name								:= CONCAT(prc_path, '_empty_command_overwrite'),
+		parameter								:= empty_command,
+		process									:= prc,
+		CONVERSION_this							:= empty_command_overwrite);
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	motorization_conditioner_cycle(connection_done_motcond);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{f2f53e4f-f080-4b90-9eee-57874aef00b2}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{49243e9d-e8ac-47e9-a108-221414dc8b2b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{19e9a7d8-08f4-4c96-925c-367caf1c897c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{b09628fd-8c4a-4bd7-9688-95cd48838c0f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="connection" Id="{49b91f75-80ee-4486-912f-6890c08cd631}">
+      <Implementation>
+        <ST><![CDATA[connection_conditions :=
+	NOT process_message_is_on(fault_aem.message)
+	AND
+	process_is_ready(prc)
+	AND
+	process_subtree_is_ready(prc);
+	
+IF	NOT connection_conditions
+	AND
+	(
+		connection_done
+		OR
+		connection_running
+	)
+THEN
+	connection_status_mem := connection_status;
+	connection_status := csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_CONNECTION_NOT_COMPLETED_STATUS_999;
+END_IF
+
+IF	connection_running
+THEN
+	IF timer_is_expired(connection_tmr)
+	THEN
+		connection_status_mem := connection_status;
+		connection_timeout := TRUE;
+	END_IF
+ELSE
+	connection_timeout := false;
+	timer_restart(CONNECTION_TIMEOUT_S * G_CONV_S_TO_MS, connection_tmr);
+END_IF
+
+(* CONNECTION FINITE STATE MACHINE *)
+CASE connection_status OF
+	
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_IDLE_STATUS_0:
+	
+		IF	NOT motorization_axis_redefined_at_powerup
+			AND
+			axis_is_disabled(csp_main_motorization_virtualManager.axis)
+			AND
+			connection_conditions
+		THEN
+			connection_running := TRUE;
+			connection_status := csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_VIRTUAL_MANAGER_REDEFINE_POS_REQ_STATUS_20;
+		END_IF
+	
+		
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_AXIS_DISABLE_STATUS_10:
+	
+		axis_disable(csp_main_motorization_virtualManager.axis);
+		
+		IF	axis_is_disabled(csp_main_motorization_virtualManager.axis)
+		THEN
+			connection_status := csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_VIRTUAL_MANAGER_REDEFINE_POS_REQ_STATUS_20;
+		END_IF
+
+		
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_VIRTUAL_MANAGER_REDEFINE_POS_REQ_STATUS_20:
+	
+		IF	axis_redefine_position(
+				position		:= csp_retain_data.motorization_axis_position, 
+				mode			:= AXIS_REDEFINE_POSITION_MODE_ABSOLUTE, 
+				CONVERSION_this	:= csp_main_motorization_virtualManager.axis)	
+		THEN
+			connection_status := csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_VIRTUAL_MANAGER_POS_REDEFINING_STATUS_30;
+		END_IF
+			
+		
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_VIRTUAL_MANAGER_POS_REDEFINING_STATUS_30:
+	
+		IF 	axis_is_position_redefined(csp_main_motorization_virtualManager.axis)
+		THEN
+			connection_status := csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_VIRTUAL_AXIS_ENABLE_STATUS_40;
+		ELSIF connection_timeout
+		THEN
+			connection_running := FALSE;
+			connection_status := csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_AXIS_DISABLE_STATUS_10;
+		END_IF	
+	
+		
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_VIRTUAL_AXIS_ENABLE_STATUS_40:
+	
+		axis_enable(csp_main_motorization_virtualManager.axis);
+		motorization_axis_redefined_at_powerup := TRUE;
+		
+		IF 	axis_is_standstill(csp_main_motorization_virtualManager.axis)
+			AND axis_is_cam_engaged(csp_case_feed_virtualMaster.axis)
+			AND axis_is_cam_engaged(csp_case_transport_virtualMaster.axis)
+			AND axis_is_cam_engaged(csp_case_loader_virtualMaster.axis)		
+			AND axis_is_cam_engaged(csp_case_virtualMaster.axis)		
+		THEN	
+			connection_status := csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_CONNECTION_DONE_STATUS_900;
+		END_IF
+			
+					
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_CONNECTION_DONE_STATUS_900:
+	
+		connection_running := FALSE;
+		connection_done := TRUE;
+		
+		motorization_conditioner_start_done(connection_done_motcond);
+	
+		
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_CONNECTION_NOT_COMPLETED_STATUS_999:
+	
+		axis_disable(csp_main_motorization_virtualManager.axis);				
+		
+		connection_running := FALSE;
+		connection_done := FALSE;
+		
+		IF 	axis_is_disabled(csp_main_motorization_virtualManager.axis)			
+		THEN
+			connection_status := csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_IDLE_STATUS_0;
+		END_IF
+END_CASE
+]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_main_motorization">
+      <LineId Id="246" Count="128" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_motorization._handle_messages">
+      <LineId Id="2" Count="22" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_motorization._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_motorization._mode_manager">
+      <LineId Id="2" Count="15" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_motorization._object_manager">
+      <LineId Id="2" Count="58" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_motorization._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_motorization._read_var_input">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_motorization._set_runtime_properties">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_motorization._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_motorization.connection">
+      <LineId Id="2" Count="114" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

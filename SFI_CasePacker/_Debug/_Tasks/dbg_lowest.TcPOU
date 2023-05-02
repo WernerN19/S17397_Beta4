@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_lowest" Id="{5b454e71-93ca-405f-b31d-bbc38f0ad8e1}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM dbg_lowest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT framework_is_local_simulated()
+THEN
+	RETURN;	
+END_IF
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

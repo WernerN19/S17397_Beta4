@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="dbg_csp_transfer_infeed_metering_jam" Id="{26ec907a-c913-42a4-be4a-f655936a55cb}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_transfer_infeed_metering_jam
+VAR
+  jam_di_shd : digital_input_shadow;
+  jam_sensor_on_dchk_shd : digital_check_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{f75d32c3-f97b-448e-88aa-81bc63f3c68a}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_infeed_metering_jam.jam_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= jam_di_shd);
+
+	digital_check_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_infeed_metering_jam.jam_sensor_on_dchk, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= jam_sensor_on_dchk_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	digital_input_shadow_cycle(jam_di_shd);
+	digital_check_shadow_cycle(jam_sensor_on_dchk_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

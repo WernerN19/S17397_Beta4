@@ -1,0 +1,43 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_configurator" Id="{c54b403a-930e-4d7b-90e3-91bb581214fe}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/05/11 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM csp_main_configurator
+VAR
+	prc:												process;
+	prc_path:											STRING;
+		
+	Physical_hw:										BOOL:=TRUE;
+	service_stop_reclassification_present: 				BOOL:=TRUE;
+	
+	applicaton_name:									STRING :='CSP';
+	customer:											STRING :='KDP';
+	machine_sequential_number:							STRING :='nB4';
+	application_kickoff_repository_version:				STRING :='nnnnnnn' ;
+	safety_version:										STRING :='000';
+	hardware_version:									STRING :='000';
+	software_version:									STRING :='000';
+	
+END_VAR
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[Physical_hw:=TRUE;
+service_stop_reclassification_present:=TRUE;
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

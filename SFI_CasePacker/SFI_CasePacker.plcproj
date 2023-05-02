@@ -1,0 +1,3247 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <FileVersion>1.0.0.0</FileVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{1c16e0b7-60dd-4608-88f7-668dea23c501}</ProjectGuid>
+    <SubObjectsSortedByName>True</SubObjectsSortedByName>
+    <Name>SFI_CasePacker</Name>
+    <ProgramVersion>3.1.4023.0</ProgramVersion>
+    <LibraryReferences>{33525641-3dd3-4024-8953-fd8991cc68ca}</LibraryReferences>
+    <Application>{a2e68373-6b69-48d4-80a8-6ae308c181b5}</Application>
+    <TypeSystem>{23eb3833-1828-46da-a11a-870bc2d42532}</TypeSystem>
+    <Implicit_Task_Info>{f852d0a7-5118-4c68-ad1d-1d6b05d524c2}</Implicit_Task_Info>
+    <Implicit_KindOfTask>{52d27f2c-41ab-4a06-a224-bad1e49313aa}</Implicit_KindOfTask>
+    <Implicit_Jitter_Distribution>{a2214d60-fc92-4ce7-8865-f795cd229dee}</Implicit_Jitter_Distribution>
+    <Released>false</Released>
+    <CombineIds>true</CombineIds>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Application\auxiliary_counters_code_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\cam_table_enum.TcTLEO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\csp_case_closing.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\csp_case_closing_constant_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\csp_case_closing_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\csp_case_closing_rfid_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\LS\csp_case_closing_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\LS\Horizontal\csp_case_closing_ls_horizontal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\LS\Lower\csp_case_closing_ls_lower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\LS\Upper\csp_case_closing_ls_upper.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\OS\csp_case_closing_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\OS\Horizontal\csp_case_closing_os_horizontal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\OS\Lower\csp_case_closing_os_lower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\OS\Upper\csp_case_closing_os_upper.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\_Tasks\_csp_case_closing_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\_Tasks\_csp_case_closing_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\_Tasks\_csp_case_closing_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Closing\_Tasks\_csp_case_closing_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\csp_case.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\csp_case_connection_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\csp_case_phase_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\csp_case_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\csp_case_discharge.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\csp_case_discharge_constant_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\csp_case_discharge_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\Reject\Belt\csp_case_discharge_reject_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\Reject\csp_case_discharge_reject.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\Reject\Modsort\csp_case_discharge_reject_modsort.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\Reject\Sensors\csp_case_discharge_reject_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\Speed Belt\csp_case_discharge_speedBelt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\Speed Belt\LS\csp_case_discharge_speedBelt_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\Speed Belt\OS\csp_case_discharge_speedBelt_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\_Tasks\_csp_case_discharge_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\_Tasks\_csp_case_discharge_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\_Tasks\_csp_case_discharge_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Discharge\_Tasks\_csp_case_discharge_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Arm\csp_case_feed_arm.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Arm\Elbow\csp_case_feed_arm_elbow.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Arm\Sensors\csp_case_feed_arm_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Arm\Sensors\csp_case_feed_arm_sensors_rfid_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Arm\Shoulder\csp_case_feed_arm_shoulder.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Arm\Wrist\csp_case_feed_arm_wrist.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\csp_case_feed.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\csp_case_feed_connection_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\csp_case_feed_constant_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\csp_case_feed_kinematic_constant_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\csp_case_feed_kinematic_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\csp_case_feed_phase_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\csp_case_feed_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Kinematic\csp_case_feed_kinematic.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Kinematic\csp_case_feed_kinematic_tilt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Kinematic\csp_case_feed_kinematic_x.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Kinematic\csp_case_feed_kinematic_y.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Acc U Change\csp_case_feed_magazine_accU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Acc U Change\LS Depth\csp_case_feed_magazine_accU_lsDepth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Acc U Change\LS Depth\csp_case_feed_magazine_accU_lsDepth_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Acc U Change\OS Depth\csp_case_feed_magazine_accU_osDepth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Acc U Change\OS Depth\csp_case_feed_magazine_accU_osDepth_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\csp_case_feed_magazine.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\csp_case_feed_magazine_constant_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Level\csp_case_feed_magazine_level_zone4.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\LS\Belt\csp_caser_feed_magazine_ls_belt_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\LS\Belt\csp_case_feed_magazine_ls_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\LS\csp_case_feed_magazine_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\LS\Pusher Tilt\csp_case_feed_magazine_ls_pusherTilt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\LS\Pusher\csp_case_feed_magazine_ls_pusher.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\LS\Sensors\csp_case_feed_magazine_ls_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\OS\Belt\csp_caser_feed_magazine_os_belt_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\OS\Belt\csp_case_feed_magazine_os_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\OS\csp_case_feed_magazine_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\OS\Pusher Tilt\csp_case_feed_magazine_os_pusherTilt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\OS\Pusher\csp_case_feed_magazine_os_pusher.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\OS\Sensors\csp_case_feed_magazine_os_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Level\csp_case_feed_magazine_level.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Level\csp_case_feed_magazine_level_zone1.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Level\csp_case_feed_magazine_level_zone2.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Level\csp_case_feed_magazine_level_zone3.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Level\csp_case_feed_magazine_level_zonelow.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Level\csp_case_feed_magazine_level_zonemin.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Magazine\Level\csp_case_feed_magazine_level_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Reject\Acc U Change\csp_case_feed_reject_accU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Reject\Acc U Change\Depth\csp_case_feed_reject_accU_depth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Reject\Acc U Change\Depth\csp_case_feed_reject_accU_depth_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Reject\Belt\csp_case_feed_reject_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Reject\Belt\Lower\csp_caser_feed_reject_belt_lower_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Reject\Belt\Lower\csp_case_feed_reject_belt_lower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Reject\Belt\Upper\csp_caser_feed_reject_belt_upper_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Reject\Belt\Upper\csp_case_feed_reject_belt_upper.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Reject\csp_case_feed_reject.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Reject\Sensors\csp_case_feed_reject_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Reject\Sensors\csp_case_feed_reject_sensors_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Shuttle\Acc U Change\csp_case_feed_shuttle_accU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Shuttle\Acc U Change\Depth\csp_case_feed_shuttle_accU_depth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Shuttle\Acc U Change\Depth\csp_case_feed_shuttle_accU_depth_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Shuttle\csp_case_feed_shuttle.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Shuttle\Horizontal\csp_case_feed_shuttle_horizontal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Shuttle\Sensors\csp_case_feed_shuttle_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Shuttle\Sensors\LS\csp_case_feed_shuttle_sensors_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Shuttle\Sensors\OS\csp_case_feed_shuttle_sensors_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Shuttle\Vertical\csp_case_feed_shuttle_vertical.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\Virtual Master\csp_case_feed_virtualMaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\_Tasks\_csp_case_feed_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\_Tasks\_csp_case_feed_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\_Tasks\_csp_case_feed_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Feed\_Tasks\_csp_case_feed_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\Backstop\csp_case_flapControl_backStop.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\csp_case_flapControl.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\csp_case_flap_control_connection_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\csp_case_flap_control_phase_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\csp_case_flap_control_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\LS\csp_case_flapControl_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\LS\Lower\csp_case_fc_ls_lower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\LS\Lower\Follower\csp_case_fc_ls_lower_follower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\LS\Lower\Sensors\csp_case_fc_ls_lower_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\LS\Lower\Spreader\csp_case_fc_ls_lower_spreader.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\LS\Lower\Trailing Closer\csp_case_fc_ls_lower_trailingCloser.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\LS\Upper\csp_case_fc_ls_upper.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\LS\Upper\Follower\csp_case_fc_ls_upper_follower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\LS\Upper\Leading Minor Closer\csp_case_fc_ls_upper_leadingMinorCloser.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\LS\Upper\Leading Minor Closer\csp_case_fc_ls_upper_leadingMinorCloser_virtual.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\LS\Upper\Sensors\csp_case_fc_ls_upper_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\LS\Upper\Spreader\csp_case_fc_ls_upper_spreader.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\OS\csp_case_flapControl_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\OS\Lower\csp_case_fc_os_lower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\OS\Lower\Follower\csp_case_fc_os_lower_follower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\OS\Lower\Sensors\csp_case_fc_os_lower_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\OS\Lower\Spreader\csp_case_fc_os_lower_spreader.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\OS\Upper\csp_case_fc_os_upper.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\OS\Upper\Follower\csp_case_fc_os_upper_follower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\OS\Upper\Sensors\csp_case_fc_os_upper_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\OS\Upper\Spreader\csp_case_fc_os_upper_spreader.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\_Tasks\_csp_case_flapControl_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\_Tasks\_csp_case_flapControl_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\_Tasks\_csp_case_flapControl_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Flap Control\_Tasks\_csp_case_flapControl_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\csp_case_glue.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\csp_case_glue_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\HotMelt\csp_case_glue_hotMelt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\HotMelt\csp_case_glue_hotMelt_safety.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\LS\Acc U Change\Lower Position\csp_case_glue_ls_accU_lowerPosition.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\LS\Acc U Change\Lower Position\csp_case_glue_ls_accU_lowerPosition_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\LS\Acc U Change\Upper Position\csp_case_glue_ls_accU_upperPosition.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\LS\Acc U Change\Upper Position\csp_case_glue_ls_accU_upperPosition_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\LS\Guns\csp_case_glue_ls_guns.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\LS\csp_case_glue_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\LS\Acc U Change\csp_case_glue_ls_accU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\OS\Acc U Change\csp_case_glue_os_accU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\OS\Acc U Change\Lower Position\csp_case_glue_os_accU_lowerPosition.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\OS\Acc U Change\Lower Position\csp_case_glue_os_accU_lowerPosition_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\OS\Acc U Change\Upper Position\csp_case_glue_os_accU_upperPosition.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\OS\Acc U Change\Upper Position\csp_case_glue_os_accU_upperPosition_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\OS\Acc U Change\Width\csp_case_glue_os_accU_width.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\OS\Acc U Change\Width\csp_case_glue_os_accU_width_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\OS\csp_case_glue_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\OS\Guns\csp_case_glue_os_guns.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\Sensors\csp_case_glue_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\_Tasks\_csp_case_glue_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\_Tasks\_csp_case_glue_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\_Tasks\_csp_case_glue_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Glue\_Tasks\_csp_case_glue_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\csp_case_loader.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\csp_case_loader_constant_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\csp_case_loader_rfid_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\csp_case_phasing_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\csp_case_loader_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\Guide\Acc U Change\csp_case_loader_guide_accU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\Guide\Acc U Change\Width\csp_case_loader_guide_accU_width.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\Guide\Acc U Change\Width\csp_case_loader_guide_accU_width_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\Guide\csp_case_loader_guide.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\Guide\Downstream\csp_case_loader_guide_downstream.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\Guide\Length\csp_case_loader_guide_length.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\Guide\Upstream\csp_case_loader_guide_upstream.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\Pusher\csp_case_loader_pusher.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\Sensors\csp_case_loader_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\Virtual Master\csp_case_loader_virtualMaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\_Tasks\_csp_case_loader_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\_Tasks\_csp_case_loader_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\_Tasks\_csp_case_loader_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Loader\_Tasks\_csp_case_loader_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Cabinet\csp_case_main_cabinet.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Cabinet\Sync Unit\csp_case_main_cabinet_sync_unit.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\csp_case_main.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Drives\csp_case_main_drives.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\IO Link\csp_case_main_ioLink.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\24Vdc supply\csp_case_main_safety_24VdcSupply.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\AccUChange\csp_case_main_safety_accUChange.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Air Supply\csp_case_main_safety_air.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Conveyor\csp_case_main_safety_conveyor.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\csp_case_main_safety.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_commonConfiguration.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_PS2000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD15000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD2100.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD2200.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD2300.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD2400.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD2500.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD12000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD26000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD26100.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD8000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD8100.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD8200.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD8300.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD8400.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD8500.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD8600.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD10000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD10100.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD10200.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD10300.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD10400.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Drives\csp_case_main_safety_drives_SD11000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Emergency\csp_case_main_safety_emergency.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Guards\csp_case_main_safety_guards.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Interface\csp_case_main_safety_interface.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Safety\Token\csp_case_main_safety_token.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Services\Air Pressure\csp_case_main_services_airPressure.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Services\Breakers\csp_case_main_services_breakers.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Services\csp_case_main_services.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Services\Hot Melt\csp_case_main_services_hotMelt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Services\Pushbuttons\csp_case_main_services_pushbuttons.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\Services\Vacuum\csp_case_main_services_vacuum.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\statistics\csp_case_main_statistics.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\statistics\csp_case_main_statistics_debug.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\statistics\csp_case_main_statistics_debug_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\_Tasks\_csp_case_main_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\_Tasks\_csp_case_main_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\_Tasks\_csp_case_main_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Main\_Tasks\_csp_case_main_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Open Flap\csp_case_openFlap.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Open Flap\Sensors\csp_case_openFlap_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Open Flap\_Tasks\_csp_case_openFlap_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Open Flap\_Tasks\_csp_case_openFlap_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Open Flap\_Tasks\_csp_case_openFlap_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Open Flap\_Tasks\_csp_case_openFlap_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Acc U Change\csp_case_topRail_accU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Acc U Change\Depth\csp_case_tr_accU_depth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Acc U Change\Depth\csp_case_tr_accU_depth_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Acc U Change\LS\csp_case_tr_accU_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Acc U Change\LS\Width\csp_case_tr_accU_ls_width.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Acc U Change\LS\Width\csp_case_tr_accU_ls_width_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Acc U Change\OS\csp_case_tr_accU_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Acc U Change\OS\Width\csp_case_tr_accU_os_width.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Acc U Change\OS\Width\csp_case_tr_accU_os_width_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Acc U Change\Virtual Master\csp_case_tr_accU_virtualMaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Acc U Change\Virtual Master\csp_case_tr_accU_virtualMaster_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\csp_case_topRail.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Squaring\csp_case_topRail_squaring.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Squaring\csp_case_topRail_squaring_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Squaring\csp_case_topRail_squaring_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Squaring\LS\csp_case_tr_squaring_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Squaring\LS\Leading\csp_case_tr_squaring_ls_leading.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Squaring\LS\Trailing\csp_case_tr_squaring_ls_trailing.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Squaring\OS\csp_case_tr_squaring_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Squaring\OS\Leading\csp_case_tr_squaring_os_leading.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\Squaring\OS\Trailing\csp_case_tr_squaring_os_trailing.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\_Tasks\_csp_case_topRail_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\_Tasks\_csp_case_topRail_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\_Tasks\_csp_case_topRail_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Top Rail\_Tasks\_csp_case_topRail_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\Acc U Change\csp_case_transport_accU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\Acc U Change\Depth\csp_case_transport_accU_depth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\Acc U Change\Depth\csp_case_transport_accU_depth_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\Acc U Change\Virtual Master\csp_case_transport_accU_virtualMaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\Acc U Change\Virtual Master\csp_case_transport_accU_virtualMaster_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\csp_case_transport.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\csp_case_transport_constant_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\csp_case_transport_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\LS\csp_case_transport_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\LS\Leading\csp_case_transport_ls_leading.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\LS\Trailing\csp_case_transport_ls_trailing.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\OS\csp_case_transport_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\OS\Leading\csp_case_transport_os_leading.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\OS\Minor Plow\csp_case_transport_os_minorPlow.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\OS\Trailing\csp_case_transport_os_trailing.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\Tensioner\csp_case_transport_tensioner.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\Virtual Master\csp_case_transport_virtualMaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\_Tasks\_csp_case_transport_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\_Tasks\_csp_case_transport_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\_Tasks\_csp_case_transport_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Transport\_Tasks\_csp_case_transport_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\Virtual Master\csp_case_virtualMaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\_Tasks\_csp_case_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\_Tasks\_csp_case_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\_Tasks\_csp_case_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Case\_Tasks\_csp_case_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\csp.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\csp_retain_data_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePacker.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerCaseBlanks.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerCtCall.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerDock.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerLabels.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerProdRej.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerProduction.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerStart.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerStatus.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerStBlocked.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerStFault.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerStRate.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerStStarved.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_casePackerStStop.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_fillWeight.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_mark.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_markBUBD.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_markTemplate.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_material.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_MES.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_old.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_old_2.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_order.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_palletizer.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_product.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\csp_customerInterfaces_recipe.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\_Tasks\_csp_customerInterfaces_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\_Tasks\_csp_customerInterfaces_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\_Tasks\_csp_customerInterfaces_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Customer Interface\_Tasks\_csp_customerInterfaces_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\AccU Change\csp_main_accuChange.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\AccU Change\csp_main_accuChange_constant.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\AccU Change\csp_main_accuChange_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\AccU Change\csp_main_accuChange_partColor_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\AccU Change\csp_main_accuChange_RFID_reader_list.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\AccU Change\csp_main_accuChange_RFID_read_write_status.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\AccU Change\csp_main_accuChange_RFID_running_check_status.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\AccU Change\FB_RecoverPosition.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Brand\csp_main_brand.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Brand\csp_main_brand_cam_change.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Brand\csp_main_brand_carton_format_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Brand\csp_main_brand_case_pattern.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Brand\csp_main_brand_product_dimension.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\csp_main_configurator.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\csp_main_old.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\csp_main_old_2.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Drives\csp_main_drives.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Interface\Cabinet\csp_main_interface_cabinet.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Interface\csp_main_interface.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Interface\csp_main_interface_csv_read.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Interface\Downstream\csp_main_interface_downstream.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Interface\Upstream\csp_main_interface_upstream.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Jog Manager\csp_jog_accu_suggested_speeds.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Jog Manager\csp_jog_list_AccUChange.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Jog Manager\csp_jog_list_real.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Jog Manager\csp_jog_list_virtual.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Jog Manager\csp_main_jogManager.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Motorization\csp_main_motorization_speedBalance.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Motorization\Snapshot\csp_main_motorization_init_snapshot.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Motorization\Snapshot\csp_main_motorization_set_snapshot.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Motorization\Snapshot\csp_main_motorization_snapshot.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Motorization\csp_main_motorization.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Motorization\csp_main_motorization_connection_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Motorization\csp_main_motorization_manager.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Motorization\csp_main_motorization_virtualManager.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\csp_main.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\csp_sw_configurator_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\csp_main_configurator_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\csp_main_phaseManager.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\csp_main_phaseManager_end_job.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\csp_main_phaseManager_near_end_run.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\csp_main_phaseManager_run_out.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\csp_main_phaseManager_startJob.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\csp_main_phaseManager_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\Snapshot\csp_main_phaseManager_init_snapshot.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\Snapshot\csp_main_phaseManager_set_snapshot.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\Snapshot\csp_main_phaseManager_snapshot.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\Snapshot\csp_main_phaseManager_warning_init_snapshot.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\Snapshot\csp_main_phaseManager_warning_set_snapshot.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\Snapshot\csp_main_phaseManager_warning_snapshot.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\Snapshot\csp_main_phMan_start_job_init_snapshot.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\Snapshot\csp_main_phMan_start_job_set_snapshot.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Phase Manager\Snapshot\csp_main_phMan_start_job_snapshot.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Production Data\csp_main_productionData.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Safety\csp_main_safety.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Safety\csp_main_safety_connectionShutDown.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Safety\Drives\csp_main_safety_drives.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Safety\Drives\csp_main_safety_drives_commonConfiguration.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Safety\Drives\csp_main_safety_drives_powerSupply.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Safety\Emergency\csp_main_safety_emergency.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Safety\Interface\csp_main_safety_interface.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Services\csp_main_services.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Services\Pushbuttons\csp_main_services_pushbuttons.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Services\RFID FB\FB_BIS00LH.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Services\RFID FB\FB_MyQ_UDINT.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Services\RFID FB\IO_RFID.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Services\RFID FB\RFID_FB.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Services\RFID FB\ST_BIS00LH_Inputs.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Services\RFID FB\ST_BIS00LH_IO.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Services\RFID FB\ST_BIS00LH_Outputs.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Services\RFID FB\ST_BITHEADERIN.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Services\RFID FB\ST_BITHEADEROUT.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\Services\Tower Lamp\csp_main_services_towerLamp.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\_Tasks\_csp_main_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\_Tasks\_csp_main_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\_Tasks\_csp_main_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Main\_Tasks\_csp_main_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Acc U Change\Conveyor Depth\csp_transfer_accumulator_accU_convDepth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Acc U Change\Conveyor Depth\csp_transfer_accumulator_accU_convDepth_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Acc U Change\csp_transfer_accumulator_accU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Acc U Change\Depth\csp_transfer_accumulator_accU_depth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Acc U Change\Depth\csp_transfer_accumulator_accU_depth_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Acc U Change\Top Rail Length\csp_transfer_accumulator_accU_topRailLength.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Acc U Change\Top Rail Width\csp_transfer_accumulator_accU_topRailWidth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Acc U Change\Virtual Master\csp_transfer_accumulator_accU_virtualMaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Acc U Change\Virtual Master\csp_transfer_accumulator_accU_virtualMaster_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Belt\csp_transfer_accumulator_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\csp_transfer_accumulator.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\csp_transfer_accumulator_belt_cam_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\csp_transfer_accumulator_belt_connection_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\csp_transfer_accumulator_belt_phase_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\csp_transfer_accumulator_belt_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\csp_transfer_accumulator_connection_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\csp_transfer_accumulator_finger_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\csp_transfer_accumulator_lift_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Finger\csp_transfer_accumulator_finger.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Finger\LS\csp_transfer_accumulator_finger_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Finger\OS\csp_transfer_accumulator_finger_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Lift\csp_transfer_accumulator_lift.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\Vitual Master\csp_transfer_accumulator_virtualMaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\_Tasks\_csp_transfer_accumulator_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\_Tasks\_csp_transfer_accumulator_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\_Tasks\_csp_transfer_accumulator_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Accumulator\_Tasks\_csp_transfer_accumulator_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\csp_transfer_crosspusher.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\csp_transfer_crosspusher_connection_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\csp_transfer_crosspusher_constant_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\csp_transfer_crosspusher_follower_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\csp_transfer_crosspusher_horizontal_constant_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\csp_transfer_crosspusher_horizontal_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\csp_transfer_crosspusher_loader_clear_status.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\csp_transfer_crosspusher_phase_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\csp_transfer_crosspusher_reject_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\csp_transfer_crosspusher_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\csp_transfer_crosspusher_vertical_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\Follower\csp_transfer_crosspusher_follower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\Horizontal\csp_transfer_crosspusher_horizontal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\Reject\csp_transfer_crosspusher_reject.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\Reject\csp_transfer_crosspusher_reject_sensor_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\Sensors\csp_transfer_crosspusher_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\Vertical\csp_transfer_crosspusher_vertical.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\Virtual Master\csp_transfer_crosspusher_virtualMaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\_Tasks\_csp_transfer_crosspusher_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\_Tasks\_csp_transfer_crosspusher_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\_Tasks\_csp_transfer_crosspusher_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Crosspusher\_Tasks\_csp_transfer_crosspusher_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\csp_transfer.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\csp_transfer_connection_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\csp_transfer_phase_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\csp_transfer_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Acc U Change\csp_transfer_infeed_accU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Acc U Change\Depth\csp_transfer_infeed_accU_depth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Acc U Change\Depth\csp_transfer_infeed_accU_depth_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Acc U Change\Depth\csp_transfer_infeed_constant_accU.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Acc U Change\Waterfall Adjust\csp_transfer_infeed_accU_waterfallAdjust.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Acc U Change\Waterfall Adjust\csp_transfer_infeed_accU_waterfallAdjust_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Accumulation\Belt\csp_transfer_infeed_accumulation_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Accumulation\Belt\csp_transfer_infeed_accumulation_belt_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Accumulation\csp_transfer_infeed_accumulation.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Accumulation\Level\csp_transfer_infeed_accumulation_level.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Accumulation\Level\csp_transfer_infeed_accumulation_level_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Accumulation\Level\csp_transfer_infeed_accumulation_level_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Accumulation\Level\csp_transfer_infeed_accumulation_level_max.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Accumulation\Level\csp_transfer_infeed_accumulation_level_min.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Accumulation\Level\csp_transfer_infeed_accumulation_level_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Barcode Reader\csp_transfer_infeed_barcode_connection_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Barcode Reader\csp_transfer_infeed_barcode_reader.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Clamp\csp_transfer_infeed_clamp.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Clamp\csp_transfer_infeed_prime_status.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\csp_transfer_infeed.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\csp_transfer_infeed_belt_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\csp_transfer_infeed_connection_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\csp_transfer_infeed_constant_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Metering\Belt\csp_transfer_infeed_metering_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Metering\csp_transfer_infeed_metering.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Metering\Jam\csp_transfer_infeed_metering_jam.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Reject\csp_transfer_infeed_reject_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Reject\csp_transfer_infeed_reject.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Reject\csp_transfer_infeed_reject_pusher_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Reject\High Load\csp_transfer_infeed_reject_highLoad.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Reject\High Load\csp_transfer_infeed_reject_highload_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Reject\Pusher\csp_transfer_infeed_reject_pusher.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Reject\Virtual Master\csp_transfer_infeed_reject_virtualMaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Waterfall\Belt\csp_transfer_infeed_waterfall_belt_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Waterfall\csp_transfer_infeed_waterfall.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\Waterfall\Belt\csp_transfer_infeed_waterfall_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\_Tasks\_csp_transfer_infeed_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\_Tasks\_csp_transfer_infeed_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\_Tasks\_csp_transfer_infeed_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Infeed\_Tasks\_csp_transfer_infeed_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Brand\csp_transfer_main_brand.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Brand\csp_transfer_main_brand_cam_change.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Brand\csp_transfer_main_brand_carton_dimension.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Brand\csp_transfer_main_brand_carton_format_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Brand\csp_transfer_main_brand_case_pattern.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\csp_transfer_main.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Drives\csp_transfer_main_drives.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\IO Link\csp_transfer_main_ioLink.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\24Vdc supply\csp_transfer_main_safety_24VdcSupply.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\AccUChange\csp_transfer_main_safety_accUChange.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\csp_transfer_main_safety.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Drives\csp_transfer_main_safety_drives.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Drives\csp_transfer_main_safety_drives_SD41100.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Drives\csp_transfer_main_safety_drives_SD41200.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Drives\csp_transfer_main_safety_drives_commonConfiguration.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Drives\csp_transfer_main_safety_drives_PS41020.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Drives\csp_transfer_main_safety_drives_SD41300.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Drives\csp_transfer_main_safety_drives_SD41400.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Drives\csp_transfer_main_safety_drives_SD41500.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Drives\csp_transfer_main_safety_drives_SD41600.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Drives\csp_transfer_main_safety_drives_SD41700.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Emergency\csp_transfer_main_safety_emergency.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Guards\csp_transfer_main_safety_guards.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Interface\csp_transfer_main_safety_interface.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Safety\Token\csp_transfer_main_safety_token.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Services\Breakers\csp_transfer_main_services_breakers.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Services\csp_transfer_main_services.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Services\Pushbuttons\csp_transfer_main_services_pushbuttons.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Statistics\csp_transfer_main_statistics.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Statistics\csp_transfer_main_statistics_debug.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\Statistics\csp_transfer_main_statistics_debug_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\_Tasks\_csp_transfer_main_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\_Tasks\_csp_transfer_main_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\_Tasks\_csp_transfer_main_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Main\_Tasks\_csp_transfer_main_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\Backstop\csp_transfer_upstacker_backstop.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\csp_transfer_upstacker.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\csp_transfer_upstacker_carton_backstop.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\csp_transfer_upstacker_carton_backstop_status.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\csp_transfer_upstacker_connection_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\csp_transfer_upstacker_constant_struct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\csp_transfer_upstacker_phase_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\csp_transfer_upstacker_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\csp_transfer_upstacker_test_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\Downstream\csp_transfer_upstacker_downstream.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\Sensors\csp_transfer_upstacker_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\Upstream\csp_transfer_upstacker_upstream.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\Virtual Master\csp_transfer_upstacker_virtualMaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\_Tasks\_csp_transfer_upstacker_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\_Tasks\_csp_transfer_upstacker_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\_Tasks\_csp_transfer_upstacker_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Upstacker\_Tasks\_csp_transfer_upstacker_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\Virtual Master\csp_transfer_virtualMaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\_Tasks\_csp_transfer_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\_Tasks\_csp_transfer_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\_Tasks\_csp_transfer_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\Transfer\_Tasks\_csp_transfer_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\_Tasks\_csp_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\_Tasks\_csp_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\_Tasks\_csp_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\CSP\_Tasks\_csp_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\reject_reasons_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\_Tasks\Application Status Manager\application_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\_Tasks\Application Status Manager\application_status_manager.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\_Tasks\Application Status Manager\application_status_manager_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\_Tasks\Application Status Manager\application_status_manager_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\_Tasks\Application Status Manager\application_status_manager_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\_Tasks\_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\_Tasks\_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\analog_actuator\analog_actuator.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\analog_actuator\analog_actuator_command_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\analog_actuator\analog_actuator_fault_reaction_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\analog_actuator\analog_actuator_snapshot.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\analog_actuator\analog_actuator_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\analog_actuator\analog_actuator_test.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\analog_actuator\analog_actuator_test_command_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\analog_actuator\private\analog_actuator_private.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\jog_manager\jog_manager.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\jog_manager\jog_manager_command_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\jog_manager\jog_manager_element.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\jog_manager\jog_manager_snapshot.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\jog_manager\jog_manager_status_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\jog_manager\jog_manager_test.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\jog_manager\jog_manager_test_command_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\jog_manager\jog_manager_type.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\AFL extensions\jog_manager\private\jog_manager_private.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Data types\Common\plc_target_type_enum.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Global Variables\AFL extensions\analog_actuator_global.TcGVL">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Global Variables\AFL extensions\jog_manager_global.TcGVL">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Global Variables\Application\Common\common_global_variables.TcGVL">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="GlobalTextList.TcGTLO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="highest_speed_task.TcTTO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="lowest_speed_task.TcTTO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="low_speed_task.TcTTO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="normal_speed_task.TcTTO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\_Tasks\_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Application\_Tasks\_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\analog_actuator_cycle.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\commands\analog_actuator_activate_physical_value.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\commands\analog_actuator_deactivate.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\commands\analog_actuator_set_feedback_tolerance.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\initialize\analog_actuator_add_ai_feedback.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\initialize\analog_actuator_add_di_active.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\initialize\analog_actuator_add_di_ready.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\initialize\analog_actuator_add_dout_activate.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\initialize\analog_actuator_init.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\private\analog_actuator_change_mode.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\private\analog_actuator_init_snapshot.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\private\analog_actuator_is_not_initialized.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\private\analog_actuator_read_inputs.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\private\analog_actuator_set_snapshot.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\private\analog_actuator_submit_command.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\private\analog_actuator_test_command_handler.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\status\analog_actuator_get_mode.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\status\analog_actuator_is_active.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\status\analog_actuator_is_faulted.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\status\analog_actuator_is_inactive.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\status\analog_actuator_is_in_range.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\analog_actuator\status\analog_actuator_is_ready.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\bis00lh\iol_slave_bis00lh_bitheader_input.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\bis00lh\iol_slave_bis00lh_bitheader_output.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\bis00lh\iol_slave_bis00lh_data.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\bis00lh\iol_slave_bis00lh_pdo_input.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\bis00lh\iol_slave_bis00lh_pdo_output.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\FUN\iol_slave_bis00lh_configure.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\FUN\iol_slave_bsp00ue_configure.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\FUN\iol_slave_mlg2prime_configure.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\FUN\iol_slave_ray26p_configure.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\ml2prime\iol_slave_mlg2prime_output_status_1.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\ml2prime\iol_slave_mlg2prime_system_status_1.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\Struct\iol_slave_bsp00ue_data.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\Struct\iol_slave_mlg2prime_data.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\IO_Link\Struct\iol_slave_ray26p_data.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\commands\jog_manager_reset_pendant_active.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\commands\jog_manager_set_all_slave_axis_engaged.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\commands\jog_manager_set_jog_activation_condition.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\commands\jog_manager_set_list_selected.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\commands\jog_manager_set_sw_limit.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\commands\jog_manager_stop_jog_absolute_movement.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\initialize\jog_manager_add_axis.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\initialize\jog_manager_add_parent.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\initialize\jog_manager_add_pendant.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\initialize\jog_manager_add_shared_pendant.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\initialize\jog_manager_init.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\jog_manager_cycle.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\private\jog_manager_change_mode.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\private\jog_manager_init_snapshot.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\private\jog_manager_is_not_initialized.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\private\jog_manager_read_inputs.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\private\jog_manager_set_snapshot.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\private\jog_manager_submit_command.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\private\jog_manager_test_command_handler.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\status\jog_manager_get_all_slave_axis_engaged.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\status\jog_manager_get_jog_activation_condition.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\status\jog_manager_get_mode.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\status\jog_manager_is_jog_active.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\status\jog_manager_is_jog_axis_active.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\status\jog_manager_is_jog_axis_deactivating.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\status\jog_manager_is_jog_ready.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\status\jog_manager_is_pendant_active.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\AFL extensions\jog_manager\status\jog_manager_is_ready.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\FB_MyQ_REAL_OOP_v2.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Tools\Common\interface_configuration.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Tools\Common\csp_interface_configuration.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Visualization Manager.TcVMO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Visualization\AFL\VISU_MAIN.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Carton feeding\CARTON_FEEDING_TOOTH_DISTANCE.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Carton forming\CARTON_FORMING_CHECKS.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Casepacker_Keyboard.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\cp_visu\Visualization_1.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\CSP_Case_Feed_Kinematic.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Transfer_Keyboard.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\Carton filling\CARTON_FILLING_SHIFT_ELEMENT.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\Carton filling\CARTON_FILLING_SHIFT_ELEMENT_DESCRIPTION.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\Carton forming\CARTON_FORMING_SHIFT_ELEMENT.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\Carton forming\CARTON_FORMING_SHIFT_ELEMENT_DESCRIPTION.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\Carton pickup\CARTON_PICKUP_SHIFT_ELEMENT_DESCRIPTION.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\Carton pickup\CARTON_PICKUP_SHIFT_ELEMENT.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\CARTON_SHIFT.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\Cups feeding\CUPS_FEEDING_SHIFT_ELEMENT.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\Cups feeding\CUPS_FEEDING_SHIFT_ELEMENT_DESCRIPTION.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\Cups feeding\TRANSFER_CARTON_SHIFT_ELEMENT.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\Cups feeding\TRANSFER_CARTON_SHIFT_ELEMENT_DESCRIPTION.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\CUPS_PICK_AND_PLACE.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\CUPS_SHIFT.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\TRANSFER_SHIFT.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\Twisted cups\TWISTED_CUPS_SHIFT_ELEMENT.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="Visualization\Shift register\Twisted cups\TWISTED_CUPS_SHIFT_ELEMENT_DESCRIPTION.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>Visualization Manager.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_closing_ls_horizontal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_closing_ls_lower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_closing_ls_upper.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_closing_os_horizontal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_closing_os_lower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_closing_os_upper.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_discharge_accu_depth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_discharge_belts_conveyor.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_discharge_belts_rotate.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_discharge_reject_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_discharge_reject_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_discharge_speedbelt_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_discharge_speedbelt_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_ls_lower_follower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_ls_lower_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_ls_lower_spreader.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_ls_lower_trailingcloser.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_ls_upper_follower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_ls_upper_leadingminorcloser.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_ls_upper_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_ls_upper_spreader.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_os_lower_follower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_os_lower_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_os_lower_spreader.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_os_lower_trailingcloser.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_os_upper_follower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_os_upper_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_fc_os_upper_spreader.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_arm_elbow.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_arm_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_arm_shoulder.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_arm_wrist.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_kinematic_tilt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_kinematic_x.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_kinematic_y.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_accu_lsdepth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_accu_osdepth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_level_zone1.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_level_zone2.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_level_zone3.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_level_zonelow.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_level_zonemin.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_ls_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_ls_pusher.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_ls_pushertilt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_ls_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_os_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_os_pusher.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_os_pushertilt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_magazine_os_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_reject_belt_lower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_reject_belt_upper.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_reject_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_shuttle_accu_depth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_shuttle_horizontal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_shuttle_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_shuttle_sensors_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_shuttle_sensors_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_shuttle_vertical.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_feed_virtualmaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_flapcontrol_backstop.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_glue_hotmelt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_glue_ls_accu_lowerposition.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_glue_ls_accu_upperposition.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_glue_os_accu_lowerposition.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_glue_os_accu_upperposition.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_glue_os_accu_width.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_glue_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_glue_virtualmaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_loader_guide_accu_width.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_loader_guide_downstream.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_loader_guide_length.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_loader_guide_upstream.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_loader_pusher.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_loader_virtualmaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_accuchange.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_commonconfiguration.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_ps2000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd10000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd10100.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd10200.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd10300.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd10400.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd11000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd12000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd15000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd2100.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd2200.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd2300.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd2400.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd2500.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd26000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd26100.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd8000.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd8100.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd8200.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd8300.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd8400.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd8500.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_drives_sd8600.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_emergency.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_safety_guards.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_services.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_services_breakers.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_main_services_pushbuttons.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_openflap_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_transport_accu_depth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_transport_ls_leading.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_transport_ls_trailing.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_transport_os_leading.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_transport_os_minorplow.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_transport_os_trailing.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_transport_tensioner.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_transport_virtualmaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_tr_accu_depth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_tr_accu_ls_width.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_tr_accu_os_width.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_tr_squaring_ls_leading.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_tr_squaring_ls_trailing.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_tr_squaring_os_leading.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_tr_squaring_os_trailing.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_case_virtualmaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_main_jogmanager.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_main_motorization_virtualmanager.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_main_services.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_accumulator_accu_convdepth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_accumulator_accu_depth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_accumulator_accu_topraillength.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_accumulator_accu_toprailwidth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_accumulator_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_accumulator_finger_ls.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_accumulator_finger_os.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_accumulator_lift.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_accumulator_virtualmaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_crosspusher_follower.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_crosspusher_horizontal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_crosspusher_reject.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_crosspusher_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_crosspusher_vertical.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_crosspusher_virtualmaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_accumulation_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_accumulation_level_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_accumulation_level_max.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_accumulation_level_min.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_accumulation_level_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_accu_depth.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_accu_waterfalladjust.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_clamp.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_metering_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_metering_jam.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_reject_highload.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_reject_pusher.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_reject_virtualmaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_infeed_waterfall_belt.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_accuchange.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_drives_commonconfiguration.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_drives_ps41020.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_drives_sd41100.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_drives_sd41200.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_drives_sd41300.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_drives_sd41400.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_drives_sd41500.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_drives_sd41600.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_drives_sd41700.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_emergency.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_guards.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_safety_token.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_services.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_services_breakers.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_services_pushbuttons.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_main_services_towerlamp.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_upstacker_backstop.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_upstacker_downstream.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_upstacker_sensors.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_upstacker_upstream.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_upstacker_virtualmaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_csp_transfer_virtualmaster.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_quality_checks.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\dbg_root.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\_Tasks\dbg_highest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\_Tasks\dbg_low.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\_Tasks\dbg_lowest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="_Debug\_Tasks\dbg_normal.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Application\CSP" />
+    <Folder Include="Application\CSP\Case\Closing\LS" />
+    <Folder Include="Application\CSP\Case\Closing\LS\Horizontal" />
+    <Folder Include="Application\CSP\Case\Closing\LS\Lower" />
+    <Folder Include="Application\CSP\Case\Closing\LS\Upper" />
+    <Folder Include="Application\CSP\Case\Closing\OS" />
+    <Folder Include="Application\CSP\Case\Closing\OS\Lower" />
+    <Folder Include="Application\CSP\Case\Closing\OS\Horizontal" />
+    <Folder Include="Application\CSP\Case\Closing\OS\Upper" />
+    <Folder Include="Application\CSP\Case\Closing\_Tasks" />
+    <Folder Include="Application\CSP\Case\Discharge\Reject\Modsort" />
+    <Folder Include="Application\CSP\Case\Discharge\Reject\Belt" />
+    <Folder Include="Application\CSP\Case\Discharge\Reject\Sensors" />
+    <Folder Include="Application\CSP\Case\Discharge\Reject" />
+    <Folder Include="Application\CSP\Case\Discharge\Speed Belt" />
+    <Folder Include="Application\CSP\Case\Discharge\Speed Belt\LS" />
+    <Folder Include="Application\CSP\Case\Discharge\Speed Belt\OS" />
+    <Folder Include="Application\CSP\Case\Discharge\_Tasks" />
+    <Folder Include="Application\CSP\Case\Feed" />
+    <Folder Include="Application\CSP\Case\Feed\Arm" />
+    <Folder Include="Application\CSP\Case\Feed\Arm\Shoulder" />
+    <Folder Include="Application\CSP\Case\Feed\Arm\Elbow" />
+    <Folder Include="Application\CSP\Case\Feed\Arm\Wrist" />
+    <Folder Include="Application\CSP\Case\Feed\Arm\Sensors" />
+    <Folder Include="Application\CSP\Case\Feed\Kinematic" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\Acc U Change\LS Depth" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\Acc U Change\OS Depth" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\LS" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\Acc U Change" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\LS\Belt" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\LS\Pusher" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\LS\Pusher Tilt" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\LS\Sensors" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\OS\Belt" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\OS\Pusher" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\OS\Pusher Tilt" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\OS\Sensors" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\Level" />
+    <Folder Include="Application\CSP\Case\Feed\Magazine\OS" />
+    <Folder Include="Application\CSP\Case\Feed\Reject" />
+    <Folder Include="Application\CSP\Case\Feed\Reject\Acc U Change" />
+    <Folder Include="Application\CSP\Case\Feed\Reject\Acc U Change\Depth" />
+    <Folder Include="Application\CSP\Case\Feed\Reject\Belt" />
+    <Folder Include="Application\CSP\Case\Feed\Reject\Belt\Upper" />
+    <Folder Include="Application\CSP\Case\Feed\Reject\Belt\Lower" />
+    <Folder Include="Application\CSP\Case\Feed\Reject\Sensors" />
+    <Folder Include="Application\CSP\Case\Feed\Shuttle" />
+    <Folder Include="Application\CSP\Case\Feed\Shuttle\Acc U Change" />
+    <Folder Include="Application\CSP\Case\Feed\Shuttle\Acc U Change\Depth" />
+    <Folder Include="Application\CSP\Case\Feed\Shuttle\Horizontal" />
+    <Folder Include="Application\CSP\Case\Feed\Shuttle\Sensors" />
+    <Folder Include="Application\CSP\Case\Feed\Shuttle\Sensors\LS" />
+    <Folder Include="Application\CSP\Case\Feed\Shuttle\Sensors\OS" />
+    <Folder Include="Application\CSP\Case\Feed\Shuttle\Vertical" />
+    <Folder Include="Application\CSP\Case\Feed\Virtual Master" />
+    <Folder Include="Application\CSP\Case\Feed\_Tasks" />
+    <Folder Include="Application\CSP\Case\Flap Control" />
+    <Folder Include="Application\CSP\Case\Flap Control\Backstop" />
+    <Folder Include="Application\CSP\Case\Flap Control\LS" />
+    <Folder Include="Application\CSP\Case\Flap Control\LS\Lower" />
+    <Folder Include="Application\CSP\Case\Flap Control\LS\Lower\Follower" />
+    <Folder Include="Application\CSP\Case\Flap Control\LS\Lower\Sensors" />
+    <Folder Include="Application\CSP\Case\Flap Control\LS\Lower\Spreader" />
+    <Folder Include="Application\CSP\Case\Flap Control\LS\Lower\Trailing Closer" />
+    <Folder Include="Application\CSP\Case\Flap Control\LS\Upper" />
+    <Folder Include="Application\CSP\Case\Flap Control\LS\Upper\Follower" />
+    <Folder Include="Application\CSP\Case\Flap Control\LS\Upper\Leading Minor Closer" />
+    <Folder Include="Application\CSP\Case\Flap Control\LS\Upper\Sensors" />
+    <Folder Include="Application\CSP\Case\Flap Control\LS\Upper\Spreader" />
+    <Folder Include="Application\CSP\Case\Flap Control\OS" />
+    <Folder Include="Application\CSP\Case\Flap Control\OS\Lower" />
+    <Folder Include="Application\CSP\Case\Flap Control\OS\Lower\Follower" />
+    <Folder Include="Application\CSP\Case\Flap Control\OS\Lower\Sensors" />
+    <Folder Include="Application\CSP\Case\Flap Control\OS\Lower\Spreader" />
+    <Folder Include="Application\CSP\Case\Flap Control\OS\Upper" />
+    <Folder Include="Application\CSP\Case\Flap Control\OS\Upper\Follower" />
+    <Folder Include="Application\CSP\Case\Flap Control\OS\Upper\Sensors" />
+    <Folder Include="Application\CSP\Case\Flap Control\OS\Upper\Spreader" />
+    <Folder Include="Application\CSP\Case\Flap Control\_Tasks" />
+    <Folder Include="Application\CSP\Case\Glue\HotMelt" />
+    <Folder Include="Application\CSP\Case\Glue\LS" />
+    <Folder Include="Application\CSP\Case\Glue\LS\Acc U Change\Lower Position" />
+    <Folder Include="Application\CSP\Case\Glue\LS\Acc U Change\Upper Position" />
+    <Folder Include="Application\CSP\Case\Glue\LS\Guns" />
+    <Folder Include="Application\CSP\Case\Glue\LS\Acc U Change" />
+    <Folder Include="Application\CSP\Case\Glue\OS\Acc U Change\Lower Position" />
+    <Folder Include="Application\CSP\Case\Glue\OS\Acc U Change\Upper Position" />
+    <Folder Include="Application\CSP\Case\Glue\OS\Acc U Change\Width" />
+    <Folder Include="Application\CSP\Case\Glue\OS\Guns" />
+    <Folder Include="Application\CSP\Case\Glue\OS\Acc U Change" />
+    <Folder Include="Application\CSP\Case\Glue\Sensors" />
+    <Folder Include="Application\CSP\Case\Glue\OS" />
+    <Folder Include="Application\CSP\Case\Glue\_Tasks" />
+    <Folder Include="Application\CSP\Case\Loader" />
+    <Folder Include="Application\CSP\Case\Glue" />
+    <Folder Include="Application\CSP\Case\Discharge" />
+    <Folder Include="Application\CSP\Case\Loader\Guide" />
+    <Folder Include="Application\CSP\Case\Loader\Guide\Acc U Change\Width" />
+    <Folder Include="Application\CSP\Case\Loader\Guide\Upstream" />
+    <Folder Include="Application\CSP\Case\Loader\Guide\Downstream" />
+    <Folder Include="Application\CSP\Case\Loader\Guide\Length" />
+    <Folder Include="Application\CSP\Case\Loader\Guide\Acc U Change" />
+    <Folder Include="Application\CSP\Case\Loader\Sensors" />
+    <Folder Include="Application\CSP\Case\Loader\Pusher" />
+    <Folder Include="Application\CSP\Case\Closing" />
+    <Folder Include="Application\CSP\Case\Loader\Virtual Master" />
+    <Folder Include="Application\CSP\Case\Loader\_Tasks" />
+    <Folder Include="Application\CSP\Case\Main" />
+    <Folder Include="Application\CSP\Case\Main\Cabinet" />
+    <Folder Include="Application\CSP\Case\Main\Cabinet\Sync Unit" />
+    <Folder Include="Application\CSP\Case\Main\Drives" />
+    <Folder Include="Application\CSP\Case\Main\IO Link" />
+    <Folder Include="Application\CSP\Case\Main\Safety" />
+    <Folder Include="Application\CSP\Case\Main\Safety\24Vdc supply">
+      <ExcludeFromBuild>true</ExcludeFromBuild>
+    </Folder>
+    <Folder Include="Application\CSP\Case\Main\Safety\AccUChange" />
+    <Folder Include="Application\CSP\Case\Main\Safety\Drives" />
+    <Folder Include="Application\CSP\Case\Main\Safety\Emergency" />
+    <Folder Include="Application\CSP\Case\Main\Safety\Guards" />
+    <Folder Include="Application\CSP\Case\Main\Safety\Interface" />
+    <Folder Include="Application\CSP\Case\Main\Safety\Conveyor" />
+    <Folder Include="Application\CSP\Case\Main\Safety\Air Supply" />
+    <Folder Include="Application\CSP\Case\Main\Safety\Token" />
+    <Folder Include="Application\CSP\Case\Main\Services" />
+    <Folder Include="Application\CSP\Case\Main\Services\Air Pressure" />
+    <Folder Include="Application\CSP\Case\Main\Services\Breakers" />
+    <Folder Include="Application\CSP\Case\Main\Services\Hot Melt" />
+    <Folder Include="Application\CSP\Case\Main\Services\Pushbuttons" />
+    <Folder Include="Application\CSP\Case\Main\Services\Vacuum" />
+    <Folder Include="Application\CSP\Case\Main\statistics" />
+    <Folder Include="Application\CSP\Case\Main\_Tasks" />
+    <Folder Include="Application\CSP\Case\Open Flap" />
+    <Folder Include="Application\CSP\Case\Open Flap\Sensors" />
+    <Folder Include="Application\CSP\Case\Open Flap\_Tasks" />
+    <Folder Include="Application\CSP\Case\Top Rail" />
+    <Folder Include="Application\CSP\Case\Top Rail\Acc U Change\Depth" />
+    <Folder Include="Application\CSP\Case\Top Rail\Acc U Change\LS" />
+    <Folder Include="Application\CSP\Case\Top Rail\Acc U Change\LS\Width" />
+    <Folder Include="Application\CSP\Case\Top Rail\Acc U Change\OS" />
+    <Folder Include="Application\CSP\Case\Top Rail\Acc U Change\OS\Width" />
+    <Folder Include="Application\CSP\Case\Top Rail\Acc U Change\Virtual Master" />
+    <Folder Include="Application\CSP\Case\Top Rail\Squaring" />
+    <Folder Include="Application\CSP\Case\Top Rail\Acc U Change" />
+    <Folder Include="Application\CSP\Case\Top Rail\Squaring\LS" />
+    <Folder Include="Application\CSP\Case\Top Rail\Squaring\LS\Leading" />
+    <Folder Include="Application\CSP\Case\Top Rail\Squaring\LS\Trailing" />
+    <Folder Include="Application\CSP\Case\Top Rail\Squaring\OS" />
+    <Folder Include="Application\CSP\Case\Top Rail\Squaring\OS\Leading" />
+    <Folder Include="Application\CSP\Case\Top Rail\Squaring\OS\Trailing" />
+    <Folder Include="Application\CSP\Case\Top Rail\_Tasks" />
+    <Folder Include="Application\CSP\Case\Transport" />
+    <Folder Include="Application\CSP\Case\Transport\Acc U Change\Depth" />
+    <Folder Include="Application\CSP\Case\Transport\Acc U Change\Virtual Master" />
+    <Folder Include="Application\CSP\Case\Transport\LS" />
+    <Folder Include="Application\CSP\Case\Transport\Acc U Change" />
+    <Folder Include="Application\CSP\Case\Transport\LS\Leading" />
+    <Folder Include="Application\CSP\Case\Transport\LS\Trailing" />
+    <Folder Include="Application\CSP\Case\Transport\OS\Leading" />
+    <Folder Include="Application\CSP\Case\Transport\OS\Minor Plow" />
+    <Folder Include="Application\CSP\Case\Transport\OS\Trailing" />
+    <Folder Include="Application\CSP\Case\Transport\Tensioner" />
+    <Folder Include="Application\CSP\Case\Transport\OS" />
+    <Folder Include="Application\CSP\Case\Transport\Virtual Master" />
+    <Folder Include="Application\CSP\Case\Transport\_Tasks" />
+    <Folder Include="Application\CSP\Case\Virtual Master" />
+    <Folder Include="Application\CSP\Case\_Tasks" />
+    <Folder Include="Application\CSP\Customer Interface" />
+    <Folder Include="Application\CSP\Customer Interface\_Tasks" />
+    <Folder Include="Application\CSP\Main" />
+    <Folder Include="Application\CSP\Main\AccU Change" />
+    <Folder Include="Application\CSP\Main\Brand" />
+    <Folder Include="Application\CSP\Main\Drives" />
+    <Folder Include="Application\CSP\Main\Interface" />
+    <Folder Include="Application\CSP\Main\Interface\Cabinet" />
+    <Folder Include="Application\CSP\Main\Interface\Downstream" />
+    <Folder Include="Application\CSP\Main\Interface\Upstream" />
+    <Folder Include="Application\CSP\Main\Jog Manager" />
+    <Folder Include="Application\CSP\Main\Motorization" />
+    <Folder Include="Application\CSP\Main\Motorization\Snapshot" />
+    <Folder Include="Application\CSP\Main\Phase Manager" />
+    <Folder Include="Application\CSP\Main\Phase Manager\Snapshot" />
+    <Folder Include="Application\CSP\Main\Production Data" />
+    <Folder Include="Application\CSP\Main\Safety" />
+    <Folder Include="Application\CSP\Main\Safety\Drives" />
+    <Folder Include="Application\CSP\Main\Safety\Interface" />
+    <Folder Include="Application\CSP\Main\Safety\Emergency" />
+    <Folder Include="Application\CSP\Main\Services\Pushbuttons" />
+    <Folder Include="Application\CSP\Main\Services\RFID FB" />
+    <Folder Include="Application\CSP\Main\Services\Tower Lamp" />
+    <Folder Include="Application\CSP\Main\_Tasks" />
+    <Folder Include="Application\CSP\Main\Services" />
+    <Folder Include="Application\CSP\Case" />
+    <Folder Include="Application\CSP\Transfer">
+      <ExcludeFromBuild>false</ExcludeFromBuild>
+    </Folder>
+    <Folder Include="Application\CSP\Transfer\Accumulator\Acc U Change\Depth" />
+    <Folder Include="Application\CSP\Transfer\Accumulator\Acc U Change\Conveyor Depth" />
+    <Folder Include="Application\CSP\Transfer\Accumulator\Acc U Change\Top Rail Length" />
+    <Folder Include="Application\CSP\Transfer\Accumulator\Acc U Change\Top Rail Width" />
+    <Folder Include="Application\CSP\Transfer\Accumulator\Acc U Change\Virtual Master" />
+    <Folder Include="Application\CSP\Transfer\Accumulator\Belt" />
+    <Folder Include="Application\CSP\Transfer\Accumulator\Finger" />
+    <Folder Include="Application\CSP\Transfer\Accumulator\Finger\LS" />
+    <Folder Include="Application\CSP\Transfer\Accumulator\Finger\OS" />
+    <Folder Include="Application\CSP\Transfer\Accumulator\Lift" />
+    <Folder Include="Application\CSP\Transfer\Accumulator\Acc U Change" />
+    <Folder Include="Application\CSP\Transfer\Accumulator\Vitual Master" />
+    <Folder Include="Application\CSP\Transfer\Accumulator\_Tasks" />
+    <Folder Include="Application\CSP\Transfer\Crosspusher\Horizontal" />
+    <Folder Include="Application\CSP\Transfer\Crosspusher\Follower" />
+    <Folder Include="Application\CSP\Transfer\Crosspusher\Sensors" />
+    <Folder Include="Application\CSP\Transfer\Crosspusher\Reject">
+      <ExcludeFromBuild>false</ExcludeFromBuild>
+    </Folder>
+    <Folder Include="Application\CSP\Transfer\Crosspusher\Vertical" />
+    <Folder Include="Application\CSP\Transfer\Crosspusher\Virtual Master" />
+    <Folder Include="Application\CSP\Transfer\Crosspusher\_Tasks" />
+    <Folder Include="Application\CSP\Transfer\Infeed" />
+    <Folder Include="Application\CSP\Transfer\Accumulator" />
+    <Folder Include="Application\CSP\Transfer\Crosspusher" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Acc U Change\Depth" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Acc U Change\Waterfall Adjust" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Accumulation" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Accumulation\Level" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Accumulation\Belt" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Barcode Reader" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Clamp" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Acc U Change" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Metering" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Metering\Jam" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Metering\Belt" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Reject" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Reject\High Load" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Reject\Virtual Master" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Reject\Pusher" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Waterfall" />
+    <Folder Include="Application\CSP\Transfer\Infeed\Waterfall\Belt" />
+    <Folder Include="Application\CSP\Transfer\Infeed\_Tasks" />
+    <Folder Include="Application\CSP\Transfer\Main" />
+    <Folder Include="Application\CSP\Transfer\Main\Brand" />
+    <Folder Include="Application\CSP\Transfer\Main\Drives" />
+    <Folder Include="Application\CSP\Transfer\Main\IO Link" />
+    <Folder Include="Application\CSP\Transfer\Main\Safety\24Vdc supply">
+      <ExcludeFromBuild>true</ExcludeFromBuild>
+    </Folder>
+    <Folder Include="Application\CSP\Transfer\Main\Safety\AccUChange" />
+    <Folder Include="Application\CSP\Transfer\Main\Safety\Token" />
+    <Folder Include="Application\CSP\Transfer\Main\Safety" />
+    <Folder Include="Application\CSP\Transfer\Main\Safety\Drives" />
+    <Folder Include="Application\CSP\Transfer\Main\Safety\Emergency" />
+    <Folder Include="Application\CSP\Transfer\Main\Safety\Guards" />
+    <Folder Include="Application\CSP\Transfer\Main\Safety\Interface" />
+    <Folder Include="Application\CSP\Transfer\Main\Services" />
+    <Folder Include="Application\CSP\Transfer\Main\Services\Breakers" />
+    <Folder Include="Application\CSP\Transfer\Main\Services\Pushbuttons" />
+    <Folder Include="Application\CSP\Transfer\Main\Statistics" />
+    <Folder Include="Application\CSP\Transfer\Main\_Tasks" />
+    <Folder Include="Application\CSP\Transfer\Upstacker" />
+    <Folder Include="Application\CSP\Transfer\Upstacker\Downstream" />
+    <Folder Include="Application\CSP\Transfer\Upstacker\Backstop" />
+    <Folder Include="Application\CSP\Transfer\Upstacker\Sensors" />
+    <Folder Include="Application\CSP\Transfer\Upstacker\Upstream" />
+    <Folder Include="Application\CSP\Transfer\Upstacker\Virtual Master" />
+    <Folder Include="Application\CSP\Transfer\Upstacker\_Tasks" />
+    <Folder Include="Application\CSP\Transfer\Virtual Master" />
+    <Folder Include="Application\CSP\Transfer\_Tasks" />
+    <Folder Include="Application\CSP\_Tasks" />
+    <Folder Include="Application\_Tasks\Application Status Manager" />
+    <Folder Include="Application\_Tasks" />
+    <Folder Include="Data types\AFL extensions" />
+    <Folder Include="Data types\AFL extensions\analog_actuator" />
+    <Folder Include="Data types\AFL extensions\analog_actuator\private" />
+    <Folder Include="Data types\AFL extensions\jog_manager" />
+    <Folder Include="Data types\AFL extensions\jog_manager\private" />
+    <Folder Include="Data types\Common" />
+    <Folder Include="Global Variables" />
+    <Folder Include="Global Variables\Application" />
+    <Folder Include="Global Variables\Application\Common" />
+    <Folder Include="Data types" />
+    <Folder Include="Global Variables\AFL extensions" />
+    <Folder Include="POUs" />
+    <Folder Include="POUs\AFL extensions" />
+    <Folder Include="POUs\AFL extensions\analog_actuator" />
+    <Folder Include="POUs\AFL extensions\analog_actuator\commands" />
+    <Folder Include="POUs\AFL extensions\analog_actuator\initialize" />
+    <Folder Include="POUs\AFL extensions\analog_actuator\private" />
+    <Folder Include="POUs\AFL extensions\analog_actuator\status" />
+    <Folder Include="POUs\AFL extensions\IO_Link" />
+    <Folder Include="POUs\AFL extensions\IO_Link\bis00lh" />
+    <Folder Include="POUs\AFL extensions\IO_Link\FUN" />
+    <Folder Include="POUs\AFL extensions\IO_Link\ml2prime" />
+    <Folder Include="POUs\AFL extensions\IO_Link\Struct" />
+    <Folder Include="POUs\AFL extensions\jog_manager" />
+    <Folder Include="POUs\AFL extensions\jog_manager\commands" />
+    <Folder Include="POUs\AFL extensions\jog_manager\initialize" />
+    <Folder Include="POUs\AFL extensions\jog_manager\private" />
+    <Folder Include="POUs\AFL extensions\jog_manager\status" />
+    <Folder Include="Tools" />
+    <Folder Include="Tools\Common" />
+    <Folder Include="Visualization" />
+    <Folder Include="Application" />
+    <Folder Include="Visualization\AFL" />
+    <Folder Include="Visualization\Carton feeding">
+      <ExcludeFromBuild>true</ExcludeFromBuild>
+    </Folder>
+    <Folder Include="Visualization\Carton forming">
+      <ExcludeFromBuild>true</ExcludeFromBuild>
+    </Folder>
+    <Folder Include="Visualization\cp_visu">
+      <ExcludeFromBuild>true</ExcludeFromBuild>
+    </Folder>
+    <Folder Include="Visualization\Shift register" />
+    <Folder Include="Visualization\Shift register\Carton filling">
+      <ExcludeFromBuild>true</ExcludeFromBuild>
+    </Folder>
+    <Folder Include="Visualization\Shift register\Carton forming">
+      <ExcludeFromBuild>true</ExcludeFromBuild>
+    </Folder>
+    <Folder Include="Visualization\Shift register\Carton pickup">
+      <ExcludeFromBuild>true</ExcludeFromBuild>
+    </Folder>
+    <Folder Include="Visualization\Shift register\Cups feeding" />
+    <Folder Include="Visualization\Shift register\Twisted cups">
+      <ExcludeFromBuild>true</ExcludeFromBuild>
+    </Folder>
+    <Folder Include="_Debug" />
+    <Folder Include="_Debug\_Tasks" />
+  </ItemGroup>
+  <ItemGroup>
+    <PlaceholderReference Include="System_VisuElemMeter">
+      <DefaultResolution>VisuElemMeter, 3.5.13.0 (System)</DefaultResolution>
+      <Namespace>VisuElemMeter</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="System_VisuElems">
+      <DefaultResolution>VisuElems, 3.5.13.40 (System)</DefaultResolution>
+      <Namespace>VisuElems</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="System_VisuElemsSpecialControls">
+      <DefaultResolution>VisuElemsSpecialControls, 3.5.13.0 (System)</DefaultResolution>
+      <Namespace>VisuElemsSpecialControls</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="System_VisuElemsWinControls">
+      <DefaultResolution>VisuElemsWinControls, 3.5.13.20 (System)</DefaultResolution>
+      <Namespace>VisuElemsWinControls</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="System_VisuElemTextEditor">
+      <DefaultResolution>VisuElemTextEditor, 3.5.13.0 (System)</DefaultResolution>
+      <Namespace>VisuElemTextEditor</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="system_visuinputs">
+      <DefaultResolution>visuinputs, 3.5.13.0 (system)</DefaultResolution>
+      <Namespace>visuinputs</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="System_VisuNativeControl">
+      <DefaultResolution>VisuNativeControl, 3.5.13.0 (System)</DefaultResolution>
+      <Namespace>VisuNativeControl</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="T3_WagoLib787_01_TwinCat">
+      <DefaultResolution>T3_WagoLib787_01_TwinCat, * (Wago)</DefaultResolution>
+      <Namespace>T3_WagoLib787_01_TwinCat</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_NcKinematicTransformation">
+      <DefaultResolution>Tc2_NcKinematicTransformation, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_NcKinematicTransformation</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_Standard">
+      <DefaultResolution>Tc2_Standard, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_Standard</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_System">
+      <DefaultResolution>Tc2_System, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_System</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_Utilities">
+      <DefaultResolution>Tc2_Utilities, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_Utilities</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc3_Module">
+      <DefaultResolution>Tc3_Module, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc3_Module</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="VisuDialogs">
+      <DefaultResolution>VisuDialogs, * (System)</DefaultResolution>
+      <Namespace>VisuDialogs</Namespace>
+    </PlaceholderReference>
+  </ItemGroup>
+  <ItemGroup>
+    <PlaceholderResolution Include="SysFile">
+      <Resolution>SysFile, * (System)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="System_VisuElemBase">
+      <Resolution>VisuElemBase, * (System)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="System_VisuElemMeter">
+      <Resolution>VisuElemMeter, 3.5.10.0 (System)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="System_VisuElems">
+      <Resolution>VisuElems, * (System)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="System_VisuElemsSpecialControls">
+      <Resolution>VisuElemsSpecialControls, 3.5.10.0 (System)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="System_VisuElemsWinControls">
+      <Resolution>VisuElemsWinControls, 3.5.10.40 (System)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="System_VisuElemTextEditor">
+      <Resolution>VisuElemTextEditor, 3.5.10.10 (System)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="system_visuinputs">
+      <Resolution>VisuInputs, * (System)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="System_VisuInputs">
+      <Resolution>VisuInputs, * (System)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="System_VisuNativeControl">
+      <Resolution>VisuNativeControl, 3.5.10.40 (System)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="T3_WagoLib787_01_TwinCat">
+      <Resolution>T3_WagoLib787_01_TwinCat, 1.0.0.0 (Wago)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="Tc2_Math">
+      <Resolution>Tc2_Math, * (Beckhoff Automation GmbH)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="Tc2_MC2">
+      <Resolution>Tc2_MC2, * (Beckhoff Automation GmbH)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="Tc2_NC">
+      <Resolution>Tc2_NC, * (Beckhoff Automation GmbH)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="Tc2_NcKinematicTransformation">
+      <Resolution>Tc2_NcKinematicTransformation, * (Beckhoff Automation GmbH)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="Tc2_Standard">
+      <Resolution>Tc2_Standard, 3.3.3.0 (Beckhoff Automation GmbH)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="Tc2_System">
+      <Resolution>Tc2_System, 3.4.22.0 (Beckhoff Automation GmbH)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="Tc2_Utilities">
+      <Resolution>Tc2_Utilities, * (Beckhoff Automation GmbH)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="Tc3_Module">
+      <Resolution>Tc3_Module, * (Beckhoff Automation GmbH)</Resolution>
+    </PlaceholderResolution>
+    <PlaceholderResolution Include="VisuDialogs">
+      <Resolution>VisuDialogs, * (System)</Resolution>
+    </PlaceholderResolution>
+  </ItemGroup>
+  <ItemGroup>
+    <LibraryReference Include="AFL,1.6.0.4,g.d spa">
+      <Namespace>AFL</Namespace>
+    </LibraryReference>
+    <LibraryReference Include="Tc2_Base2,1.0.0.0,Beckhoff Automation GmbH">
+      <Namespace>Tc2_Base2</Namespace>
+    </LibraryReference>
+    <LibraryReference Include="Tc2_TwinSAFE,1.0.0.0,Beckhoff Automation GmbH">
+      <Namespace>Tc2_TwinSAFE</Namespace>
+    </LibraryReference>
+    <LibraryReference Include="VisuSymbols,3.5.10.0,System">
+      <Namespace>VisuSymbols</Namespace>
+    </LibraryReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="SFI_CasePacker.tmc">
+      <SubType>Content</SubType>
+    </None>
+  </ItemGroup>
+  <ProjectExtensions>
+    <PlcProjectOptions>
+      <XmlArchive>
+        <Data>
+          <o xml:space="preserve" t="OptionKey">
+      <v n="Name">"&lt;ProjectRoot&gt;"</v>
+      <d n="SubKeys" t="Hashtable" ckt="String" cvt="OptionKey">
+        <v>{8F99A816-E488-41E4-9FA3-846536012284}</v>
+        <o>
+          <v n="Name">"{8F99A816-E488-41E4-9FA3-846536012284}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" />
+        </o>
+        <v>{29BD8D0C-3586-4548-BB48-497B9A01693F}</v>
+        <o>
+          <v n="Name">"{29BD8D0C-3586-4548-BB48-497B9A01693F}"</v>
+          <d n="SubKeys" t="Hashtable" ckt="String" cvt="OptionKey">
+            <v>Rules</v>
+            <o>
+              <v n="Name">"Rules"</v>
+              <d n="SubKeys" t="Hashtable" ckt="String" cvt="OptionKey">
+                <v>167</v>
+                <o>
+                  <v n="Name">"167"</v>
+                  <d n="SubKeys" t="Hashtable" />
+                  <d n="Values" t="Hashtable" ckt="String" cvt="Boolean">
+                    <v>bActive</v>
+                    <v>False</v>
+                  </d>
+                </o>
+                <v>4</v>
+                <o>
+                  <v n="Name">"4"</v>
+                  <d n="SubKeys" t="Hashtable" />
+                  <d n="Values" t="Hashtable" ckt="String" cvt="Boolean">
+                    <v>bActive</v>
+                    <v>False</v>
+                  </d>
+                </o>
+                <v>33</v>
+                <o>
+                  <v n="Name">"33"</v>
+                  <d n="SubKeys" t="Hashtable" />
+                  <d n="Values" t="Hashtable" ckt="String" cvt="Boolean">
+                    <v>bActive</v>
+                    <v>False</v>
+                  </d>
+                </o>
+                <v>6</v>
+                <o>
+                  <v n="Name">"6"</v>
+                  <d n="SubKeys" t="Hashtable" />
+                  <d n="Values" t="Hashtable" ckt="String" cvt="Boolean">
+                    <v>bActive</v>
+                    <v>False</v>
+                  </d>
+                </o>
+                <v>27</v>
+                <o>
+                  <v n="Name">"27"</v>
+                  <d n="SubKeys" t="Hashtable" />
+                  <d n="Values" t="Hashtable" ckt="String" cvt="Boolean">
+                    <v>bActive</v>
+                    <v>False</v>
+                  </d>
+                </o>
+                <v>28</v>
+                <o>
+                  <v n="Name">"28"</v>
+                  <d n="SubKeys" t="Hashtable" />
+                  <d n="Values" t="Hashtable" ckt="String" cvt="Boolean">
+                    <v>bActive</v>
+                    <v>False</v>
+                  </d>
+                </o>
+              </d>
+              <d n="Values" t="Hashtable" />
+            </o>
+          </d>
+          <d n="Values" t="Hashtable" />
+        </o>
+        <v>{40450F57-0AA3-4216-96F3-5444ECB29763}</v>
+        <o>
+          <v n="Name">"{40450F57-0AA3-4216-96F3-5444ECB29763}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" ckt="String">
+            <v>ActiveVisuExtensionsLength</v>
+            <v>0</v>
+            <v>ActiveVisuProfile</v>
+            <v>"IR0whWr8bwfwBwAAiD2qpQAAAABVAgAA37x72QAAAAABAAAAAAAAAAEaUwB5AHMAdABlAG0ALgBTAHQAcgBpAG4AZwACTHsAZgA5ADUAYgBiADQAMgA2AC0ANQA1ADIANAAtADQAYgA0ADUALQA5ADQAMAAwAC0AZgBiADAAZgAyAGUANwA3AGUANQAxAGIAfQADCE4AYQBtAGUABDBUAHcAaQBuAEMAQQBUACAAMwAuADEAIABCAHUAaQBsAGQAIAA0ADAAMgA0AC4ANwAFFlAAcgBvAGYAaQBsAGUARABhAHQAYQAGTHsAMQA2AGUANQA1AGIANgAwAC0ANwAwADQAMwAtADQAYQA2ADMALQBiADYANQBiAC0ANgAxADQANwAxADMAOAA3ADgAZAA0ADIAfQAHEkwAaQBiAHIAYQByAGkAZQBzAAhMewAzAGIAZgBkADUANAA1ADkALQBiADAANwBmAC0ANABkADYAZQAtAGEAZQAxAGEALQBhADgAMwAzADUANgBhADUANQAxADQAMgB9AAlMewA5AGMAOQA1ADgAOQA2ADgALQAyAGMAOAA1AC0ANAAxAGIAYgAtADgAOAA3ADEALQA4ADkANQBmAGYAMQBmAGUAZABlADEAYQB9AAoOVgBlAHIAcwBpAG8AbgALBmkAbgB0AAwKVQBzAGEAZwBlAA0KVABpAHQAbABlAA4aVgBpAHMAdQBFAGwAZQBtAE0AZQB0AGUAcgAPDkMAbwBtAHAAYQBuAHkAEAxTAHkAcwB0AGUAbQARElYAaQBzAHUARQBsAGUAbQBzABIwVgBpAHMAdQBFAGwAZQBtAHMAUwBwAGUAYwBpAGEAbABDAG8AbgB0AHIAbwBsAHMAEyhWAGkAcwB1AEUAbABlAG0AcwBXAGkAbgBDAG8AbgB0AHIAbwBsAHMAFCRWAGkAcwB1AEUAbABlAG0AVABlAHgAdABFAGQAaQB0AG8AcgAVIlYAaQBzAHUATgBhAHQAaQB2AGUAQwBvAG4AdAByAG8AbAAWFHYAaQBzAHUAaQBuAHAAdQB0AHMAFwxzAHkAcwB0AGUAbQAYGFYAaQBzAHUARQBsAGUAbQBCAGEAcwBlABkmRABlAHYAUABsAGEAYwBlAGgAbwBsAGQAZQByAHMAVQBzAGUAZAAaCGIAbwBvAGwAGyJQAGwAdQBnAGkAbgBDAG8AbgBzAHQAcgBhAGkAbgB0AHMAHEx7ADQAMwBkADUAMgBiAGMAZQAtADkANAAyAGMALQA0ADQAZAA3AC0AOQBlADkANAAtADEAYgBmAGQAZgAzADEAMABlADYAMwBjAH0AHRxBAHQATABlAGEAcwB0AFYAZQByAHMAaQBvAG4AHhRQAGwAdQBnAGkAbgBHAHUAaQBkAB8WUwB5AHMAdABlAG0ALgBHAHUAaQBkACBIYQBmAGMAZAA1ADQANAA2AC0ANAA5ADEANAAtADQAZgBlADcALQBiAGIANwA4AC0AOQBiAGYAZgBlAGIANwAwAGYAZAAxADcAIRRVAHAAZABhAHQAZQBJAG4AZgBvACJMewBiADAAMwAzADYANgBhADgALQBiADUAYwAwAC0ANABiADkAYQAtAGEAMAAwAGUALQBlAGIAOAA2ADAAMQAxADEAMAA0AGMAMwB9ACMOVQBwAGQAYQB0AGUAcwAkTHsAMQA4ADYAOABmAGYAYwA5AC0AZQA0AGYAYwAtADQANQAzADIALQBhAGMAMAA2AC0AMQBlADMAOQBiAGIANQA1ADcAYgA2ADkAfQAlTHsAYQA1AGIAZAA0ADgAYwAzAC0AMABkADEANwAtADQAMQBiADUALQBiADEANgA0AC0ANQBmAGMANgBhAGQAMgBiADkANgBiADcAfQAmFk8AYgBqAGUAYwB0AHMAVAB5AHAAZQAnVFUAcABkAGEAdABlAEwAYQBuAGcAdQBhAGcAZQBNAG8AZABlAGwARgBvAHIAQwBvAG4AdgBlAHIAdABpAGIAbABlAEwAaQBiAHIAYQByAGkAZQBzACgQTABpAGIAVABpAHQAbABlACkUTABpAGIAQwBvAG0AcABhAG4AeQAqHlUAcABkAGEAdABlAFAAcgBvAHYAaQBkAGUAcgBzACs4UwB5AHMAdABlAG0ALgBDAG8AbABsAGUAYwB0AGkAbwBuAHMALgBIAGEAcwBoAHQAYQBiAGwAZQAsEnYAaQBzAHUAZQBsAGUAbQBzAC1INgBjAGIAMQBjAGQAZQAxAC0AZAA1AGQAYwAtADQAYQAzAGIALQA5ADAANQA0AC0AMgAxAGYAYQA3ADUANgBhADMAZgBhADQALihJAG4AdABlAHIAZgBhAGMAZQBWAGUAcgBzAGkAbwBuAEkAbgBmAG8AL0x7AGMANgAxADEAZQA0ADAAMAAtADcAZgBiADkALQA0AGMAMwA1AC0AYgA5AGEAYwAtADQAZQAzADEANABiADUAOQA5ADYANAAzAH0AMBhNAGEAagBvAHIAVgBlAHIAcwBpAG8AbgAxGE0AaQBuAG8AcgBWAGUAcgBzAGkAbwBuADIMTABlAGcAYQBjAHkAMzBMAGEAbgBnAHUAYQBnAGUATQBvAGQAZQBsAFYAZQByAHMAaQBvAG4ASQBuAGYAbwA0MEwAbwBhAGQATABpAGIAcgBhAHIAaQBlAHMASQBuAHQAbwBQAHIAbwBqAGUAYwB0ADUaQwBvAG0AcABhAHQAaQBiAGkAbABpAHQAeQDQAAIaA9ADAS0E0AUGGgfQBwgaAUUHCQjQAAkaBEUKCwQDAAAABQAAAA0AAAAAAAAA0AwLrQIAAADQDQEtDtAPAS0Q0AAJGgRFCgsEAwAAAAUAAAANAAAAKAAAANAMC60BAAAA0A0BLRHQDwEtENAACRoERQoLBAMAAAAFAAAADQAAAAAAAADQDAutAgAAANANAS0S0A8BLRDQAAkaBEUKCwQDAAAABQAAAA0AAAAUAAAA0AwLrQIAAADQDQEtE9APAS0Q0AAJGgRFCgsEAwAAAAUAAAANAAAAAAAAANAMC60CAAAA0A0BLRTQDwEtENAACRoERQoLBAMAAAAFAAAADQAAAAAAAADQDAutAgAAANANAS0V0A8BLRDQAAkaBEUKCwQDAAAABQAAAA0AAAAAAAAA0AwLrQIAAADQDQEtFtAPAS0X0AAJGgRFCgsEAwAAAAUAAAANAAAAKAAAANAMC60EAAAA0A0BLRjQDwEtENAZGq0BRRscAdAAHBoCRR0LBAMAAAAFAAAADQAAAAAAAADQHh8tINAhIhoCRSMkAtAAJRoFRQoLBAMAAAADAAAAAAAAAAoAAADQJgutAAAAANADAS0n0CgBLRHQKQEtENAAJRoFRQoLBAMAAAADAAAAAAAAAAoAAADQJgutAQAAANADAS0n0CgBLRHQKQEtEJoqKwFFAAEC0AABLSzQAAEtF9AAHy0t0C4vGgPQMAutAQAAANAxC60XAAAA0DIarQDQMy8aA9AwC60CAAAA0DELrQMAAADQMhqtANA0Gq0A0DUarQA="</v>
+          </d>
+        </o>
+        <v>{192FAD59-8248-4824-A8DE-9177C94C195A}</v>
+        <o>
+          <v n="Name">"{192FAD59-8248-4824-A8DE-9177C94C195A}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" />
+        </o>
+        <v>{E709B08B-B6E4-4966-8EED-D793A13114C6}</v>
+        <o>
+          <v n="Name">"{E709B08B-B6E4-4966-8EED-D793A13114C6}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" ckt="String" cvt="Int32">
+            <v>MaxCompilerWarnings</v>
+            <v>100</v>
+          </d>
+        </o>
+        <v>{246001F4-279D-43AC-B241-948EB31120E1}</v>
+        <o>
+          <v n="Name">"{246001F4-279D-43AC-B241-948EB31120E1}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" ckt="String" cvt="Boolean">
+            <v>UnicodeStrings</v>
+            <v>False</v>
+          </d>
+        </o>
+      </d>
+      <d n="Values" t="Hashtable" />
+    </o>
+        </Data>
+        <TypeList>
+          <Type n="Boolean">System.Boolean</Type>
+          <Type n="Hashtable">System.Collections.Hashtable</Type>
+          <Type n="Int32">System.Int32</Type>
+          <Type n="OptionKey">{54dd0eac-a6d8-46f2-8c27-2f43c7e49861}</Type>
+          <Type n="String">System.String</Type>
+        </TypeList>
+      </XmlArchive>
+    </PlcProjectOptions>
+  </ProjectExtensions>
+</Project>

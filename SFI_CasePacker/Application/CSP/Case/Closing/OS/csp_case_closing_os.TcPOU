@@ -1,0 +1,276 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_closing_os" Id="{9056fa66-cb4e-4b66-a9a6-b15c77593661}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_closing_os
+VAR
+		
+	prc:											process;
+	prc_path:										STRING;
+	
+	phase_upper:									BOOL;
+	phase_lower:									BOOL;
+	phase_horizontal:								BOOL;
+	
+	horizontal_first:								BOOL;
+	horizontal_second:								BOOL;
+	Closing_paddle_Cleanout_position_aem:			message;
+	
+END_VAR
+
+VAR CONSTANT
+	MOTOR_MAX_VELOCITY_DEGPS:							LREAL := 9600;
+	MOTOR_MAX_ACCELLERATION_DEGPS2:						LREAL := 4800;
+	MOTOR_MAX_DECELLERATION_DEGPS2:						LREAL := 4800;
+	MOTOR_MAX_JERK_DEGPS3:								LREAL := 100000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:						LREAL := 2;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(* CLEARS PHASING SEQUENCE DUE TO AXES CAM ENGAGED *)
+IF 	axis_is_cam_engaged(csp_case_closing_os_horizontal.axis)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	phase_horizontal := FALSE;
+END_IF
+
+IF 	axis_is_cam_engaged(csp_case_closing_os_upper.axis)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	phase_upper := FALSE;
+END_IF
+
+IF 	axis_is_cam_engaged(csp_case_closing_os_lower.axis)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	phase_lower := FALSE;
+END_IF
+
+IF (
+	axis_is_cam_engaged(csp_case_closing_os_horizontal.axis)
+	AND axis_is_cam_engaged(csp_case_closing_os_upper.axis)
+	AND axis_is_cam_engaged(csp_case_closing_os_lower.axis)
+	)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	horizontal_first := FALSE;
+	horizontal_second := FALSE;
+END_IF
+
+(* HORIZONTAL NEEDS TO PHASE - CHECK IF UPPER AND LOWER MOVE FIRST OR HORIZONTAL FIRST *)
+IF 	NOT axis_is_cam_engaged(csp_case_closing_os_horizontal.axis)
+	AND NOT csp_case_closing_os_horizontal.phase_done
+	AND (motorization_manager_is_starting(csp_main_motorization_manager.motm) OR jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual))
+THEN	
+	(* CALCULATED HORIZONTAL TO MOVE IN - MOVE UPPER AND LOWER FIRST *)
+	IF csp_case_closing_os_horizontal.axis_calculated_cam_slave_position_deg >= axis_get_actual_modulo_position(csp_case_closing_os_horizontal.axis)
+	THEN
+		horizontal_second := TRUE;
+	(* CALCULATED HORIZONTAL TO MOVE OUT - MOVE HORIZONTAL FIRST *)
+	ELSE
+		horizontal_first := TRUE;
+	END_IF
+END_IF
+(* PHASE HORIZONTAL THEN UPPER AND LOWER *)
+IF 	horizontal_first
+	AND (motorization_manager_is_starting(csp_main_motorization_manager.motm) 
+	OR jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual))
+THEN
+	phase_horizontal := TRUE;
+	IF csp_case_closing_os_horizontal.phase_done
+	THEN
+		phase_upper := TRUE;
+		phase_lower := TRUE;
+	END_IF
+END_IF
+(* PHASE UPPER AND LOWER THEN HORIZONTAL *)
+IF	horizontal_second
+	AND (motorization_manager_is_starting(csp_main_motorization_manager.motm) 
+	OR jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual))
+THEN
+	phase_upper := TRUE;
+	phase_lower := TRUE;
+	IF 	csp_case_closing_os_upper.phase_done
+		AND csp_case_closing_os_lower.phase_done
+	THEN
+		phase_horizontal := TRUE;
+	END_IF
+END_IF
+
+IF 	csp_case_closing.OS_Closing_Paddles_cleanout_position
+	AND machine_is_ready(csp.mch)
+THEN
+	axis_enable(csp_case_closing_os_horizontal.axis);
+	axis_enable(csp_case_closing_os_lower.axis);
+	axis_enable(csp_case_closing_os_upper.axis);
+END_IF
+				
+IF  csp_case_closing.OS_Closing_Paddles_cleanout_position
+	AND axis_is_standstill(csp_case_closing_os_horizontal.axis)
+	AND axis_is_standstill(csp_case_closing_os_lower.axis)
+	AND axis_is_standstill(csp_case_closing_os_upper.axis)
+THEN
+	axis_move_absolute(
+		position 		:= csp_case_closing_os_horizontal.accu_safe_pos,
+		velocity 		:= 10,
+		direction		:= AXIS_SHORTEST_WAY,
+		acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+		buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+		CONVERSION_this := csp_case_closing_os_horizontal.axis); 
+	axis_move_absolute(
+		position 		:= csp_case_closing_os_lower.accu_safe_pos,
+		velocity 		:= 5,
+		direction		:= AXIS_SHORTEST_WAY,
+		acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+		buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+		CONVERSION_this := csp_case_closing_os_lower.axis); 
+	
+	axis_move_absolute(
+		position 		:= csp_case_closing_os_upper.accu_safe_pos,
+		velocity 		:= 5,
+		direction		:= AXIS_SHORTEST_WAY,
+		acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+		buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+		CONVERSION_this := csp_case_closing_os_upper.axis); 			
+END_IF
+
+IF  csp_case_closing.OS_Closing_Paddles_cleanout_position
+	AND csp_case_closing_os_upper.in_accu_safe_pos
+	AND csp_case_closing_os_lower.in_accu_safe_pos
+	AND csp_case_closing_os_horizontal.in_accu_safe_pos
+THEN 
+	process_message_set(1, 1, 1, Closing_paddle_Cleanout_position_aem);
+END_IF
+
+
+IF machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+	AND NOT  csp_case_closing.OS_Closing_Paddles_cleanout_position
+THEN
+	process_message_reset(Closing_paddle_Cleanout_position_aem);		
+END_IF
+
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{ea1df830-a62e-40e5-b5b2-2705dac1eb02}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{fea80804-6696-4279-b584-8c0d47931003}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{2e8a1cfe-683c-4b04-9d68-97557525f10c}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{0000fccb-d55a-416f-b81c-55f64bc64d13}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_closing_os.prc', 
+		process						:= csp_case_closing.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_Closing_paddle_Cleanout_position_aem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= FALSE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_EMERGENCY_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL,
+        process:= prc,
+        CONVERSION_this:= Closing_paddle_Cleanout_position_aem);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{94b233d0-65ae-4afd-9e15-ac3bd98ac5be}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{bb45a8be-30ff-4ca9-81ac-51defa89956a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{ea43eaf6-b177-4b4d-8767-41df28368a4d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{5dfa28ea-3237-46e1-b632-128274dd11e6}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

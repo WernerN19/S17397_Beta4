@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_main_phMan_start_job_snapshot" Id="{80a6bcfa-dff6-0359-21d3-8bd9376acc94}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+WU phase manager snapshot struct definition
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/06/19 	0000.00	 	G.Cera 			Creation of the PRG
+
+**********************************************************************************************************)
+
+(*$S desc := Snapshot; $*)
+TYPE 
+	csp_main_phMan_start_job_snapshot:	STRUCT
+		message:            	message;
+		sj_reason:             	STRING := '';			(*$ It contains detailed information abaout axis faults $*)
+		order_valid:			BOOL;
+		product_valid:			BOOL;
+		recipe_valid:			BOOL;
+		materials_valid:		BOOL;
+		mark_valid:				BOOL;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

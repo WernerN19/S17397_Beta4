@@ -1,0 +1,257 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_flapControl" Id="{5f54029b-7154-45a8-8587-2d69bd668615}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_flapControl
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	Flap_check_begin_phase:							LREAL:=352;(*$P $*)
+	Flap_check_end_phase:							LREAL:=357;(*$P $*)
+	master_offset_all_followers:					LREAL := 2.4; (*$P $*)
+	master_offset_all_spreaders:					LREAL := 355; (*$P $*)
+	followers_spreaders_cammed:						motorization_conditioner;
+	check_request_rtrig:							R_TRIG;
+	check_request:									BOOL;
+	
+	bad_count:										INT := 0;
+	consecutive_reject_aem:							message;
+	
+	consecutive_blocked_phwin:						phase_window;
+	flap_check_on: 									LREAL := 180; (*$P $*)
+	flap_check_off: 								LREAL := 250; (*$P $*)
+	
+	spreaders_clear: 								BOOL := TRUE;
+END_VAR
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+IF axis_is_cam_engaged(csp_case_fc_os_lower_follower.axis)
+	AND axis_is_cam_engaged(csp_case_fc_os_upper_follower.axis)
+	AND axis_is_cam_engaged(csp_case_fc_os_lower_spreader.axis)
+	AND axis_is_cam_engaged(csp_case_fc_os_upper_spreader.axis)
+	AND axis_is_cam_engaged(csp_case_fc_ls_lower_follower.axis)
+	AND axis_is_cam_engaged(csp_case_fc_ls_upper_follower.axis)
+	AND axis_is_cam_engaged(csp_case_fc_ls_lower_spreader.axis)
+	AND axis_is_cam_engaged(csp_case_fc_ls_upper_spreader.axis)
+THEN
+	motorization_conditioner_start_done(followers_spreaders_cammed);
+END_IF
+
+
+(* USED TO TRACK CONSECUTIVE REJECTS NO MATTER WHICH PE FAILS *)
+check_request_rtrig(CLK := csp_case_feed_virtualMaster.follower_check_request);
+check_request := check_request_rtrig.Q;
+
+IF 	phase_window_falling_edge(csp_case_transport_virtualMaster.major_flap_phwin)
+	OR	
+	(
+		check_request
+		AND csp_case_transport.flap_control_axes_standstill
+		AND csp_case_transport.Followers_Extended
+		AND csp_case_transport.Spreaders_Extended
+	)
+THEN
+	IF 	NOT digital_input_is_active(csp_case_fc_ls_lower_sensors.flap_di)
+		OR NOT digital_input_is_active(csp_case_fc_ls_upper_sensors.flap_di)
+		OR NOT digital_input_is_active(csp_case_fc_os_lower_sensors.flap_di)
+		OR NOT digital_input_is_active(csp_case_fc_os_upper_sensors.flap_di)
+		AND NOT csp_case_main_services.dry_cycle_mode
+		AND NOT csp_main_motorization.empty_command	
+	THEN
+		bad_count :=  bad_count + 1;
+	END_IF
+	
+END_IF
+
+
+IF 	csp_case_transport_virtualMaster.PE_check
+	OR machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	bad_count := 0;
+	process_message_reset(consecutive_reject_aem);
+END_IF
+
+
+IF 	bad_count >= 3
+	AND NOT csp_case_main_services.dry_cycle_mode
+	AND NOT csp_main_motorization.empty_command
+THEN
+	process_message_set(1, 1, 1, consecutive_reject_aem);
+END_IF
+
+
+
+(* PHASE TO CHECK IF CONSECTUIVE BLOCKED PE *)
+phase_window_set_phases_data(
+	begin_phase:=  flap_check_on,
+	end_phase:=  flap_check_off,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= consecutive_blocked_phwin);
+
+IF 	csp_case_fc_ls_lower_spreader.in_accu_safe_pos 
+	AND
+	csp_case_fc_os_lower_spreader.in_accu_safe_pos
+THEN 
+	spreaders_clear := TRUE;
+ELSE
+	spreaders_clear := FALSE;
+END_IF
+
+
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{b6da62bd-8c25-4ce1-a2ac-e225b01f925c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{ad975d5e-432e-4320-b8b4-c2451ea6bc4f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{f0536bf6-fd6c-4819-bb78-13d8f990586c}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{cb1d041c-9fcb-4031-9020-28a3ff7b61c9}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_flapControl.prc', 
+		process						:= csp_case.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	motorization_conditioner_init(
+		object_name					:= CONCAT(prc_path, '_followers_spreaders_cammed'),
+		velocity_limit				:= 0.0,
+		velocity_limit_active		:= FALSE,
+		idle_handshake_active		:= FALSE,
+		execute_handshake_active	:= TRUE,
+		hold_handshake_active		:= FALSE,
+		suspend_handshake_active	:= FALSE,
+		complete_handshake_active	:= FALSE,
+		abort_handshake_active		:= FALSE,
+		stop_handshake_active		:= FALSE,
+		origin						:= MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:= csp_main_motorization_manager.motm,
+		process						:= prc,
+		CONVERSION_this				:= followers_spreaders_cammed);
+	
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_consecutive_reject_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= consecutive_reject_aem);
+		
+		
+	phase_window_init(
+		object_name								:=CONCAT(PRC_PATH, '_consecutive_blocked_phwin'), 
+		begin_phase								:=flap_check_on, 
+		end_phase								:=flap_check_off, 
+		begin_delay								:=0, 
+		end_delay								:=0, 
+		begin_max_compensation					:=0, 
+		end_max_compensation					:=0, 
+		generator								:=csp_case_transport_virtualMaster.transport_vm_phgen , 
+		process									:=prc , 
+		CONVERSION_this							:=consecutive_blocked_phwin);
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	motorization_conditioner_cycle(followers_spreaders_cammed);
+	phase_window_cycle(consecutive_blocked_phwin);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{b47ff871-9062-4c09-ab94-9f91aaadb747}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{8fa405a5-0b38-4291-b3f0-44062206b2ed}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{8c6841aa-e23b-47b9-b3e3-8ec99f7a4244}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{aeaa6a31-5c70-4b85-84a7-1a404929d3fe}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

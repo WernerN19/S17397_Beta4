@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="RFID_FB" Id="{650786ac-352d-4cae-a096-3d6b11d9e03e}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM RFID_FB
+VAR
+	RFID_FB:							FB_BIS00LH;
+	RFID_IO:							ST_BIS00LH_IO;	
+
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[RFID_FB(IO := RFID_IO);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

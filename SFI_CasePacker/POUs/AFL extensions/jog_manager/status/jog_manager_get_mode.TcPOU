@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_get_mode" Id="{ed495956-b2cd-45d4-9264-9189ad88fe74}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Returns the current <a href="#mode_enum"><i>mode</i></a> of the instance <b><i>this</i></b>.
+$*)
+FUNCTION jog_manager_get_mode: mode_enum
+VAR_IN_OUT
+    CONVERSION_this:	jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[jog_manager_get_mode := descriptor_get_mode(CONVERSION_this.descriptor);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

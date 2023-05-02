@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_main_statistics_debug" Id="{f6552e00-78b6-465a-952e-b1ea864a8787}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$R
+    process_ref:= csp_transfer_main_statistics.prc;
+$*)
+PROGRAM csp_transfer_main_statistics_debug
+VAR
+	step_id:							INT;
+
+	transfer_shift_debug:					ARRAY[0..STEP_ARRAY_UPPER_INDEX] OF csp_transfer_main_statistics_debug_struct;
+	transfer_shift_register_step_pointer:	POINTER TO shift_register_step_type;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF 	NOT objects_running()
+THEN
+	RETURN;
+END_IF
+
+(*======================== PROGRAM HANDLER ===========================*)
+
+(*
+FOR step_id:= 1 TO 20 BY 1 DO
+	transfer_shift_debug[step_id].step_id:= step_id;
+ 	transfer_shift_register_step_pointer:= shift_register_read_step(step_id, csp_case_main_statistics.sr);
+	transfer_shift_debug[step_id].status:= transfer_shift_register_step_pointer^.status;
+	transfer_shift_debug[step_id].reject_reason:= transfer_shift_register_step_pointer^.first_reject_info.reason;
+	//outer_shift_debug[step_id].item_has := outer_shift_register_step_pointer^.
+
+	
+END_FOR 
+IF step_id = 21
+	THEN
+	step_id  :=1;
+END_IF
+*)]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

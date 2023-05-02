@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_is_ready" Id="{81230148-a03c-4d27-bd3e-9f2ed8d0ce19}" SpecialFunc="None">
+    <Declaration><![CDATA[
+FUNCTION jog_manager_is_ready : BOOL
+VAR_IN_OUT
+    CONVERSION_this:	jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF 	CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+THEN
+	jog_manager_is_ready := axis_is_ok(FALSE, CONVERSION_this.axis_list[CONVERSION_this.list_selected].axis^)
+							AND
+							descriptor_is_ready(CONVERSION_this.descriptor);
+ELSE
+	jog_manager_is_ready := descriptor_is_ready(CONVERSION_this.descriptor);
+END_IF]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

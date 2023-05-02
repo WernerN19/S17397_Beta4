@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_get_mode" Id="{8d9d18e0-7099-4e41-bbda-420ed96ec32c}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Returns the current <a href="#mode_enum"><i>mode</i></a> of the instance <b><i>this</i></b>.
+$*)
+FUNCTION analog_actuator_get_mode: mode_enum
+VAR_IN_OUT
+    CONVERSION_this:	analog_actuator;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[analog_actuator_get_mode := descriptor_get_mode(CONVERSION_this.descriptor);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

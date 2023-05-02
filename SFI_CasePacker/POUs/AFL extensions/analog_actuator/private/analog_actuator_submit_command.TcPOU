@@ -1,0 +1,103 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_submit_command" Id="{14813d5c-9882-4aee-87e6-dbc6ce672bfa}" SpecialFunc="None">
+    <Declaration><![CDATA[(* Function that executes the command assigned to the analog_actuator
+	specified by the parameter 'this' *)
+FUNCTION analog_actuator_submit_command : VOID
+
+
+VAR
+	inital_physical_value: 	LREAL;
+END_VAR
+(*All VAR_IN_OUT variables have been moved to the end of the declaration due to compatibility reasons*)
+VAR_IN_OUT
+    CONVERSION_this:	analog_actuator;	(* Instance to which the method applies *)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[CASE CONVERSION_this.command OF
+    ANALOG_ACTUATOR_CMD_ACTIVATE:
+        CASE CONVERSION_this.status OF
+			ANALOG_ACTUATOR_STATUS_INIT,
+			ANALOG_ACTUATOR_STATUS_DEACTIVATING,
+            ANALOG_ACTUATOR_STATUS_INACTIVE:
+				inital_physical_value := CONVERSION_this.ao_setpoint^.physical_value;
+				analog_output_physical_write(physical_value := CONVERSION_this.analog_physical_command, CONVERSION_this := CONVERSION_this.ao_setpoint^);	(*todo: to consider also percent write*)
+				IF CONVERSION_this.has_do_activate
+				THEN
+					digital_output_set(CONVERSION_this.do_activate^);
+				END_IF
+                CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_ACTIVATING;
+                timer_restart(CONVERSION_this.active_time, CONVERSION_this.timer);
+
+			ANALOG_ACTUATOR_STATUS_ACTIVE:	(*todo: what to do when change analog output setpoint after activate? *)
+
+				inital_physical_value := CONVERSION_this.ao_setpoint^.physical_value;
+				analog_output_physical_write(physical_value := CONVERSION_this.analog_physical_command, CONVERSION_this := CONVERSION_this.ao_setpoint^);	(*todo: to consider also percent write*)
+				IF CONVERSION_this.has_do_activate
+				THEN
+					digital_output_set(CONVERSION_this.do_activate^);
+				END_IF
+
+				IF 	CONVERSION_this.analog_physical_command
+					=
+					inital_physical_value
+				THEN
+					CONVERSION_this.operational_command := ANALOG_ACTUATOR_CMD_NONE;
+					CONVERSION_this.test.command := ANALOG_ACTUATOR_TEST_CMD_IDLE;
+					CONVERSION_this.command := ANALOG_ACTUATOR_CMD_NONE;
+				ELSE
+	                CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_ACTIVATING;
+	                timer_restart(CONVERSION_this.active_time, CONVERSION_this.timer);
+				END_IF
+			ELSE
+				CONVERSION_this.command := ANALOG_ACTUATOR_CMD_NONE;
+
+        END_CASE;
+
+    ANALOG_ACTUATOR_CMD_DEACTIVATE:
+        CASE CONVERSION_this.status OF
+			ANALOG_ACTUATOR_STATUS_INIT,
+			ANALOG_ACTUATOR_STATUS_ACTIVATING,
+            ANALOG_ACTUATOR_STATUS_ACTIVE:
+				inital_physical_value := CONVERSION_this.ao_setpoint^.physical_value;
+				analog_output_physical_write(physical_value := 0, CONVERSION_this := CONVERSION_this.ao_setpoint^);	(*todo: to consider also percent write*)
+
+				IF CONVERSION_this.has_do_activate
+				THEN
+					digital_output_reset(CONVERSION_this.do_activate^);
+				END_IF
+                CONVERSION_this.status := ANALOG_ACTUATOR_STATUS_DEACTIVATING;
+                timer_restart(CONVERSION_this.inactive_time, CONVERSION_this.timer);
+
+			ANALOG_ACTUATOR_STATUS_INACTIVE:
+				analog_output_physical_write(physical_value := 0, CONVERSION_this := CONVERSION_this.ao_setpoint^);	(*todo: to consider also percent write*)
+				IF CONVERSION_this.has_do_activate
+				THEN
+					digital_output_reset(CONVERSION_this.do_activate^);
+				END_IF
+
+				CONVERSION_this.operational_command := ANALOG_ACTUATOR_CMD_NONE;
+				CONVERSION_this.test.command := ANALOG_ACTUATOR_TEST_CMD_IDLE;
+				CONVERSION_this.command := ANALOG_ACTUATOR_CMD_NONE;
+
+			ELSE
+				CONVERSION_this.command := ANALOG_ACTUATOR_CMD_NONE;
+
+        END_CASE;
+
+END_CASE;
+
+IF	CONVERSION_this.command = ANALOG_ACTUATOR_CMD_NONE
+THEN
+
+	IF	descriptor_get_mode(CONVERSION_this.descriptor) = MODE_OPERATIONAL
+	THEN
+		CONVERSION_this.operational_command := ANALOG_ACTUATOR_CMD_NONE;
+	END_IF
+
+	CONVERSION_this.test.command := ANALOG_ACTUATOR_TEST_CMD_IDLE;
+
+END_IF]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

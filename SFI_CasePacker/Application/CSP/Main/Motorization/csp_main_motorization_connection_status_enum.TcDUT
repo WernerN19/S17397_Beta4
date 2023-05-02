@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="csp_main_motorization_connection_status_enum" Id="{155a3641-0a60-4853-aed3-00ec81a23d6d}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main motorization connection status enum data structure definition
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_main_motorization_connection_status_enum :
+(
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_IDLE_STATUS_0											:= 0,
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_AXIS_DISABLE_STATUS_10									:= 10,
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_VIRTUAL_MANAGER_REDEFINE_POS_REQ_STATUS_20				:= 20,
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_VIRTUAL_MANAGER_POS_REDEFINING_STATUS_30				:= 30,	
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_VIRTUAL_AXIS_ENABLE_STATUS_40							:= 40,
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_CONNECTION_DONE_STATUS_900								:= 900,
+	csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_CONNECTION_NOT_COMPLETED_STATUS_999					:= 999		
+)	:= csp_MAIN_MOTORIZATION_CONNECTION_STATUS_ENUM_CONNECTION_NOT_COMPLETED_STATUS_999;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

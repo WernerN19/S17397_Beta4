@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="csp_transfer_main_brand_carton_dimension" Id="{4a97d582-63b3-41c8-aa9b-5f9e1fab4006}">
+    <Declaration><![CDATA[TYPE csp_transfer_main_brand_carton_dimension :
+STRUCT
+	
+	carton_size_L_mm:								LREAL := 100; (*$P min := 0; max := 200; step := 0.1; unit :=  mm; desc := Carton Length; $*)
+	carton_size_W_mm:								LREAL := 100; (*$P min := 0; max := 200; step := 0.1; unit :=  mm; desc := Carton Width; $*)
+	carton_size_D_mm:								LREAL := 100; (*$P min := 0; max := 200; step := 0.1; unit :=  mm; desc := Carton Depth; $*)
+			
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

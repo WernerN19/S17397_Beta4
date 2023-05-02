@@ -1,0 +1,350 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_glue_hotMelt" Id="{41f106bb-4d6b-4aa8-8411-f94dcff4cd2e}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/02/24 	0001.00	 	G.Imbriaco		Hotmelt System. Ready, Level and Standby req.
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_glue_hotMelt
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	level_ok_di:									digital_input;
+	level_ok_dchk:									digital_check;
+	
+	level_stop_cur_cycles:							DINT:=0;
+	level_stop_max_cycles:							DINT := 25;
+	
+	level_stop_asm:									message;
+	
+	ready_di:										digital_input;
+	ready_dchk:										digital_check;
+
+	standby_req:									BOOL:=FALSE;(*$P $*)
+	standby_command:								BOOL:=FALSE;
+	
+	standby_do:										digital_output;
+	standby_sact:									digital_actuator;
+	standby_active_wsm:								message;
+	
+	glue_standby_ton: 								TON;
+	standby_delay_bool:								BOOL;
+	standby_delay_ton_complete: 					BOOL := FALSE;
+	glue_standby_resend_ton: 						Ton;
+	Standby_timeout_elapsed: 						STRING;	(*$P desc := Elapsed Time of glue standby timeout. 1 Hour is limit; $*)
+	Standby_status: 								STRING;	(*$P desc := Status of the glue standby reqeuest; $*)
+
+	feeder_faulted_di:								digital_input;
+	feeder_faulted_dchk:							digital_check;
+	
+	Standby_timeout_min:							DINT := 60; (*$P $*)
+	Standby_timeout_ms:								DINT;
+	glue_standby_ton_PT: 							TIME;
+
+END_VAR
+
+VAR CONSTANT
+	LEVEL_ALARM_DELAY_MS:							INT := 1000;
+	READY_ALARM_DELAY_MS:							DINT := 500;
+	
+	ENABLE_SACT_ACTIVATION_TIME_MS:					UDINT := 100;
+	ENABLE_SACT_DEACTIVATION_TIME_MS:				UDINT := 100;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+Standby_timeout_ms := Standby_timeout_min * 60000; //Converts Minutes to MS for timer
+glue_standby_ton_PT := DINT_TO_TIME(Standby_timeout_ms);
+
+(* standby logic to start the timer for standby command*)
+IF csp.o_machine_is_stopped
+	AND NOT csp.i_reset_button
+THEN
+	standby_delay_bool := TRUE;
+ELSE
+	standby_delay_bool := FALSE;
+END_IF
+
+(* standby timer if case packer is stopped for an hour*)
+glue_standby_ton(IN:=standby_delay_bool , PT:= glue_standby_ton_PT , Q=> , ET=> );
+(* standby timer checks every 10min if case packer is stopped for an hour and no reset command*)
+glue_standby_resend_ton(IN:=(standby_req AND NOT glue_standby_resend_ton.Q) , PT:= T#10M , Q=> , ET=> );
+
+Standby_timeout_elapsed := TIME_TO_STRING(glue_standby_ton.ET);
+	
+(* standby_command := button_is_pressed( XXXX ); In case of hardware button for standby *)
+IF standby_command
+THEN
+	digital_actuator_deactivate(standby_sact);//De-activation puts Hotmelt unit in Standby mode
+	(* button_lamp_blink(XXXX);*)
+	process_message_set(0, 0, 0, standby_active_wsm);
+	Standby_status := 'Standby Active';
+ELSE
+	digital_actuator_activate(standby_sact); //Activation takes Hotmelt Unit out of Standby mode
+	(* button_lamp_on(XXXX); *)
+	process_message_reset(standby_active_wsm);
+	Standby_status := 'Standby Not Active';
+END_IF
+	
+(* standby set command if timer is completed*)
+IF glue_standby_ton.q
+	OR
+		(standby_req
+		AND
+		glue_standby_resend_ton.Q)
+THEN
+		standby_req := TRUE;
+END_IF
+
+(* standby reset command if reset is pushed or command on HMI*)
+IF csp.i_reset_button
+THEN
+	standby_req := FALSE;
+END_IF
+
+IF digital_check_is_ok(level_ok_dchk)
+THEN
+	level_stop_cur_cycles := 0;
+	process_message_reset(level_stop_asm);
+ELSE
+	IF phase_edge(csp_case_transport_virtualMaster.transport_vm_ph)
+	THEN		
+		level_stop_cur_cycles := level_stop_cur_cycles + 1;
+		
+		IF level_stop_cur_cycles > level_stop_max_cycles
+		THEN
+			//stop machine due to low glue
+			process_message_set(1,0,0,level_stop_asm);
+		END_IF
+	END_IF
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{dd122d80-51b0-44ab-b0e4-743e942a51bf}">
+      <Implementation>
+        <ST><![CDATA[IF	standby_command
+THEN
+	process_message_set(
+		errorID_1		:= 1, 
+		errorID_2		:= 0, 
+		errorID_3		:= 0, 
+		CONVERSION_this	:= standby_active_wsm);
+ELSE
+	process_message_reset(standby_active_wsm);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{9f1db779-3200-44f0-bf29-832ab1aa6ef7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{3a4aef64-3a96-4e19-ac37-51e46c28f08c}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{c023c38e-7120-4754-b572-9621a1a67a52}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name						:= 'csp_case_glue_hotMelt.prc', 
+		process							:= csp_case_glue.prc, 
+		CONVERSION_this					:= prc);
+		
+	prc_path 							:= process_get_path(prc);
+	
+	(* HHS HOT MELT TANK INTERFACE *)
+	
+	digital_input_init(
+		object_name						:= CONCAT(prc_path, '_level_ok_di'), 
+		polarity_direct					:= TRUE, 
+		process							:= prc, 
+		CONVERSION_this					:= level_ok_di);
+	
+	digital_check_and_message_init(
+		object_name						:= CONCAT(prc_path, '_level_ok_dchk'), 
+		alarm_if_input_off				:= TRUE, 
+		alarm_delay						:= LEVEL_ALARM_DELAY_MS, 
+		enabled_at_powerup				:= TRUE, 
+		individual_reset				:= FALSE, 
+		machine_reaction				:= MACHINE_REACTION_NO_STOP, 
+		typology						:= MESSAGE_TYPOLOGY_NORMAL, 
+		process							:= prc, 
+		CONVERSION_this					:= level_ok_dchk);
+		
+	digital_check_add_di(
+		di								:= level_ok_di, 
+		CONVERSION_this					:= level_ok_dchk);
+		
+	digital_input_init(
+		object_name						:= CONCAT(prc_path, '_ready_di'), 
+		polarity_direct					:= TRUE, 
+		process							:= prc, 
+		CONVERSION_this					:= ready_di);
+	
+	digital_check_and_message_init(
+		object_name						:= CONCAT(prc_path, '_ready_dchk'), 
+		alarm_if_input_off				:= TRUE, 
+		alarm_delay						:= READY_ALARM_DELAY_MS, 
+		enabled_at_powerup				:= TRUE, 
+		individual_reset				:= FALSE, 
+		machine_reaction				:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology						:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process							:= prc, 
+		CONVERSION_this					:= ready_dchk);
+
+	digital_check_add_di(
+		di								:= ready_di, 
+		CONVERSION_this					:= ready_dchk);	
+		
+
+	digital_output_init(
+		object_name						:= CONCAT(prc_path, '_standby_do'), 
+		polarity_direct					:= TRUE, 
+		process							:= prc, 
+		CONVERSION_this					:= standby_do);
+
+	digital_actuator_init(
+		object_name						:= CONCAT(prc_path, '_standby_sact'), 
+		_type							:= DIGITAL_ACTUATOR_TYPE_IN_xx, 
+		fault_reaction					:= DIGITAL_ACTUATOR_FAULT_REACTION_DEACTIVATING, 
+		active_time						:= ENABLE_SACT_ACTIVATION_TIME_MS, 
+		inactive_time					:= ENABLE_SACT_DEACTIVATION_TIME_MS, 
+		dout							:= standby_do, 
+		process							:= prc, 
+		CONVERSION_this					:= standby_sact);	
+
+	process_message_init(
+		object_name						:= CONCAT(prc_path, '_standby_active_wsm'), 
+		behaviour						:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout					:= 0, 
+		disableable						:= FALSE, 
+		individual_reset				:= FALSE, 
+		machine_reaction				:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology						:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process							:= prc, 
+		CONVERSION_this					:= standby_active_wsm);
+		
+	process_message_init(
+		object_name						:= CONCAT(prc_path, '_level_stop_asm'), 
+		behaviour						:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout					:= 0, 
+		disableable						:= TRUE, 
+		individual_reset				:= FALSE, 
+		machine_reaction				:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology						:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process							:= prc, 
+		CONVERSION_this					:= level_stop_asm);	
+	
+	digital_input_init(
+		object_name						:= CONCAT(prc_path, '_feeder_faulted_di'), 
+		polarity_direct					:= TRUE, 
+		process							:= prc, 
+		CONVERSION_this					:= feeder_faulted_di);
+	
+	digital_check_and_message_init(
+		object_name						:= CONCAT(prc_path, '_feeder_faulted_dchk'), 
+		alarm_if_input_off				:= FALSE, 
+		alarm_delay						:= LEVEL_ALARM_DELAY_MS, 
+		enabled_at_powerup				:= TRUE, 
+		individual_reset				:= FALSE, 
+		machine_reaction				:= MACHINE_REACTION_NO_STOP, 
+		typology						:= MESSAGE_TYPOLOGY_OBligation, 
+		process							:= prc, 
+		CONVERSION_this					:= feeder_faulted_dchk);
+
+	digital_check_add_di(
+		di								:= feeder_faulted_di, 
+		CONVERSION_this					:= feeder_faulted_dchk);		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	digital_check_cycle(level_ok_dchk);
+	digital_check_cycle(ready_dchk);
+	digital_check_cycle(feeder_faulted_dchk);
+	digital_actuator_cycle(standby_sact);		
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{a18f6bd8-d0b6-4630-9f64-ecd0b064727f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{07b03bc9-beaa-4aa3-8a77-2ac3f2a38553}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{c7a9b120-1b95-4c20-8a67-608928d08118}">
+      <Implementation>
+        <ST><![CDATA[standby_command := standby_req;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{1c27d905-7bad-46ba-b61f-e3fa6ac6f1e3}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

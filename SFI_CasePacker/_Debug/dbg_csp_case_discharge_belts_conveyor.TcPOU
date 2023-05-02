@@ -1,0 +1,52 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_case_discharge_belts_conveyor" Id="{f7124d11-9bb5-46a0-ac2a-8f10afeada32}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_case_discharge_belts_conveyor
+VAR
+  axis_shd : axis_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{5d71f448-58ee-4790-ae7d-9b0ffe4a1cd2}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	axis_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_discharge_belts_conveyor.axis, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= axis_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	axis_shadow_cycle(axis_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,84 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_transfer_main_services_towerlamp" Id="{5d6f697d-93fe-4d8b-a5ad-162bd5c72ec7}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_transfer_main_services_towerlamp
+VAR
+  blue_do_shd : digital_output_shadow;
+  buzzer_do_shd : digital_output_shadow;
+  green_do_shd : digital_output_shadow;
+  red_do_shd : digital_output_shadow;
+  yellow_do_shd : digital_output_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{4a131785-7562-42aa-8921-01ceb90c4ba2}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_main_services_towerlamp.blue_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= blue_do_shd);
+
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_main_services_towerlamp.buzzer_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= buzzer_do_shd);
+
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_main_services_towerlamp.green_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= green_do_shd);
+
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_main_services_towerlamp.red_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= red_do_shd);
+
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_main_services_towerlamp.yellow_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= yellow_do_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	digital_output_shadow_cycle(blue_do_shd);
+	digital_output_shadow_cycle(buzzer_do_shd);
+	digital_output_shadow_cycle(green_do_shd);
+	digital_output_shadow_cycle(red_do_shd);
+	digital_output_shadow_cycle(yellow_do_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,130 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="jog_manager" Id="{1098d8bd-eaa6-47cd-a107-90da039b5364}">
+    <Declaration><![CDATA[(*   Copyright (c) 2007-2008 G.D SpA
+*****************************************************************************************
+
+Date:      Time:     | Author:   				|    Time spent: | Tester:   	   |  Time spent
+*****************************************************************************************
+*)
+(*$
+	The <i>jog_manager</i> class abstracts a to manage the axis jog movement.<br/>
+	The object is constructed with the <a href="#jog_manager_init"><i>jog_manager_init()</i></a> 
+	method and <a href="#axis_object"><i>axi</i></a> are optionally <br/>
+	added through the method <a href="#jog_manager_add_axis"><i>jog_manager_add_axis()</i></a>.	
+$*)
+(* Last used errorID_1 := 15 *)
+TYPE
+	jog_manager:	STRUCT
+	class_name:				STRING(MAX_OBJ_NAME_LENGTH) := JOG_MANAGER_CLASS_NAME;
+
+	object_name:			STRING(MAX_OBJ_NAME_LENGTH) := '';
+
+	descriptor:				descriptor;
+
+	status:					jog_manager_status_enum := JOG_MANAGER_STATUS_INIT;
+	(*$M
+	desc := Internal status of the jog_manager: value among those defined in the <br/>
+	enumerative <a href="#jog_manager_status_enum"><i>jog_manager_status_enum</i></a>; 
+	$*)
+	command:				jog_manager_command_enum := JOG_MANAGER_CMD_NONE;
+												(*$ Command that jog_manager
+													is going to execute; value among
+													those defined in the enumerative
+													jog_manager_command_enum $*)
+	operational_command:	jog_manager_command_enum := JOG_MANAGER_CMD_NONE;
+												(*$ Command assigned when jog_manager
+													is in the "operational" mode; value among
+													those defined in the enumerative
+													jog_manager_command_enum $*)
+	test:					jog_manager_test;
+												(*$ This struct contains all the test's informations $*)
+	parents:				ARRAY[1..JOG_MANAGER_MAX_PARENTS] OF POINTER TO jog_manager;												
+	parents_next_free:		UINT;
+												(*$ This array contains all the parent jog_manager $*)
+	axis_list:				ARRAY[JOG_MANAGER_JOG_LIST_NONE..JOG_MANAGER_JOG_LIST_MAX] OF jog_manager_element;
+												(*$ This struct contains all the axis_jog information $*)
+	jog_activation_condition: BOOL;
+												(*$ Jog activation condition $*)			
+	jog_active:				BOOL;				
+	(*$P desc := jog mode active; $*)
+	jog_active_pow:			parameter_overwrite;
+	(*$I desc := Parameter overwite to inizialithe the value at startup; $*)
+	enable_sw_limit:		BOOL;				
+	(*$P desc := software limit active; $*)	
+	enable_sw_limit_pow:	parameter_overwrite;
+	(*$I desc := Parameter overwite to adjust the SW limit check; $*)																										
+	axis_act_position_linear: LREAL;
+	(*$M unit := mm;
+		desc := currently selected axis position; 
+	$*)
+	axis_act_position_rotative: LREAL;
+	(*$M unit := °;
+		desc := currently selected axis position; 
+	$*)		
+	axis_act_torque_rotative: LREAL;
+	(*$M unit := %;
+		desc := currently selected axis torque (the value is axis indipendent! it's doubled for management reason!; 
+	$*)
+	axis_act_torque_linear: LREAL;
+	(*$M unit := %;
+		desc := currently selected axis torque (the value is axis indipendent! it's doubled for management reason!; 
+	$*)	
+	axis_cmd_position_linear: LREAL;
+	(*$P min :=  -1000; max :=  2000; step := 1; unit := mm/s;
+		desc := jog command position (linear jog axis); 
+	$*)
+	axis_cmd_position_rotative:	LREAL;
+	(*$P min :=  -360; max :=  360; step := 1; unit := °/s;
+		desc := jog command position (rotative jog axis); 
+	$*)
+	axis_cmd_position_rotative_pow:	parameter_overwrite;
+	(*$I desc := Parameter overwite to adjust jog command position (rotative); $*)	
+	axis_speed_linear:		LREAL;
+	(*$P min :=  0; max :=  100; step := 1; unit := mm/s;
+		desc := jog speed (linear jog axis); 
+	$*)
+	axis_cmd_position_linear_pow: parameter_overwrite;
+	(*$I desc := Parameter overwite to adjust jog command position (linear); $*)		
+	axis_speed_rotative:	LREAL;
+	(*$P min :=  0; max :=  100; step := 1; unit := °/s;
+		desc := jog speed (rotative jog axis); 
+	$*)	
+	di_pendant_positive:	POINTER TO digital_input;
+	(*$U
+	desc := Reference to the <a href="#digital_input_object"><i>digital_input</i></a>
+	which refere to jog positive pendant command; 
+	$*)
+	di_pendant_negative:	POINTER TO digital_input;
+	(*$U
+	desc := Reference to the <a href="#digital_input_object"><i>digital_input</i></a>
+	which refere to jog negative pendant command; 
+	$*)
+	has_pendant:			BOOL;
+												(*$ Pendant present $*)
+	pendant_active:			BOOL;				
+	(*$P desc := pendant active; $*)
+	pendant_active_pow:		parameter_overwrite;
+	(*$I desc := Parameter overwite to inizialithe the value at startup; $*)
+	has_shared_pendant:		POINTER TO jog_manager;
+	(*$ Pointer to jog_manager instance that manage directly the pendant $*)
+	shared_pendant_active:	BOOL;	
+	(*$ Shared pendant activation status $*)
+								
+	hmi_jog_positive_cbtn:	command_button;		(*$I expose{ value_from_hmi; button_status.status; button_led.color; button_led.graphic_object.status;} desc := jog plus; $*)
+	hmi_jog_negative_cbtn:	command_button;		(*$I expose{ value_from_hmi; button_status.status; button_led.color; button_led.graphic_object.status;} desc := jog minus; $*)
+	hmi_jog_absolute_cbtn:	command_button;		(*$I expose{ value_from_hmi; button_status.status; button_led.color; button_led.graphic_object.status;} desc := jog absolute; $*)
+	hmi_jog_selection_hgos:	hmi_graphic_object_status;	(*$I expose{ status;} desc := enable jog selection; $*)
+	hmi_rot_selection_hgos: hmi_graphic_object_status;	(*$I expose{ status;} desc := enable linear axis; $*)
+	hmi_lin_selection_hgos: hmi_graphic_object_status;	(*$I expose{ status;} desc := enable rotative axis; $*)
+	hmi_sw_limit_hgos: 		hmi_graphic_object_status;	(*$I expose{ status;} desc := enable sw limit; $*)
+	hmi_pendant_active_hgos:hmi_graphic_object_status;	(*$I expose{ status;} desc := enable pendant selection; $*)
+	hmi_pendant_positive_ld:led;						(*$I expose{ color; graphic_object.status;} desc := pendant positive status; $*)
+	hmi_pendant_negative_ld:led;						(*$I expose{ color; graphic_object.status;} desc := pendant negative status; $*)
+	
+	CONVERSION_private:		jog_manager_private;
+												(*$ Private struct $*)
+	END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

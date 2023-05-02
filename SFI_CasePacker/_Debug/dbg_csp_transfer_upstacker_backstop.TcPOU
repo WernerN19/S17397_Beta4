@@ -1,0 +1,68 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_transfer_upstacker_backstop" Id="{bb94ccc6-0656-41c9-8b08-87017c181bc4}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_transfer_upstacker_backstop
+VAR
+  _sact_shd : digital_actuator_shadow;
+  extend_do_shd : digital_output_shadow;
+  retracted_di_shd : digital_input_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{455a9faa-36b2-4c4e-9861-ee75756b9d81}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	digital_actuator_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_upstacker_backstop._sact, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= _sact_shd);
+
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_upstacker_backstop.extend_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= extend_do_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_upstacker_backstop.retracted_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= retracted_di_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	digital_actuator_shadow_cycle(_sact_shd);
+	digital_output_shadow_cycle(extend_do_shd);
+	digital_input_shadow_cycle(retracted_di_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

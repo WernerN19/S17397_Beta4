@@ -1,0 +1,200 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_magazine_level_zonelow" Id="{d31d11a4-1e39-46e3-8d29-62579b85d250}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_magazine_level_zonelow
+VAR
+		
+	prc:										process;
+	prc_path:									STRING;
+	
+	di_accumulation:							BOOL;
+	di_status:									BOOL; 
+	di:											digital_input;
+	di_flt:										filter;
+	flt_timer_off_on:							DINT:= 5000; (*$P min := 0; max := 10000; step := 1; unit :=  ms; desc := Timer OFF to ON; $*)
+	flt_timer_on_off:							DINT:= 5000; (*$P min := 0; max := 10000; step := 1; unit :=  ms; desc := Timer ON to OFF; $*)
+	
+	magazine_level_zone_low_prime_dchk: 		digital_check;
+	di_running_boolean: 						boolean;
+	magazine_level_zone_low_wem: message;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+di_status := digital_input_is_active(di);
+
+IF 	di_status = TRUE
+	AND
+	filter_is_on(di_flt) 
+THEN
+	di_accumulation := TRUE;
+ELSE
+	di_accumulation := FALSE;
+END_IF
+
+//When below zone 1 on magazine, set status message on HMI. No stop occurs, just obligation message.
+IF 	csp_case_feed_magazine_level.level_status > CSP_CASE_FEED_MAGAZINE_LEVEL_STATUS_ZONE1
+	THEN
+		process_message_set(1, 1, 1, magazine_level_zone_low_wem);
+ELSE
+		process_message_reset(magazine_level_zone_low_wem);
+END_IF
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{6cc634c9-867c-4df3-8eb0-f2d6eb6173f1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{ab449a33-def3-474a-b8c2-c09b292d9880}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{341d405d-b7fa-4a16-b75a-afb6aab9d90a}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{9aff3998-9b24-4c33-8574-ad5c98e3ce27}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_feed_magazine_level_zonelow.prc', 
+		process						:= csp_case_feed_magazine_level.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* INPUTS *)
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= di);
+		
+
+	filter_init(
+		object_name 				:= CONCAT(prc_path, '_di_flt'),
+		delay_off_on				:= flt_timer_off_on,
+		delay_on_off 				:= flt_timer_on_off,
+		process			 			:= prc,
+		CONVERSION_this 			:= di_flt);	
+		
+	boolean_init(
+		object_name 				:= CONCAT(prc_path, '_di_running_boolean'),
+		process			 			:= prc,
+		CONVERSION_this 			:= di_running_boolean);	
+		
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_magazine_level_zone_low_prime_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 0, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE,
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL,  
+		process:= prc, 
+		CONVERSION_this:= magazine_level_zone_low_prime_dchk);
+		
+	digital_check_add_boolean(
+		boolean:= di_running_boolean, 
+		CONVERSION_this:= magazine_level_zone_low_prime_dchk);	
+
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_magazine_level_zone_low_wem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NO_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_OBLIGATION,
+		process						:=	prc,
+		CONVERSION_this				:=	magazine_level_zone_low_wem);
+
+END_IF
+
+	IF objects_running()
+	THEN
+		process_cycle(prc);
+		filter_cycle(
+					input 			:= di_status,
+					CONVERSION_this := di_flt);	
+					
+		digital_check_cycle(magazine_level_zone_low_prime_dchk);		
+	END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{fa3e0cda-65b5-4409-8181-0ca95c3491fd}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{7c75a5e6-a384-4418-95f0-0c2cc9592bde}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{bac238cb-a469-4718-a7a1-9a005a94c54a}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{bc797730-7d6d-4fa3-b5a1-a09afb647a99}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

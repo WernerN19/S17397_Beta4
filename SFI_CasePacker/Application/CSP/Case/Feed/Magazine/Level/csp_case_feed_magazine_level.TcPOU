@@ -1,0 +1,199 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_magazine_level" Id="{497d8bcd-9bb2-45ff-a7a6-0b2cdb0031d9}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_magazine_level
+VAR
+		
+	prc:											process;
+	prc_path:										STRING;
+	
+	level_status:									csp_case_feed_magazine_level_enum; (*$M $*)
+
+	level_status_update:							BOOL;
+	level:											BYTE; (*$M $*)
+		
+END_VAR
+
+VAR CONSTANT
+
+	LEVEL_STATUS_UNDERMIN_LEVEL:					BYTE := 2#00000000;
+	LEVEL_STATUS_MIN_LEVEL:							BYTE := 2#00000001;
+	LEVEL_STATUS_LOW_LEVEL:							BYTE := 2#00000011;
+	LEVEL_STATUS_ZONE1_LEVEL:						BYTE := 2#00000111;
+	LEVEL_STATUS_ZONE2_LEVEL:						BYTE := 2#00001111;
+	LEVEL_STATUS_ZONE3_LEVEL:						BYTE := 2#00011111;
+	LEVEL_STATUS_ZONE4_LEVEL:						BYTE := 2#00111111;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+level.5 := csp_case_feed_magazine_level_zone4.di_accumulation   //full magazine
+			AND csp_case_feed_magazine_level_zone3.di_accumulation
+			AND csp_case_feed_magazine_level_zone2.di_accumulation
+			AND csp_case_feed_magazine_level_zone1.di_accumulation
+			AND csp_case_feed_magazine_level_zonelow.di_accumulation
+			AND csp_case_feed_magazine_level_zonemin.di_accumulation;
+
+level.4 := csp_case_feed_magazine_level_zone3.di_accumulation   //last PE unblocked
+			AND csp_case_feed_magazine_level_zone2.di_accumulation
+			AND csp_case_feed_magazine_level_zone1.di_accumulation
+			AND csp_case_feed_magazine_level_zonelow.di_accumulation
+			AND csp_case_feed_magazine_level_zonemin.di_accumulation;
+			
+level.3 := csp_case_feed_magazine_level_zone2.di_accumulation //last 2 PE unblocked
+			AND csp_case_feed_magazine_level_zone1.di_accumulation
+			AND csp_case_feed_magazine_level_zonelow.di_accumulation
+			AND csp_case_feed_magazine_level_zonemin.di_accumulation;
+
+level.2 := csp_case_feed_magazine_level_zone1.di_accumulation //last 3 PE unblocked
+			AND csp_case_feed_magazine_level_zonelow.di_accumulation
+			AND csp_case_feed_magazine_level_zonemin.di_accumulation;
+
+level.1 := csp_case_feed_magazine_level_zonelow.di_accumulation //Low prime //acknowledgement message
+			AND csp_case_feed_magazine_level_zonemin.di_accumulation;
+
+level.0 := csp_case_feed_magazine_level_zonemin.di_accumulation; //minimum level //cycle stop machine
+
+
+IF level = LEVEL_STATUS_ZONE4_LEVEL
+THEN
+	level_status := CSP_CASE_FEED_MAGAZINE_LEVEL_STATUS_ZONE4;
+	level_status_update:=TRUE;
+ELSIF level = LEVEL_STATUS_ZONE3_LEVEL
+THEN
+	level_status := CSP_CASE_FEED_MAGAZINE_LEVEL_STATUS_ZONE3;
+	level_status_update:=TRUE;
+ELSIF level = LEVEL_STATUS_ZONE2_LEVEL
+THEN
+	level_status := CSP_CASE_FEED_MAGAZINE_LEVEL_STATUS_ZONE2;
+	level_status_update:=TRUE;
+ELSIF level = LEVEL_STATUS_ZONE1_LEVEL
+THEN
+	level_status := CSP_CASE_FEED_MAGAZINE_LEVEL_STATUS_ZONE1;
+	level_status_update:=TRUE;
+ELSIF level = LEVEL_STATUS_LOW_LEVEL
+THEN
+	level_status := CSP_CASE_FEED_MAGAZINE_LEVEL_STATUS_LOW;
+	level_status_update:=TRUE;
+ELSIF level = LEVEL_STATUS_MIN_LEVEL
+THEN
+	level_status := CSP_CASE_FEED_MAGAZINE_LEVEL_STATUS_MIN;
+	level_status_update:=TRUE;
+ELSIF level = LEVEL_STATUS_UNDERMIN_LEVEL
+THEN
+	level_status := CSP_CASE_FEED_MAGAZINE_LEVEL_STATUS_UNDER_MIN;
+	level_status_update := TRUE;
+ELSE
+;
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{9c7fb2e3-aaa2-48d0-8216-6708c8cbcd38}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{42ddb53d-bcfa-4efa-994a-c07a7ed0e21e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{a87bcc1b-82b7-41cb-bc10-8f2fdfc49d29}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{8e085b8a-7ba5-41a1-bb87-d771065f7e37}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_feed_magazine_sensors.prc', 
+		process						:= csp_case_feed_magazine.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	
+
+END_IF
+
+	IF objects_running()
+	THEN
+		process_cycle(prc);		
+	END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{7c4e3c1d-c7e2-4b81-913c-e1a75eb2604f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{0d1191e5-2a84-469f-abfa-37dfa91f154e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{e491b5b4-2209-4b62-b3a9-988b36364494}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{242cfd32-aa31-4e5b-86aa-42ea0d55930e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

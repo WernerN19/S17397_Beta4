@@ -1,0 +1,183 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case" Id="{783a4547-eb84-45f6-be4b-b69b09744999}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	disable_req:									BOOL:= FALSE;
+	case_cammed_motcond:							motorization_conditioner;
+	
+	transport_engaged: 								BOOL;
+	casefeed_engaged: 								BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+disable_req := 	NOT machine_is_running(csp.mch)
+				AND machine_is_stop_emergency_active(csp.mch)
+				AND csp_main_motorization_virtualManager.axis.actual_velocity = 0;
+
+				
+(* Verifies tranfer virtual is cam engaged and allows motorization to start *)
+
+IF //axis_is_cam_engaged(csp_case_virtualMaster.axis)
+    csp_case_feed_virtualMaster.connection_done
+	AND axis_is_cam_engaged(csp_case_feed_virtualMaster.axis)
+    AND csp_case_transport_virtualMaster.transport_slaves_cammed
+	AND csp_case_loader_virtualMaster.loader_slaves_cammed 
+THEN
+	motorization_conditioner_start_done(case_cammed_motcond);
+END_IF
+ 
+
+(* Axes engaged for jog management *) 
+jog_manager_set_all_slave_axis_engaged(
+	index					:= JOG_LIST_CSP_CASE_VIRTUAL, 
+	all_slave_axis_engaged	:= 	axis_is_cam_engaged(csp_case_TRANSPORT_VIRTUALmASTER.axis)
+							AND axis_is_cam_engaged(csp_case_FEED_VIRTUALMASTER.axis),
+							//AND axis_is_cam_engaged(csp_case_LOADER_VIRTUALMASTER.axis),						 	
+	CONVERSION_this			:= csp_main_jogManager.jog_manager_virtual);
+
+	
+	
+IF axis_is_cam_engaged(csp_case_TRANSPORT_VIRTUALmASTER.axis)
+THEN
+	transport_engaged := TRUE;
+ELSE
+	transport_engaged := FALSE;	
+END_IF
+
+IF axis_is_cam_engaged(csp_case_FEED_VIRTUALMASTER.axis)
+THEN
+	casefeed_engaged := TRUE;
+ELSE
+	casefeed_engaged := FALSE;	
+END_IF
+
+	
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{c568d948-635b-4edb-836e-933b7ce7815b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{f08e2ce2-5006-4a24-a4b6-f545ae5b692b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{afdd1667-c688-4df4-94d5-04e7f005001f}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{17d71bd1-80c6-409b-bb00-9e5b7a0c0151}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	process_init(
+		object_name								:= 'csp_case.prc', 
+		machine									:= csp.mch, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+	
+motorization_conditioner_init(
+		object_name								:=	CONCAT(prc_path, '_case_cammed_motcond'),
+		velocity_limit							:=	100.0,
+		velocity_limit_active					:=	FALSE,
+		idle_handshake_active					:=	FALSE,
+		execute_handshake_active				:=	TRUE,
+		hold_handshake_active					:=	FALSE,
+		suspend_handshake_active				:=	FALSE,
+		complete_handshake_active				:=	FALSE,
+		abort_handshake_active					:=	FALSE,
+		stop_handshake_active					:=	FALSE,
+		origin									:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager									:=	csp_main_motorization_manager.motm,
+		process									:=	prc,
+		CONVERSION_this							:=	case_cammed_motcond);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	motorization_conditioner_cycle(case_cammed_motcond);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{227f8091-b9e4-4a25-baaf-45175ae8c65d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{44d95720-bcc2-47be-be2b-28672a398eb1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{7d0d3e76-a677-442c-945a-adf4904325e4}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{705db760-1954-4e42-afa5-fab59df2d30f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

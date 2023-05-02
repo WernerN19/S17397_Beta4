@@ -1,0 +1,266 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main" Id="{648ba410-5db0-0eed-3d23-167e4e5ebf3a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main
+VAR
+	prc:												process;
+	prc_path:											STRING;
+		
+	cabinet_ethercat_master:							net_ethercat_master;
+	cabinet_transfer_ethercat_master:					net_ethercat_master;
+	
+	is_SFI:												BOOL := TRUE;
+	
+END_VAR
+
+VAR_INPUT
+	
+	i_cabinet_is_running:								BOOL;
+	
+	i_machine_motor_axis_ref:							POINTER TO axis;
+	
+	i_csp_data_ref:										POINTER TO csp_customerInterfaces_casePacker;	
+	i_start_job_request:								BOOL;	
+	i_cycle_enable_request:								BOOL;
+	i_end_job_request:									BOOL;	
+	i_order_information:								POINTER TO csp_customerInterfaces_order;
+	i_product_information:								POINTER TO csp_customerInterfaces_product;
+	i_recipe_information:								POINTER TO csp_customerInterfaces_recipe;
+	i_current_material_information:						POINTER TO ARRAY[0..14] OF csp_customerInterfaces_material;
+	i_next_material_information:						POINTER TO ARRAY[0..14] OF csp_customerInterfaces_material;	
+	i_mark_bubd_information:							POINTER TO csp_customerInterfaces_markBUBD;	
+	i_cartons_count:									DINT;
+	i_next_recipe_information:							POINTER TO csp_customerInterfaces_recipe;
+	i_mark_information:									POINTER TO csp_customerInterfaces_mark;	
+	i_next_order_information:							POINTER TO csp_customerInterfaces_order;
+	i_next_product_information:							POINTER TO csp_customerInterfaces_product;	
+	
+	(*mch interface*)
+	i_cartoner_RunOutComplete:							BOOL;
+	i_filler_upstream_coffee:							BOOL;
+
+END_VAR
+
+VAR_OUTPUT
+	o_reset_button:										BOOL;
+	o_start_button:										BOOL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{bc6ecc53-5681-06e8-26bb-c69aa13b7e52}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{1fa8c191-a80f-0bff-15cf-8571e919c6c0}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{ccdf20ef-dbaa-0854-23dc-b995c12b84f0}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{a9096da0-e999-0fdb-1856-0104bbe92e6a}">
+      <Implementation>
+        <ST><![CDATA[IF net_initialization()
+THEN
+		
+	net_ethercat_master_init(
+		object_name 				:= CONCAT(prc_path, '_cabinet_ethercat_master'), 
+		hw_connected				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= cabinet_ethercat_master);
+		
+(*	net_ethercat_master_init(
+		object_name 				:= CONCAT(prc_path, '_cabinet_case_ethercat_master'), 
+		hw_connected				:= FALSE, 
+		process						:= prc, 
+		CONVERSION_this				:= cabinet_case_ethercat_master);*)
+
+net_ethercat_master_init(
+		object_name 				:= CONCAT(prc_path, '_cabinet_transfer_ethercat_master'), 
+		hw_connected				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= cabinet_transfer_ethercat_master);				
+
+	
+END_IF
+
+
+IF objects_initialization()
+THEN
+	process_init(
+		object_name					:= 'csp_main.prc', 
+		machine						:= csp.mch, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	hmi_init(
+		hmi_is_required				:= TRUE, 
+		plc_hmi_protocol_enable		:= FALSE, 
+		process						:= prc);
+		
+	hmi_set_application_version(
+		application_name						:= csp_main_configurator.applicaton_name,
+		customer								:= csp_main_configurator.customer,
+		machine_sequential_number				:= csp_main_configurator.machine_sequential_number,
+		application_kickoff_repository_version  := csp_main_configurator.application_kickoff_repository_version,
+		safety_version							:= csp_main_configurator.safety_version,
+		hardware_version						:= csp_main_configurator.hardware_version,
+		software_version						:= csp_main_configurator.software_version);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{17e454e4-6fb8-0ef9-27d8-c8897f2f00cb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{14d19aff-882a-0ff2-1298-09f44ca0984b}">
+      <Implementation>
+        <ST><![CDATA[i_machine_motor_axis_ref				:= 	ADR(csp_main_motorization_virtualManager.virtual_master_test); //TODO: this will need an update
+
+i_csp_data_ref							:= 	ADR(csp_customerInterfaces.CasePacker);
+i_start_job_request						:= 	csp_customerInterfaces.MES.StartJobReq
+									   		OR 										//sauro new MES interface
+									   		csp_main_phaseManager_startJob.debug_mes_startJobReq;
+i_cycle_enable_request					:= 	csp_customerInterfaces.MES.CycleEnable
+									  		OR 										//sauro new MES interface
+									   		csp_main_phaseManager_startJob.debug_mes_cycleEnable;
+i_end_job_request						:= 	csp_customerInterfaces.MES.EndJobReq
+	  										OR										//sauro new MES interface
+									   		csp_main_phaseManager_end_job.debug_mes_endJobReq;	
+i_order_information						:= 	ADR(csp_customerInterfaces.Order);
+i_product_information					:= 	ADR(csp_customerInterfaces.Product);
+i_recipe_information					:= 	ADR(csp_customerInterfaces.Recipe);
+i_current_material_information			:= 	ADR(csp_customerInterfaces.Material);
+i_next_material_information				:= 	ADR(csp_customerInterfaces.NextMaterial);	
+i_mark_bubd_information					:= 	ADR(csp_customerInterfaces.Mark.BUBD);
+i_mark_information						:=  ADR(csp_customerInterfaces.Mark);
+i_next_order_information				:=  ADR(csp_customerInterfaces.NextOrder);
+i_cartons_count							:=	csp_transfer_infeed_metering_jam.cartons_count;
+i_next_recipe_information				:= 	ADR(csp_customerInterfaces.NextRecipe);
+i_next_product_information				:= 	ADR(csp_customerInterfaces.NextProduct);]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{79c26030-910e-0c29-0ee5-7835cb1940ca}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{1bbc388a-fae4-0b49-2d39-4c3dc0582f72}">
+      <Implementation>
+        <ST><![CDATA[o_reset_button	:= csp_case_main_services_pushbuttons.reset_pressed OR csp_transfer_main_services_pushbuttons.reset_pressed;
+o_start_button	:= 
+	(
+		csp_case_main_services_pushbuttons.start_pressed
+	 	OR
+		csp_transfer_main_services_pushbuttons.start_pressed
+	)
+	AND
+	not csp_main_jogManager.jog_is_active;]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_main">
+      <LineId Id="3" Count="28" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main._handle_messages">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main._object_manager">
+      <LineId Id="55" Count="51" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main._read_var_input">
+      <LineId Id="2" Count="21" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main._set_runtime_properties">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main._write_output">
+      <LineId Id="2" Count="7" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

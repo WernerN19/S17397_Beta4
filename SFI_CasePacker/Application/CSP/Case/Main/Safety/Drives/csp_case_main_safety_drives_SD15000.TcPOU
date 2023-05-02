@@ -1,0 +1,214 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_main_safety_drives_SD15000" Id="{b99630fa-238a-455d-a9ff-63d3d89ea502}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/24 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R 
+	process_ref:= prc; 
+$*)
+PROGRAM csp_case_main_safety_drives_SD15000
+VAR
+	prc:					process;
+	prc_path:				STRING;	
+
+	sig:												safety_integrated_group;
+	chA_smes_sis:										safety_integrated_series;
+	chB_smes_sis:										safety_integrated_series;
+	safety_integrated_series_close_dvr_chA: 			BOOL;
+	safety_integrated_series_close_dvr_chB: 			BOOL;
+
+	shutdown_chA AT %Q* 								:BOOL := TRUE;
+	shutdown_chB AT %Q* 								:BOOL := TRUE;
+END_VAR
+
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_objects_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+//safety_integrated_series_close(chA_smes_sis);
+//safety_integrated_series_close(chB_smes_sis);
+
+IF  safety_integrated_series_get_mode (chA_smes_sis) = MODE_ABSENT
+	OR
+	safety_integrated_series_get_mode(chA_smes_sis) = MODE_INACTIVE
+	THEN
+		shutdown_chA := TRUE;
+	ELSE
+		shutdown_chA := FALSE;
+END_IF
+
+IF  safety_integrated_series_get_mode (chB_smes_sis) = MODE_ABSENT
+	OR
+	safety_integrated_series_get_mode(chB_smes_sis) = MODE_INACTIVE
+	THEN
+		shutdown_chB := TRUE;
+	ELSE
+		shutdown_chB := FALSE;
+END_IF
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		;
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF NOT safety_integrated_group_is_running(sig)
+		THEN
+			safety_integrated_group_run(sig);
+END_IF
+safety_integrated_series_close(chA_smes_sis);
+safety_integrated_series_close(chB_smes_sis);
+safety_integrated_series_close_dvr_chA := safety_integrated_series_is_safely_closed(chA_smes_sis);
+safety_integrated_series_close_dvr_chB := safety_integrated_series_is_safely_closed(chB_smes_sis);
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{b59ef28c-7b1b-48f7-8e1a-c77e460ba095}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{29c42019-5bf5-4ce3-8d13-911dc184797e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{ad5b7fda-b209-40d1-b0ed-625f703e415f}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{45c639d3-4ec0-4628-99b7-2deafd177a7f}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_main_safety_drives_SD15000.prc', 
+		process						:= csp_case_main_safety_drives.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+
+	safety_integrated_group_init(
+        object_name				:=	CONCAT(prc_path, '_sig'), 
+		controller				:=	csp_case_main_safety_interface.SPLC5000_sic,
+        process					:=	prc,
+        CONVERSION_this			:=	sig);
+
+	(* Channel A SMES series *)
+	safety_integrated_series_init(
+		object_name				:=	CONCAT(prc_path, '_chA_smes_sis'), 
+		_type					:=	SAFETY_INTEGRATED_SERIES_TYPE_NO_RESET,
+		discrepancy_active		:=	TRUE,
+		forced_open_active		:=	TRUE,
+		process					:=	prc,
+		CONVERSION_this			:=	chA_smes_sis);
+
+	safety_integrated_series_add_safety_integrated_group(
+		group					:=	sig,
+		CONVERSION_this			:=	chA_smes_sis);
+
+	safety_integrated_series_add_safety_integrated_series(
+		series_active			:=	TRUE,
+		series_polarity_direct	:=	TRUE,
+		contact					:=	csp_case_main_safety_drives_commonConfiguration.rack_smes_sis, (*Marco : To be checked*)
+		CONVERSION_this			:=	chA_smes_sis);
+		
+	(* Channel B SMES series *)
+	safety_integrated_series_init(
+		object_name				:=	CONCAT(prc_path, '_chB_smes_sis'), 
+		_type					:=	SAFETY_INTEGRATED_SERIES_TYPE_NO_RESET,
+		discrepancy_active		:=	TRUE,
+		forced_open_active		:=	TRUE,
+		process					:=	prc,
+		CONVERSION_this			:=	chB_smes_sis);
+
+	safety_integrated_series_add_safety_integrated_group(
+		group					:=	sig,
+		CONVERSION_this			:=	chB_smes_sis);
+		
+	safety_integrated_series_add_safety_integrated_series(
+		series_active			:=	TRUE,
+		series_polarity_direct	:=	TRUE,
+		contact					:=	csp_case_main_safety_drives_commonConfiguration.rack_smes_sis, (*Marco : To be checked*)
+		CONVERSION_this			:=	chB_smes_sis);
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+  	safety_integrated_group_cycle(sig);
+	safety_integrated_series_cycle(chA_smes_sis);
+	safety_integrated_series_cycle(chB_smes_sis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{354e64b2-b1bc-4c32-918a-b6e7fac08747}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{1219fe41-37f9-4d10-84b2-fa248d8555a7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{f0b815f8-73b8-4ebf-b6b8-516e4849eefa}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{fa8bc362-6493-4812-9989-a523e966556b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

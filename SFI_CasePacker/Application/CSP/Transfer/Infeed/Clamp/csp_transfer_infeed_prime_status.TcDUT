@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="csp_transfer_infeed_prime_status" Id="{edf744a6-75de-4b4f-8501-2e5a7170dedf}">
+    <Declaration><![CDATA[TYPE csp_transfer_infeed_prime_status :
+(
+	CSP_TRANSFER_INFEED_PRIME_STATUS_START 										:=  0,
+	CSP_TRANSFER_INFEED_PRIME_STATUS_CHECK_LEVEL								:=  10,
+	CSP_TRANSFER_INFEED_PRIME_STATUS_CLOSE_CLAMP 								:=  20,
+	CSP_TRANSFER_INFEED_PRIME_STATUS_START_BELTS								:=  30,
+	CSP_TRANSFER_INFEED_PRIME_STATUS_OPEN_CLAMP									:=  50,
+	CSP_TRANSFER_INFEED_PRIME_STATUS_INDEX_BELTS								:=  60,
+	CSP_TRANSFER_INFEED_PRIME_STATUS_AT_BACKSTOP								:=  70,
+	CSP_TRANSFER_INFEED_PRIME_STATUS_PRIMED										:=  80,
+	CSP_TRANSFER_INFEED_PRIME_STATUS_ERROR										:=  90
+) := CSP_TRANSFER_INFEED_PRIME_STATUS_START;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

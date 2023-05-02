@@ -1,0 +1,529 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_tr_squaring_os_trailing" Id="{32748af6-d93f-47b0-995b-b0a2e1e603eb}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_tr_squaring_os_trailing
+VAR
+	
+	prc:												process;
+	prc_path:											STRING;
+	
+	fsm_enable_condition:								BOOL := FALSE;
+	fsm_next_status:									CSP_CASE_TRANSPORT_STATUS_enum;
+	fsm_status:											CSP_CASE_TRANSPORT_STATUS_enum;
+	axis:												axis;
+	phase_velocity_degps:								LREAL := 100.0;
+	axis_calculate_cam_slave_master_position_deg:		LREAL := 0.0;
+	axis_calculated_cam_slave_position_deg:				LREAL := 0.0;
+	slave_position_has_been_calculated:					BOOL  := FALSE;
+	phase_enable:										BOOL:=TRUE;
+	engage_enable:										BOOL:=TRUE;
+	disable_req:										BOOL:=FALSE;
+	debug_state_machine:								BOOL:=FALSE;
+	debug_state_machine_one_step:						BOOL:=FALSE;
+	
+	cam_id:												INT := CASE_TR_SQUARING_TRAILING_RUN_CAM;
+	slave_scaling:										LREAL := -50; (*$P $*)
+	master_scaling:										LREAL := 1; 
+	master_offset:										LREAL := 217;(*$P $*)
+	slave_offset:										LREAL := 0; (*$P $*)
+	
+	in_accu_safe_pos:                                   BOOL := FALSE;
+    accu_tolerance:                                     INT := 360;
+    accu_safe_pos:                                      INT;	(*$P $*)	
+	
+	torque_limit:										INT := 2000;    (*$P $*)
+	torque_limit_old:									INT;	
+	servo_on_condition: 								BOOL;
+	enable_delay: 										TON;
+	Torque_force_constant: 								LREAL := 0.47;
+END_VAR
+
+VAR CONSTANT
+	MOTOR_MAX_VELOCITY_DEGPS:							LREAL := 9600;
+	MOTOR_MAX_ACCELLERATION_DEGPS2:						LREAL := 4800;
+	MOTOR_MAX_DECELLERATION_DEGPS2:						LREAL := 4800;
+	MOTOR_MAX_JERK_DEGPS3:								LREAL := 100000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:						LREAL := 5;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT:
+		IF axis_get_mode(axis) = MODE_TEST
+		THEN
+			safety_integrated_series_close(csp_case_main_safety_drives_SD26000.chB_smes_sis);
+		END_IF
+		RETURN;
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+axis.actual_torque := (axis.actual_current * Torque_force_constant)/1000;
+
+//Checks if axis position is within the acc-u-change safe position
+IF ABS(axis.actual_position - accu_safe_pos)  < accu_tolerance
+	OR (360 - axis.actual_position) < accu_tolerance
+THEN
+	in_accu_safe_pos := TRUE;
+ELSE
+	in_accu_safe_pos := FALSE;   
+END_IF
+
+//sets torque limit
+IF torque_limit <> Torque_limit_old
+	THEN
+	 IF soe_drive_channel_write_parameter(
+		channel:=csp_case_tr_squaring_os_trailing.axis.soe_drive_channel, 
+		idn:= S_0_IDN + 92, 
+		data_element:=soe_drive_element_value , 
+		data_source:= ADR(torque_limit), 
+		data_lenght:= SIZEOF(torque_limit), 
+		CONVERSION_this:= csp_case_tr_squaring_os_trailing.axis.soe_drive^)= SOE_DRIVE_RETURN_VALUE_DONE 
+	THEN		
+		torque_limit_old := Torque_limit;
+	END_IF	
+END_IF
+
+(*FSM Control*)
+fsm_enable_condition := axis_is_ok(FALSE, axis)
+						AND
+						process_is_ready(prc)
+						AND
+						process_subtree_is_ready(prc)
+						AND						
+						(csp_main_motorization.motorization_axis_redefined_at_powerup OR csp_main_accuchange.Brand_Change_Occurred)
+						AND
+						servo_on_condition
+						AND
+						NOT jog_manager_is_jog_axis_active(SMTR26003_CASE_TOP_RAIL_SQUARING_OS_TRAILING, csp_main_jogManager.jog_manager_real)
+						AND
+						NOT disable_req;
+
+IF	NOT fsm_enable_condition
+	AND
+	fsm_status <> CSP_CASE_TOPRAIL_SQUARING_STATUS_DISABLED
+	AND
+	fsm_status < CSP_CASE_TOPRAIL_SQUARING_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_CASE_TOPRAIL_SQUARING_STATUS_DISABLE_REQUEST;
+END_IF;
+
+CASE fsm_status OF
+	
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_next_status := CSP_CASE_TOPRAIL_SQUARING_STATUS_DISABLED;
+        END_IF
+
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_DISABLED:
+
+		 IF fsm_enable_condition
+			AND
+			(
+			(motorization_manager_is_starting(csp_main_motorization_manager.motm))
+			OR
+			jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_TRANSPORT_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+			OR
+			jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)	
+			)                               
+		THEN
+			fsm_next_status := CSP_CASE_TOPRAIL_SQUARING_STATUS_ENABLE_REQUEST;
+		END_IF;
+
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_ENABLE_REQUEST:
+		
+		IF NOT csp_main_accuChange.machine_size_complete
+		THEN
+			fsm_next_status	:= CSP_CASE_TOPRAIL_SQUARING_STATUS_CHANGE_OVER_MODE;
+		ELSE	
+			axis_enable(axis);
+			IF axis_is_standstill(axis)
+			THEN
+				fsm_next_status	:=	CSP_CASE_TOPRAIL_SQUARING_STATUS_ENABLED;
+			END_IF;					
+		END_IF;
+		
+	
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_CHANGE_OVER_MODE:
+		
+		IF csp_main_accuChange.Motion_Motors_New_Size_Req
+			THEN
+			axis_enable(axis);
+			fsm_next_status	:=	CSP_CASE_TOPRAIL_SQUARING_STATUS_ENABLED;
+		END_IF;	
+
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_ENABLED:
+
+		fsm_next_status	:=	CSP_CASE_TOPRAIL_SQUARING_STATUS_HOME_REQUEST;
+
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_HOME_REQUEST: 
+
+		fsm_next_status	:=	CSP_CASE_TOPRAIL_SQUARING_STATUS_HOME_DONE;
+
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_HOMING:
+
+		axis.home.done := TRUE;
+
+		IF axis_home_done(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_TOPRAIL_SQUARING_STATUS_HOME_DONE;
+		END_IF
+
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_HOME_DONE:
+	
+		IF phase_enable
+			THEN
+			fsm_next_status	:= CSP_CASE_TOPRAIL_SQUARING_STATUS_CALCULATE_SLAVE_POSITION_REQUEST;
+		END_IF
+		
+	
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_CALCULATE_SLAVE_POSITION_REQUEST:
+	
+		(*Calculate a desired master axis position.
+		Function used  LMOD: Ex. LMOD(400.56, 360) = 40.56
+		home_position_master_offset_deg is helpful for changing the 1st term of LMOD*)
+		axis_calculate_cam_slave_master_position_deg := 
+		LMOD	(axis_get_actual_modulo_position(csp_case_transport_virtualMaster.axis) (*master axis*)
+							+
+				master_offset, (*initialized at 0° position*)
+					G_MODULO_360_DEG											);
+		
+		(*master_scaling and slave_scaling initialized at 360° since the cams are normed in a range equal to 0-1.*)
+		IF axis_calculate_cam_slave_dynamics_data(
+				cam_id := cam_id,
+				master_scaling := master_scaling,
+				master_position := axis_calculate_cam_slave_master_position_deg,
+				slave_scaling := slave_scaling,
+				CONVERSION_this := axis)
+		THEN
+			fsm_next_status := CSP_CASE_TOPRAIL_SQUARING_STATUS_CALCULATING_SLAVE_POSITION;
+		END_IF
+
+	
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_CALCULATING_SLAVE_POSITION:
+	
+		IF	axis_cam_slave_dynamics_data_calculated(axis)
+		THEN
+			(*The “axis_get_cam_slave_dynamics_position” method returns the position of the slave within the cam plate table at the master position calculated for the instance specified: *)
+			axis_calculated_cam_slave_position_deg :=(axis_get_cam_slave_dynamics_position(axis) + slave_offset);
+			slave_position_has_been_calculated := TRUE;
+			fsm_next_status := CSP_CASE_TOPRAIL_SQUARING_STATUS_PHASE_REQUEST;
+	END_IF
+
+	
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_PHASE_REQUEST:
+
+		IF	axis_is_standstill(axis)
+		THEN
+
+		 axis_move_absolute(
+			position 		:= axis_calculated_cam_slave_position_deg,(*calculated above, the slave is moved*)
+			velocity 		:= phase_velocity_degps,
+			direction		:= AXIS_SHORTEST_WAY,
+			acceleration 	:= MOTOR_MAX_ACCELLERATION_DEGPS2,
+			deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2,
+			jerk 			:= MOTOR_MAX_JERK_DEGPS3, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this 			:= axis
+			); 
+			
+		END_IF
+
+		IF axis_is_absolute_moving(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_TOPRAIL_SQUARING_STATUS_PHASING;
+		END_IF
+
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_PHASING:
+
+		IF axis_is_standstill(axis)
+		THEN
+			fsm_next_status	:=	CSP_CASE_TOPRAIL_SQUARING_STATUS_PHASED;
+		END_IF
+
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_PHASED:
+
+		IF engage_enable
+		THEN
+			fsm_next_status := CSP_CASE_TOPRAIL_SQUARING_STATUS_CAM_ENGAGED_REQ;
+		END_IF
+
+
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_CAM_ENGAGED_REQ:
+	
+		(* MAKES A CORRECTION MOVE THEN CAMS ONTO THE TRANSPORT VIRTUAL MASTER *)
+		axis_engage_cam(
+			cam_id 			:= cam_id,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE, 
+			activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY, 
+			activation_position	:= 0,
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			master_offset 		:= master_offset,	
+			slave_offset 		:= slave_offset,
+			master_scaling 		:= master_scaling,
+			slave_scaling 		:= slave_scaling,
+			interpolation_type 		:= AXIS_CAM_INTERPOLATION_SYSTEM_DEFAULT,
+			master 			:= csp_case_transport_virtualMaster.axis,
+			CONVERSION_this 	:= axis);	
+
+		IF	axis_is_cam_engaged(axis)
+		THEN
+	  	 	fsm_next_status := CSP_CASE_TOPRAIL_SQUARING_STATUS_CAM_ENGAGED;
+		END_IF
+
+	
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_AXIS_ENGAGE_VERIFY :
+	
+		;
+		
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_CAM_ENGAGED:
+	
+		IF 	machine_is_stop_emergency_active(csp.mch)
+			AND motorization_manager_is_stopped(csp_main_motorization_manager.motm)
+		THEN
+			fsm_next_status := CSP_CASE_TOPRAIL_SQUARING_STATUS_DISENGAGE_REQUEST;
+		END_IF
+		
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_RUNNING:
+
+		;
+		
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_DISENGAGE_REQUEST:
+
+		fsm_next_status := CSP_CASE_TOPRAIL_SQUARING_STATUS_DISENGAGING;
+		
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_DISENGAGING:
+	
+		IF axis_disengage(
+			mode:= AXIS_DISENGAGE_AND_ON_PHASE_STOP, 
+			position:= 0, 
+			velocity:= 0, 
+			acceleration:= MOTOR_MAX_ACCELLERATION_DEGPS2, 
+			deceleration:= MOTOR_MAX_DECELLERATION_DEGPS2, 
+			jerk:= MOTOR_MAX_JERK_DEGPS3, 
+			CONVERSION_this:= axis)
+		THEN
+			fsm_next_status := CSP_CASE_TOPRAIL_SQUARING_STATUS_CAM_ENGAGED_REQ;
+		END_IF
+	
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_STOP_REQUEST:
+
+		axis_stop(
+		    deceleration 	:= MOTOR_MAX_DECELLERATION_DEGPS2,
+		    jerk 			:= MOTOR_MAX_JERK_DEGPS3,
+		    CONVERSION_this 			:= axis);
+
+		IF 	axis_is_standstill(axis)
+			OR
+			NOT axis_is_ok(FALSE, axis)
+			OR
+			axis_is_disabled(axis)
+		THEN
+			fsm_next_status := CSP_CASE_TOPRAIL_SQUARING_STATUS_DISABLE_REQUEST;
+		END_IF
+
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_DISABLE_REQUEST:
+	
+   		axis_disable(axis);
+   		fsm_next_status := CSP_CASE_TOPRAIL_SQUARING_STATUS_DISABLING;
+
+		
+	CSP_CASE_TOPRAIL_SQUARING_STATUS_DISABLING:
+	
+        IF	axis_is_disabled(axis)
+        THEN
+            fsm_next_status := CSP_CASE_TOPRAIL_SQUARING_STATUS_DISABLED;
+        END_IF
+
+END_CASE;
+
+IF NOT debug_state_machine
+	OR
+	debug_state_machine_one_step
+THEN
+	fsm_status := fsm_next_status;
+	debug_state_machine_one_step := FALSE;
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{529e48dc-8c98-4362-b202-7dd6c5366965}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{d0a09336-1d40-4f3e-b502-31fa3ea77d95}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{71b73ead-802d-4ee9-b9b7-3611e1e80492}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{ce031805-1179-40ec-98cf-c15653b9ea11}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name									:= 'csp_case_tr_squaring_os_trailing.prc', 
+		process										:= csp_case_tr_squaring_os.prc, 
+		CONVERSION_this								:= prc);
+		
+	prc_path 										:= process_get_path(prc);
+	
+(* axis smes *)
+	IF csp_main_configurator.Physical_hw
+	THEN	
+		axis_init(
+			object_name								:= CONCAT(prc_path, '_axis'), 
+			axis_type								:= AXIS_TYPE_SERVO, 
+			encoder_scaling_factor					:= G_SERVO_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo									:= G_MODULO_360_DEG, 
+			process									:= prc, 
+			CONVERSION_this							:= axis);
+			
+		axis_add_safety_integrated_series(
+			safety_integrated_series 				:= csp_case_main_safety_drives_SD26000.chB_smes_sis,
+			CONVERSION_this							:= axis);
+			
+			
+		axis_init_absolute_encoder_preset(
+			position                                := 0.0,
+			CONVERSION_this                         := axis);
+			
+			
+	ELSE
+		axis_init(
+			object_name								:= CONCAT(prc_path, '_axis'), 
+			axis_type								:= AXIS_TYPE_VIRTUAL, 
+			encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+			modulo									:= G_MODULO_360_DEG, 
+			process									:= prc, 
+			CONVERSION_this							:= axis);		
+				
+	END_IF
+	
+	axis_set_max_dynamic(
+		reference_velocity							:=	MOTOR_MAX_VELOCITY_DEGPS,
+		velocity									:=	MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration								:=	MOTOR_MAX_ACCELLERATION_DEGPS2,
+		deceleration								:=	MOTOR_MAX_DECELLERATION_DEGPS2,
+		jerk										:=	MOTOR_MAX_JERK_DEGPS3,
+		following_error								:=	MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this								:=	axis);
+	
+	jog_manager_add_axis(
+		list_index									:= SMTR26003_CASE_TOP_RAIL_SQUARING_OS_TRAILING,
+		axis										:= axis,
+		master_axis									:= FALSE,
+		jog_type									:= JOG_TYPE_LINEAR,
+		sw_limit_positive							:= 800,
+		sw_limit_negative							:= 0,
+		CONVERSION_this								:= csp_main_jogManager.jog_manager_real);
+
+
+	axis_add_soe_drive(
+		channel										:=	SOE_DRIVE_CHANNEL_B,
+		soe_drive									:=	csp_case_main_drives.SD26000_drv,
+		CONVERSION_this								:=	axis);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{628d3587-db51-40cf-a4bf-84d48a138e04}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{f11525b9-ce0f-4e79-888b-7148826c00c7}">
+      <Implementation>
+        <ST><![CDATA[disable_req := csp_case.disable_req;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{ea66a1d4-f425-4ccd-bc99-a6dcf23eb586}">
+      <Implementation>
+        <ST><![CDATA[enable_delay(IN:=axis_is_ready_to_enable(axis) , PT:=T#2S , Q=> servo_on_condition , ET=> );]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{a2ebf66c-9263-4bcf-b132-d87388e3cf65}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

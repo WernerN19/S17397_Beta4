@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <GVL Name="jog_manager_global" Id="{654a786a-3646-4478-a29d-42f4f640d8bb}">
+    <Declaration><![CDATA[{attribute 'Tc2GvlVarNames'}
+VAR_GLOBAL CONSTANT
+	(* jog_manager define *)
+	JOG_MANAGER_CLASS_NAME:			STRING := 'jog_manager';
+	JOG_MANAGER_MAX_TEST_COMMANDS:	DINT :=	0;
+	JOG_MANAGER_MAX_PARENTS:		UINT := 10;
+	
+	JOG_MANAGER_JOG_LIST_NONE:		UINT := 0;
+	JOG_MANAGER_JOG_LIST_MAX:		UINT := 100;
+	
+	SW_LIMIT_LINEAR_POSITIVE:		LREAL := 2000.0;
+	SW_LIMIT_LINEAR_NEGATIVE:		LREAL := -1000.0;
+	SW_LIMIT_ROTATIVE_POSITIVE:		LREAL := 180.0;
+	SW_LIMIT_ROTATIVE_NEGATIVE:		LREAL := -180.0;
+END_VAR
+
+VAR_GLOBAL
+END_VAR
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_main_brand_cam_change" Id="{97d21894-60d3-41ae-94e9-11037d05e87d}">
+    <Declaration><![CDATA[TYPE csp_main_brand_cam_change :
+(
+	CSP_MAIN_BRAND_CAM_CHANGE_INIT 							:= 0,
+	CSP_MAIN_BRAND_CAM_CHANGE_PHASE_LOAD 					:= 10,
+	CSP_MAIN_BRAND_CAM_CHANGE_PHASE_TRANSFER 				:= 20,
+	CSP_MAIN_BRAND_CAM_CHANGE_CONNEECTION_LOAD 				:= 30,
+	CSP_MAIN_BRAND_CAM_CHANGE_CONNECTION_TRANSFER 			:= 40,		
+	CSP_MAIN_BRAND_CAM_CHANGE_DONE							:= 900,
+	CSP_MAIN_BRAND_CAM_CHANGE_ERROR							:= 999
+) := CSP_MAIN_BRAND_CAM_CHANGE_INIT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

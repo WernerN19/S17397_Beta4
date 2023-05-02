@@ -1,0 +1,84 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_case_feed_magazine_ls_pushertilt" Id="{e4cef89b-1a3b-4d76-b787-bf4962569f8a}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_case_feed_magazine_ls_pushertilt
+VAR
+  downstream_di_shd : digital_input_shadow;
+  extend_di_shd : digital_input_shadow;
+  extend_do_shd : digital_output_shadow;
+  sact_shd : digital_actuator_shadow;
+  upstream_di_shd : digital_input_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{12097fd3-d24c-4b1f-a4a0-34885563112d}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_magazine_ls_pushertilt.downstream_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= downstream_di_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_magazine_ls_pushertilt.extend_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= extend_di_shd);
+
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_magazine_ls_pushertilt.extend_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= extend_do_shd);
+
+	digital_actuator_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_magazine_ls_pushertilt.sact, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= sact_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_magazine_ls_pushertilt.upstream_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= upstream_di_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	digital_input_shadow_cycle(downstream_di_shd);
+	digital_input_shadow_cycle(extend_di_shd);
+	digital_output_shadow_cycle(extend_do_shd);
+	digital_actuator_shadow_cycle(sact_shd);
+	digital_input_shadow_cycle(upstream_di_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

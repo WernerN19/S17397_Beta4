@@ -1,0 +1,993 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_main_drives" Id="{c6f39314-305d-4140-b12b-5646ca1463ce}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/24 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R 
+	process_ref:= prc; 
+$*)
+PROGRAM csp_case_main_drives
+VAR
+	prc:						process;
+	prc_path:					STRING;	
+	
+	PS2000_ps:					power_supply;
+	
+	SD2100_drv:					soe_drive;
+	SD2200_drv:					soe_drive;
+	SD2300_drv:					soe_drive;
+	SD2400_drv:					soe_drive;
+	SD2500_drv:					soe_drive;
+	
+	SD12000_drv:				soe_drive;
+	SD8000_drv:					soe_drive;
+	SD8100_drv:					soe_drive;
+	SD8200_drv:					soe_drive;
+	SD8300_drv:					soe_drive;
+	SD8400_drv:					soe_drive;
+	SD8500_drv:					soe_drive;
+	SD8600_drv:					soe_drive;
+	
+	SD10000_drv:				soe_drive;
+	SD10100_drv:				soe_drive;
+	SD10200_drv:				soe_drive;
+	SD10300_drv:				soe_drive;
+	SD10400_drv:				soe_drive;
+	SD11000_drv:				soe_drive;
+	
+	SD15000_drv:				soe_drive;
+	
+	SD26000_drv:				soe_drive;
+	SD26100_drv:				soe_drive;
+	
+END_VAR
+
+VAR CONSTANT
+	INCOHERENCE_TIMEOUT_MS:		DINT := 2000;
+END_VAR
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_objects_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		;
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{77ab4868-e736-4c18-83ef-2e65d79256a9}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{b5333df0-8d7b-4dbf-bbc0-05192e98eb2f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{c9663020-91f5-43f9-a12d-5d26dea20a80}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{df3a7d92-c478-4423-833e-ad9d03a4fe28}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_main_drives.prc', 
+		process						:= csp_case_main.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+
+	(* PS2000 POWER SUPPLY *)
+	power_supply_init(
+		object_name					:= CONCAT(prc_path, '_PS2000_ps'), 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		process						:= prc, 
+		CONVERSION_this				:= PS2000_ps);
+		
+	power_supply_add_safety_integrated_series(
+		safety_integrated_series	:= csp_case_main_safety_drives_PS2000.sis, 
+		CONVERSION_this				:= PS2000_ps);		
+
+		(* SD2100 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD2100_drv'), 
+		device_name					:= 'SD2100', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_transport_os_leading_axis', 
+		channel_b_name				:= 'csp_case_transport_os_trailing_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD2100_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD2100_drv);
+		
+	IF 	SD2100_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD2100_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD2100.sig, 
+			CONVERSION_this				:= SD2100_drv);
+	END_IF
+		
+	IF 	SD2100_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD2100_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD2100.sig, 
+			CONVERSION_this				:= SD2100_drv);
+	END_IF
+	
+	(* SD2200 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD2200_drv'), 
+		device_name					:= 'SD2200', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_transport_ls_leading_axis', 
+		channel_b_name				:= 'csp_case_transport_ls_trailing_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD2200_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD2200_drv);
+		
+	IF 	SD2200_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD2200_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD2200.sig, 
+			CONVERSION_this				:= SD2200_drv);
+	END_IF
+		
+	IF 	SD2200_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD2200_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD2200.sig, 
+			CONVERSION_this				:= SD2200_drv);
+	END_IF
+	
+	(* SD2300 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD2300_drv'), 
+		device_name					:= 'SD2300', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_closing_os_upper_axis', 
+		channel_b_name				:= 'csp_case_closing_os_lower_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD2300_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD2300_drv);
+		
+	IF 	SD2300_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD2300_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD2300.sig, 
+			CONVERSION_this				:= SD2300_drv);
+	END_IF
+		
+	IF 	SD2300_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD2300_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD2300.sig, 
+			CONVERSION_this				:= SD2300_drv);
+	END_IF
+	
+	(* SD2400 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD2400_drv'), 
+		device_name					:= 'SD2400', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_closing_os_horizontal_axis', 
+		channel_b_name				:= 'csp_case_closing_ls_upper_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD2400_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD2400_drv);
+		
+	IF 	SD2400_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD2400_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD2400.sig, 
+			CONVERSION_this				:= SD2400_drv);
+	END_IF
+		
+	IF 	SD2400_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD2400_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD2400.sig, 
+			CONVERSION_this				:= SD2400_drv);
+	END_IF
+	
+	(* SD2500 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD2500_drv'), 
+		device_name					:= 'SD2500', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_closing_ls_lower_axis', 
+		channel_b_name				:= 'csp_case_closing_ls_horizontal_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD2500_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD2500_drv);
+		
+	IF 	SD2500_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD2500_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD2500.sig, 
+			CONVERSION_this				:= SD2500_drv);
+	END_IF
+		
+	IF 	SD2500_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD2500_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD2500.sig, 
+			CONVERSION_this				:= SD2500_drv);
+	END_IF
+	
+		
+		(* SD12000 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD12000_drv'), 
+		device_name					:= 'SD12000', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_discharge_speedBelt_os_axis', 
+		channel_b_name				:= 'csp_case_discharge_speedBelt_ls_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD12000_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD12000_drv);
+		
+	IF 	SD12000_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD12000_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD12000.sig, 
+			CONVERSION_this				:= SD12000_drv);
+	END_IF
+		
+	IF 	SD12000_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD12000_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD12000.sig, 
+			CONVERSION_this				:= SD12000_drv);
+	END_IF
+	
+	(* SD8000 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD8000_drv'), 
+		device_name					:= 'SD8000', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_feed_shuttle_horizontal_axis', 
+		channel_b_name				:= 'csp_case_feed_shuttle_vertical_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD8000_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD8000_drv);
+		
+	IF 	SD8000_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8000_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD8000.sig, 
+			CONVERSION_this				:= SD8000_drv);
+	END_IF
+		
+	IF 	SD8000_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8000_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD8000.sig, 
+			CONVERSION_this				:= SD8000_drv);
+	END_IF
+	
+	(* SD8100 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD8100_drv'), 
+		device_name					:= 'SD8100', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_feed_arm_shoulder_axis', 
+		channel_b_name				:= 'csp_case_fc_ls_lower_trailingCloser_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD8100_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD8100_drv);
+		
+	IF 	SD8100_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8100_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD8100.sig, 
+			CONVERSION_this				:= SD8100_drv);
+	END_IF
+		
+	IF 	SD8100_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8100_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD8100.sig, 
+			CONVERSION_this				:= SD8100_drv);
+	END_IF	
+	
+	(* SD8200 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD8200_drv'), 
+		device_name					:= 'SD8200', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_feed_arm_elbow_axis', 
+		channel_b_name				:= 'csp_case_loader_guide_upstream_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD8200_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD8200_drv);
+		
+	IF 	SD8200_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8200_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD8200.sig, 
+			CONVERSION_this				:= SD8200_drv);
+	END_IF
+		
+	IF 	SD8200_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8200_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD8200.sig, 
+			CONVERSION_this				:= SD8200_drv);
+	END_IF	
+	
+	(* SD8300 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD8300_drv'), 
+		device_name					:= 'SD8300', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_feed_arm_wrist_axis', 
+		channel_b_name				:= 'csp_case_loader_guide_downstream_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD8300_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD8300_drv);
+		
+	IF 	SD8300_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8300_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD8300.sig, 
+			CONVERSION_this				:= SD8300_drv);
+	END_IF
+		
+	IF 	SD8300_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8300_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD8300.sig, 
+			CONVERSION_this				:= SD8300_drv);
+	END_IF	
+	
+	(* SD8400 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD8400_drv'), 
+		device_name					:= 'SD8400', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_feed_magazine_os_belt_axis', 
+		channel_b_name				:= 'csp_case_feed_magazine_ls_belt_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD8400_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD8400_drv);
+		
+	IF 	SD8400_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8400_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD8400.sig, 
+			CONVERSION_this				:= SD8400_drv);
+	END_IF
+		
+	IF 	SD8400_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8400_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD8400.sig, 
+			CONVERSION_this				:= SD8400_drv);
+	END_IF	
+	
+	(* SD8500 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD8500_drv'), 
+		device_name					:= 'SD8500', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_loader_pusher_axis', 
+		channel_b_name				:= 'csp_case_loader_guide_length_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD8500_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD8500_drv);
+		
+	IF 	SD8500_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8500_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD8500.sig, 
+			CONVERSION_this				:= SD8500_drv);
+	END_IF
+		
+	IF 	SD8500_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8500_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD8500.sig, 
+			CONVERSION_this				:= SD8500_drv);
+	END_IF	
+	
+	(* SD8600 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD8600_drv'), 
+		device_name					:= 'SD8600', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_feed_reject_belt_upper_axis', 
+		channel_b_name				:= 'csp_case_feed_reject_belt_lower_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD8600_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD8600_drv);
+		
+	IF 	SD8600_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8600_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD8600.sig, 
+			CONVERSION_this				:= SD8600_drv);
+	END_IF
+		
+	IF 	SD8600_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD8600_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD8600.sig, 
+			CONVERSION_this				:= SD8600_drv);
+	END_IF	
+	
+	(* SD10000 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD10000_drv'), 
+		device_name					:= 'SD10000', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_fc_os_upper_spreader_axis', 
+		channel_b_name				:= 'csp_case_fc_os_upper_follower_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD10000_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD10000_drv);
+		
+	IF 	SD10000_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD10000_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD10000.sig, 
+			CONVERSION_this				:= SD10000_drv);
+	END_IF
+		
+	IF 	SD10000_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD10000_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD10000.sig, 
+			CONVERSION_this				:= SD10000_drv);
+	END_IF	
+	
+	(* SD10100 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD10100_drv'), 
+		device_name					:= 'SD10100', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_fc_os_lower_spreader_axis', 
+		channel_b_name				:= 'csp_case_fc_os_lower_follower_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD10100_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD10100_drv);
+		
+	IF 	SD10100_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD10100_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD10100.sig, 
+			CONVERSION_this				:= SD10100_drv);
+	END_IF
+		
+	IF 	SD10100_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD10100_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD10100.sig, 
+			CONVERSION_this				:= SD10100_drv);
+	END_IF	
+	
+	(* SD10200 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD10200_drv'), 
+		device_name					:= 'SD10200', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= '',//'csp_case_fc_os_lower_trailingCloser_axis', 
+		channel_b_name				:= 'csp_case_fc_ls_upper_spreader_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD10200_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD10200_drv);
+		
+	IF 	SD10200_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD10200_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD10200.sig, 
+			CONVERSION_this				:= SD10200_drv);
+	END_IF
+		
+	IF 	SD10200_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD10200_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD10200.sig, 
+			CONVERSION_this				:= SD10200_drv);
+	END_IF
+
+	(* SD10300 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD10300_drv'), 
+		device_name					:= 'SD10300', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_fc_ls_upper_follower_axis', 
+		channel_b_name				:= 'csp_case_fc_ls_upper_leadingMinorCloser_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD10300_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD10300_drv);
+		
+	IF 	SD10300_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD10300_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD10300.sig, 
+			CONVERSION_this				:= SD10300_drv);
+	END_IF
+		
+	IF 	SD10300_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD10300_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD10300.sig, 
+			CONVERSION_this				:= SD10300_drv);
+	END_IF
+	
+	(* SD10400 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD10400_drv'), 
+		device_name					:= 'SD10400', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_fc_ls_lower_spreader_axis', 
+		channel_b_name				:= 'csp_case_fc_ls_lower_follower_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD10400_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD10400_drv);
+		
+	IF 	SD10400_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD10400_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD10400.sig, 
+			CONVERSION_this				:= SD10400_drv);
+	END_IF
+		
+	IF 	SD10400_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD10400_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD10400.sig, 
+			CONVERSION_this				:= SD10400_drv);
+	END_IF
+	
+	(* SD11000 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD11000_drv'), 
+		device_name					:= 'SD11000', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_discharge_reject_belt_axis', 
+		channel_b_name				:= '', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD11000_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD11000_drv);
+		
+	IF 	SD11000_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD11000_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD11000.sig, 
+			CONVERSION_this				:= SD11000_drv);
+	END_IF
+		
+	IF 	SD11000_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD11000_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD11000.sig, 
+			CONVERSION_this				:= SD11000_drv);
+	END_IF
+	
+	(* SD15000 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD15000_drv'), 
+		device_name					:= 'SD15000', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= '', 
+		channel_b_name				:= '', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD15000_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD15000_drv);
+		
+	IF 	SD15000_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD15000_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD15000.sig, 
+			CONVERSION_this				:= SD15000_drv);
+	END_IF
+		
+	IF 	SD15000_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD15000_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD15000.sig, 
+			CONVERSION_this				:= SD15000_drv);
+	END_IF
+	
+	(* SD26000 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD26000_drv'), 
+		device_name					:= 'SD26000', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_tr_squaring_os_leading_axis', 
+		channel_b_name				:= 'csp_case_tr_squaring_os_trailing_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD26000_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD26000_drv);
+		
+	IF 	SD26000_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD26000_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD26000.sig, 
+			CONVERSION_this				:= SD26000_drv);
+	END_IF
+		
+	IF 	SD26000_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD26000_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD26000.sig, 
+			CONVERSION_this				:= SD26000_drv);
+	END_IF
+	
+	(* SD26100 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD26100_drv'), 
+		device_name					:= 'SD26100', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_case_tr_squaring_ls_leading_axis', 
+		channel_b_name				:= 'csp_case_tr_squaring_ls_trailing_axis', 
+		ethercat_master				:= csp_main.cabinet_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD26100_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS2000_ps, 
+		CONVERSION_this				:= SD26100_drv);
+		
+	IF 	SD26100_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD26100_drv_ChA, 
+			group						:= csp_case_main_safety_drives_SD26100.sig, 
+			CONVERSION_this				:= SD26100_drv);
+	END_IF
+		
+	IF 	SD26100_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_case_main_safety_interface._SD26100_drv_ChB, 
+			group						:= csp_case_main_safety_drives_SD26100.sig, 
+			CONVERSION_this				:= SD26100_drv);
+	END_IF
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	power_supply_cycle(PS2000_ps);
+	
+	soe_drive_cycle(SD2100_drv);
+	soe_drive_cycle(SD2200_drv);
+	soe_drive_cycle(SD2300_drv);
+	soe_drive_cycle(SD2400_drv);
+	soe_drive_cycle(SD2500_drv);
+	soe_drive_cycle(SD12000_drv);
+	soe_drive_cycle(SD8000_drv);
+	soe_drive_cycle(SD8100_drv);
+	soe_drive_cycle(SD8200_drv);
+	soe_drive_cycle(SD8300_drv);
+	soe_drive_cycle(SD8400_drv);
+	soe_drive_cycle(SD8500_drv);
+	soe_drive_cycle(SD8600_drv);
+	soe_drive_cycle(SD10000_drv);
+	soe_drive_cycle(SD10100_drv);
+	soe_drive_cycle(SD10200_drv);
+	soe_drive_cycle(SD10300_drv);
+	soe_drive_cycle(SD10400_drv);
+	soe_drive_cycle(SD11000_drv);
+	soe_drive_cycle(SD15000_drv);
+	soe_drive_cycle(SD26000_drv);
+	soe_drive_cycle(SD26100_drv);
+
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{aa133221-405b-42df-b85d-5f478c37a349}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{bbdd8ba1-5d0a-45f8-aba2-e4999c9f4d86}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{2d1f13f1-ffd9-4f33-a8ca-a2bdf8e6ec59}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{edd86851-0c3d-4058-a8f0-085b2cad62aa}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,646 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_interface" Id="{22b8b25c-4191-47ce-8b35-5ae2816cbf3b}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_interface
+VAR
+	prc:								process;
+	prc_path:							STRING;
+	
+	alarm_state:						csp_main_interface_csv_read;
+	alarm_state_next:					csp_main_interface_csv_read;
+	
+	
+	debug_state_machine:				BOOL;
+	debug_state_machine_one_step:		BOOL;
+	
+	
+	first_stop_object_name:				STRING := '';
+	first_stop_object_name_short:		STRING := '';
+	
+	machine_fault_cleared_r_trig:		R_TRIG;
+	
+	new_alarm_rising:					BOOL;
+	new_alarm:							BOOL;
+	
+	alarm_list_filename:				T_MaxString := 'C:\Casepacker_fault_list.csv';
+	
+	timeout:							TIME := T#5S;
+	
+	file_opened:						BOOL;
+	
+	fb_open:							FB_FileOpen;
+	fb_read:							FB_FileGets;
+	fb_close:							FB_FileClose;
+	
+	test_open:							BOOL;
+	test_read:							BOOL;
+	test_close:							BOOL;
+	
+	object_name:						T_MaxString;
+	new_line_count:						INT;
+	
+	stop_object:						ARRAY[0..2] OF T_MaxString;
+	sSeparator:							STRING(1) := ',';
+	i:									INT := 0;
+	char_count:							INT;
+	
+	alarm_found:						BOOL := FALSE;
+	alarm_id_string:					STRING;
+	alarm_id:							INT;
+	
+	alarm_match_length:					INT;
+	
+	eof:								BOOL;
+	
+	stop_0_lower:						T_MaxString;
+	first_stop_lower:					T_MaxString;
+	
+	int_test:							INT;
+	alarm_ID_from_python:				DINT;
+	
+	python_alive:						BOOL;
+	python_alive_flt:					filter;
+	python_parse_running:				BOOL := FALSE;
+	
+	Cartoner_Communication_OK:			BOOL;
+	Cartoner_Faulted:					BOOL;
+	Cartoner_Running:					BOOL;
+	Cartoner_StopRequest:				BOOL;
+	Cartoner_RunOutRequest:				BOOL;
+	Cartoner_Estop:						BOOL;
+	Cartoner_Stop_Request_aem:			message;
+	cartoner_stop_request_delay_tmr:	timer;
+	cartoner_stop_request_delay:		DINT:= 3000;
+	cartoner_stop_bypass_request:		BOOL:= FALSE;
+	communication_time_out_tmr:			timer;
+	communication_failure_nsm:			message;
+	first_scan:							BOOL;
+	open_error_reset_delay: 			TON;
+	open_error_reset: 					BOOL;
+	open_error_PT: 						TIME := T#5S;
+	open_error_done: 					BOOL;
+	
+	downstream_hold_motcond:			motorization_conditioner;
+END_VAR
+
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	first_scan:= TRUE;
+	timer_restart(1000,	communication_time_out_tmr);
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(* Alive bit *)
+IF	Cartoner_Communication_OK = RAJ_To_Cartoner[0].0
+	OR
+	first_scan
+THEN
+	timer_restart(1000,	communication_time_out_tmr);
+END_IF
+
+RAJ_To_Cartoner[0].0	:= NOT Cartoner_Communication_OK;
+
+IF	timer_is_expired(communication_time_out_tmr)
+THEN
+	process_message_set(1, 0, 0, communication_failure_nsm);
+ELSE
+	process_message_reset(communication_failure_nsm);
+END_IF
+
+
+
+//BJS -- Cartoner Communication
+//RAJ_To_Cartoner[0].0		:= TRUE;
+RAJ_To_Cartoner[0].1 		:= NOT machine_is_running(csp.mch) (*AND NOT axis_is_moving(csp_main_motorization_virtualManager.axis) AND NOT message_is_on(csp_case_discharge_reject_sensors.downstream_backup_di_dchk.alarm_asm.message) AND NOT message_is_on(csp_main_interface.Cartoner_Stop_Request_aem)*);
+RAJ_To_Cartoner[0].2 		:= machine_is_running(csp.mch);
+RAJ_To_Cartoner[0].3 		:= axis_is_moving(csp_transfer_infeed_metering_belt.axis) AND csp_transfer_infeed_metering_belt.ok_to_start_temp_infeed_belt AND csp_transfer_infeed.run_infeed_belts_orginal;//NAW added 4_19_23
+RAJ_To_Cartoner[0].4 		:= digital_output_is_active(csp_case_discharge_reject_modsort.MODSORT_FWD_RUN_do);
+RAJ_To_Cartoner[0].5 		:= message_is_on(csp_case_discharge_reject_sensors.downstream_backup_di_dchk.alarm_asm.message) OR message_is_on(csp_main_interface.Cartoner_Stop_Request_aem); // machine is held
+RAJ_To_Cartoner[0].31		:= csp_main.i_csp_data_ref^.Status.RunOutComplete;
+RAJ_To_Cartoner[19]			:= REAL_TO_DINT(machine_get_nominal_velocity(csp.mch));
+
+Cartoner_Communication_OK	:= Cartoner_To_RAJ[0].0;
+Cartoner_Faulted 			:= Cartoner_To_RAJ[0].1;
+Cartoner_Running			:= Cartoner_To_RAJ[0].2;
+Cartoner_StopRequest		:= Cartoner_To_RAJ[0].3;
+Cartoner_Estop				:= Cartoner_To_RAJ[0].4;
+Cartoner_RunOutRequest		:= Cartoner_To_RAJ[0].31;
+
+(*
+IF csp.o_machine_is_stopped OR ( NOT(csp_main_motorization_manager.suspend_conditions) AND timer_is_expired(cartoner_stop_request_delay_tmr))
+	THEN
+		process_message_reset(Cartoner_Stop_Request_aem);
+END_IF
+*)
+IF 	Cartoner_StopRequest 
+	AND NOT cartoner_stop_bypass_request
+	AND NOT csp_case_main_services.dry_cycle_mode
+	AND NOT message_is_on(csp_main_jogmanager.jog_is_active_wem)
+THEN
+	process_message_set(1, 1, 1, Cartoner_Stop_Request_aem);
+	
+	IF	csp_main_motorization_manager.debug_Enable_new_conditioners (* Selector on HMI while still being tested *)
+	THEN
+		motorization_conditioner_hold(downstream_hold_motcond);
+		motorization_conditioner_velocity_limit_activate(downstream_hold_motcond);
+	END_IF
+ELSE
+	process_message_reset(Cartoner_Stop_Request_aem);
+	motorization_conditioner_unhold(downstream_hold_motcond);
+	motorization_conditioner_velocity_limit_deactivate(downstream_hold_motcond);
+END_IF
+
+(* SETS PYTHON ALIVE BACK TO FALSE TO ALLOW FOR PYTHON CODE TO CHANGE AGAIN *)
+IF 	python_alive
+	AND filter_is_on(python_alive_flt)
+THEN
+	python_alive := FALSE;
+END_IF
+
+(* CHANGES TO PARSE BY PYTHON *)
+IF 	filter_is_on(python_alive_flt)
+	AND alarm_state <= 10
+THEN
+	python_parse_running := TRUE;
+END_IF
+
+(* CHANGES TO LOCAL PARSE *)
+IF 	filter_is_off(python_alive_flt)
+	AND alarm_state <= 10
+THEN
+	python_parse_running := FALSE;
+END_IF
+
+(* Resets Identified Alarm ID after machine has been reset or started *)
+IF 	machine_is_ready(csp.mch)
+	OR
+	machine_is_running(csp.mch)
+	AND NOT motorization_manager_is_holding(csp_main_motorization_manager.motm) 
+	AND NOT motorization_manager_is_held(csp_main_motorization_manager.motm) 
+THEN
+	alarm_id := 0;
+END_IF
+
+(* SORTS BETWEEN PYTHON PARSE AND LOCAL PARSE *)
+IF 	python_parse_running
+THEN
+		;
+(* LOCAL PARSE CODE *)
+ELSE
+	
+	machine_fault_cleared_r_trig(CLK := machine_is_ready(csp.mch));
+	
+	IF 	machine_fault_cleared_r_trig.Q
+		AND alarm_state > 10
+	THEN
+		alarm_state_next := 200;
+	END_IF
+	
+	
+	CASE alarm_state OF
+		
+		0: // csv_read_idle
+			IF 	machine_is_ready(csp.mch)
+				OR machine_is_running(csp.mch)
+			THEN
+				first_stop_object_name := '';
+				alarm_id := 0;
+				alarm_state_next := 10;
+			END_IF
+			
+			
+		10: // csv_read_wait_for_alarm
+			IF 	machine_is_stopped(csp.mch)
+				OR machine_is_stop_emergency_active(csp.mch)
+			THEN
+				first_stop_object_name := csp.mch.first_stop_message^.object_name;
+				alarm_state_next := 20;
+			END_IF
+	
+			IF machine_is_running(csp.mch) 
+				AND	csp_main_motorization_manager.Upstream_Wait
+			THEN	
+				alarm_id := (900);
+			END_IF
+			IF machine_is_running(csp.mch) 
+			   AND	csp_main_motorization_manager.Downstream_Wait
+			THEN	
+				alarm_id := (901);
+			END_IF
+				
+			IF machine_is_running(csp.mch) 
+			   AND	downstream_hold_motcond.is_active
+			   AND NOT machine_is_execute(csp.mch)
+			THEN	
+				alarm_id := (902);
+			END_IF
+			
+		20: // csv_read_clear_variables
+			alarm_found := FALSE;
+			object_name := '';
+			alarm_id := 0;
+			stop_object[0] := '';
+			stop_object[1] := '';
+			stop_object[2] := '';
+			eof := FALSE;
+			first_stop_object_name_short := '';
+			alarm_state_next := 30;
+			
+		30: // csv_read_trim_object_name
+			first_stop_object_name_short := LEFT(first_stop_object_name, FIND(first_stop_object_name, '/') - 1);
+		
+			IF 	FIND(first_stop_object_name_short, '._') > 0
+			THEN
+				first_stop_object_name_short := REPLACE(first_stop_object_name_short, '.', 2, FIND(first_stop_object_name_short, '._'));
+			END_IF
+			
+			alarm_state_next := 40;
+			
+		40: // csv_read_open_csv_file
+			test_open := TRUE;
+			
+			IF 	fb_open.bBusy
+			THEN
+				alarm_state_next := 50;
+			END_IF
+			
+		50: // csv_read_verify_open
+			IF 	NOT fb_open.bError
+			THEN
+				test_open := FALSE;
+				alarm_state_next := 60;
+			ELSE
+				;
+			END_IF
+			
+		60: // csv_read_read_csv_file // WILL LOOP HERE TO ITERATE
+			test_read := TRUE;
+			
+			IF 	fb_read.bBusy
+				//OR
+				//fb_read.bExecute
+			THEN
+				alarm_state_next := 70;
+			END_IF
+			
+		70: // csv_read_verify_read
+			IF 	NOT fb_read.bError
+			THEN
+				test_read := FALSE;
+			
+				object_name := '';
+				
+				stop_object[0] := '';
+				stop_object[1] := '';
+				stop_object[2] := '';
+				
+				alarm_state_next := 80;
+			ELSE
+				;
+			END_IF
+			
+		80: // csv_read_parse_csv_stop_data
+			IF object_name = ''
+			THEN
+				i := 0;
+				object_name := CONCAT(fb_read.sLine, ','); // ADDS COMMA FOR EASY PARSING
+			END_IF
+			
+			IF FIND(object_name, '._') > 0
+			THEN
+				REPLACE(object_name, '.', 2, FIND(object_name, '._')); // ELIMINATES ._ THAT IS IN SOME OBJECT NAMES
+			END_IF
+			
+			IF stop_object[0] = ''
+			THEN
+				stop_object[0] := LEFT(object_name, FIND(object_name, sSeparator) - 1);
+				object_name := DELETE(object_name, FIND(object_name, sSeparator) + 1, 0);
+			END_IF
+			
+			IF 	stop_object[0] <> ''
+				AND stop_object[1] = ''
+			THEN
+				stop_object[1] := LEFT(object_name, FIND(object_name, sSeparator) - 1);
+				object_name := DELETE(object_name, FIND(object_name, sSeparator) + 1, 0);
+			END_IF
+			
+			IF 	stop_object[0] <> ''
+				AND stop_object[1] <> ''
+				AND stop_object[2] = ''
+			THEN
+				stop_object[2] := LEFT(object_name, FIND(object_name, sSeparator) - 2);
+			END_IF
+			
+			
+			IF 	LEFT(stop_object[0], 1) <> '.'
+			THEN
+					;//stop_object[0] := CONCAT('.', stop_object[0]);
+			END_IF
+			
+			IF stop_object[0] <> ''
+				//AND LEFT(stop_object[0], 1) = '.'
+				AND stop_object[1] <> ''
+				AND stop_object[2] <> ''
+			THEN
+				//stop_object[2] := LEFT(stop_object[2], LEN(stop_object[2]) - 2);
+				alarm_state_next := 90;
+			END_IF
+			
+			
+		90: // csv_read_compare_stop
+			stop_0_lower := F_ToLCase(stop_object[0]);
+			first_stop_lower := F_ToLCase(first_stop_object_name_short);
+			
+			IF 	FIND(stop_0_lower, first_stop_lower) > 0
+			THEN
+				alarm_state_next := 100;
+			ELSE
+				alarm_state_next := 60;
+			END_IF
+			
+		100: // csv_read_alarm_found
+			alarm_id_string := stop_object[2];
+			alarm_id := STRING_TO_INT(alarm_id_string);
+			
+			alarm_found := TRUE;
+			
+			alarm_state_next := 200;
+			
+			
+		200: // csv_read_close_csv_file
+			test_close := TRUE;
+			
+			IF 	fb_close.bBusy
+			THEN
+				alarm_state_next := 210;
+			END_IF
+			
+		210: // csv_read_close_csv_file_verify
+			IF 	NOT fb_close.bError
+			THEN
+				test_close := FALSE;
+					
+				alarm_state_next := 0;
+			END_IF
+	
+	END_CASE
+	
+	
+	IF 	NOT debug_state_machine
+		OR
+		debug_state_machine_one_step
+	THEN
+		alarm_state := alarm_state_next;
+		debug_state_machine_one_step := FALSE;
+	END_IF
+	
+
+END_IF
+
+
+
+(* Function blocks handle opening, reading, and closing the csv file to obtain alarm ID*)
+fb_open(
+	sNetId		:= '',
+	sPathName	:= alarm_list_filename,
+	nMode		:= FOPEN_MODEREAD,
+	ePath		:= ,
+	bExecute	:= test_open,
+	tTimeout	:= timeout);
+
+	
+fb_close(
+	sNetId		:= '',
+	hFile		:= fb_open.hFile,
+	bExecute	:= test_close,
+	tTimeout	:= timeout);
+
+fb_read(
+	sNetId		:= '',
+	hFile		:= fb_open.hFile,
+	bExecute	:= test_read,
+	tTimeout	:= timeout);
+
+IF fb_close.bError
+THEN
+	test_close := FALSE;
+	alarm_state_next := 0;
+END_IF
+
+IF fb_open.bError
+THEN
+	test_open := FALSE;
+	alarm_state_next := 0;
+END_IF
+
+IF fb_read.bError
+THEN
+	test_read := FALSE;
+	alarm_state_next := 0;
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{de242aa0-4202-4446-b5d5-796fb3f10e06}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{bdc635fd-742c-42e9-83e6-a9608e2d0e6e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{d0164420-6c3b-4fad-9ca2-74ddd6dd6a41}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{a2991d84-9191-4d5b-93b3-f7d0b3f307d4}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_main_interface.prc', 
+		process						:= csp_main.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	filter_init(
+		object_name					:= CONCAT(prc_path, '_python_alive_flt'), 
+		delay_off_on				:= 2000,
+		delay_on_off				:= 2000,
+		process						:= csp_main.prc, 
+		CONVERSION_this				:= python_alive_flt);
+		
+		
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_Cartoner_Stop_Request_aem'),
+		behaviour:= MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout:= 0,
+		disableable:= FALSE,
+		individual_reset:= FALSE,
+		machine_reaction:= MACHINE_REACTION_NO_STOP,
+		typology:= MESSAGE_TYPOLOGY_OBLIGATION,
+		process:= prc,
+		CONVERSION_this:= Cartoner_Stop_Request_aem);
+	
+	timer_init(
+		object_name					:=	CONCAT(prc_path, '_communication_time_out_tmr'),
+		process						:=	prc,
+		CONVERSION_this				:=	communication_time_out_tmr);
+	
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_communication_failure_nsm'),
+		behaviour					:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NO_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_NORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	communication_failure_nsm);
+		
+	timer_init(
+		object_name					:=	CONCAT(prc_path, '_cartoner_stop_request_delay_tmr'),
+		process						:=	prc,
+		CONVERSION_this				:=	cartoner_stop_request_delay_tmr);
+	
+	motorization_conditioner_init(
+		object_name := CONCAT(prc_path, '_downstream_hold_motcond'),
+		velocity_limit := 0,
+		velocity_limit_active := FALSE,
+		idle_handshake_active := FALSE,
+		execute_handshake_active := FALSE,
+		hold_handshake_active := FALSE,
+		suspend_handshake_active := FALSE,
+		complete_handshake_active := FALSE,
+		abort_handshake_active := FALSE,
+		stop_handshake_active := FALSE,
+		origin := MOTORIZATION_CONDITIONER_ORIGIN_EXTERNAL_DOWN,
+		manager := csp_main_motorization_manager.motm,
+		process := prc,
+		CONVERSION_this := downstream_hold_motcond);
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	motorization_conditioner_cycle(downstream_hold_motcond);
+
+	filter_cycle(python_alive, python_alive_flt);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{7c587ae7-56d8-4594-a79e-5f76fae8982b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{5310d14f-8e0f-444d-b449-857f6901c572}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{ad17992d-cb65-42a6-9223-343c1bed9347}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{c3b3c20e-5b54-41e5-98c7-e03d08000648}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_main_interface">
+      <LineId Id="461" Count="379" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_interface._handle_messages">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_interface._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_interface._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_interface._object_manager">
+      <LineId Id="2" Count="72" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_interface._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_interface._read_var_input">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_interface._set_runtime_properties">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_main_interface._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

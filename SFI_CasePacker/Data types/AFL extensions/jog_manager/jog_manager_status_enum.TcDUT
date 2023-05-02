@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="jog_manager_status_enum" Id="{442bdff9-4704-41b8-908e-c8d0076772c0}">
+    <Declaration><![CDATA[(*$ jog_manager status $*)
+TYPE
+	jog_manager_status_enum: (
+	JOG_MANAGER_STATUS_INIT						:= 0,	(*$ jog_manager initialization $*)
+	JOG_MANAGER_STATUS_IDLE						:= 1,	(*$ jog_manager idle status $*)
+	JOG_MANAGER_STATUS_READY					:= 2,	(*$ jog_manager ready to select jog mode $*)
+	JOG_MANAGER_STATUS_ACTIVE					:= 3,	(*$ jog_manager jog mode active $*)
+	JOG_MANAGER_STATUS_SEL_DISABLE_AXIS			:= 10,	(*$ jog_manager disable selected axis $*)
+	JOG_MANAGER_STATUS_OLD_DISABLE_AXIS			:= 11,	(*$ jog_manager disable previous axis $*)
+	JOG_MANAGER_STATUS_SEL_ENABLE_AXIS			:= 20,	(*$ jog_manager enable selected axis $*)
+	JOG_MANAGER_STATUS_SEL_ENABLED_AXIS			:= 21,	(*$ jog_manager enabled selected axis $*)
+	JOG_MANAGER_STATUS_LINEAR_JOG_POSITIVE		:= 31,	(*$ jog_manager jog+ linear $*)
+	JOG_MANAGER_STATUS_LINEAR_JOG_NEGATIVE		:= 32,	(*$ jog_manager jog- linear $*)
+	JOG_MANAGER_STATUS_ROTATIVE_JOG_POSITIVE	:= 33,	(*$ jog_manager jog+ rotative $*)
+	JOG_MANAGER_STATUS_ROTATIVE_JOG_NEGATIVE	:= 34,	(*$ jog_manager jog+ rotative $*)
+	JOG_MANAGER_STATUS_ABSOLUTE_STARTING		:= 40,	(*$ jog_manager jog absolute starting $*)
+	JOG_MANAGER_STATUS_ABSOLUTE_MOVING			:= 41,	(*$ jog_manager jog absolute moving $*)
+	JOG_MANAGER_STATUS_STOP_ABSOLUTE_MOVING		:= 42,	(*$ jog_manager stop absolute moving $*)
+	JOG_MANAGER_STATUS_STOPPING					:= 50	(*$ jog_manager stopping $*)
+	) := JOG_MANAGER_STATUS_INIT;
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,1038 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="jog_manager_cycle" Id="{ea60c420-fc94-4d0e-9f0c-3de95035abc2}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Handles the state machine of the object, has to be called once per task cycle <br/>
+	<p>
+	Against certain errors the cpu can be stopped at the first cycle of the caller task, <br/> 
+	in this case the cause can be inspected in the global struct <i>framework.abort_error</i>: <br/>
+	<br/>	
+$*)
+FUNCTION jog_manager_cycle : VOID
+VAR_IN_OUT
+    CONVERSION_this:	jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR
+VAR 
+	i:					UINT;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF 	NOT CONVERSION_this.CONVERSION_private.cycle_is_active
+THEN
+	descriptor_set_task_id(CONVERSION_this.descriptor);
+
+	IF 	jog_manager_is_not_initialized(CONVERSION_this)
+	THEN
+		framework_object_not_initialized_get_name(
+			object_address := ADR(CONVERSION_this),
+			object_size := SIZEOF(CONVERSION_this),
+			abort := TRUE,
+			error_str_1 := 'object not initialized',
+			error_str_2 := ''
+		);
+	    RETURN;
+	END_IF
+
+	CONVERSION_this.CONVERSION_private.cycle_is_active := TRUE;
+END_IF
+
+IF 	descriptor_mode_req_is_pending(CONVERSION_this.descriptor) 
+THEN
+    jog_manager_change_mode(CONVERSION_this);
+END_IF
+
+command_button_cycle(CONVERSION_this.hmi_jog_positive_cbtn);
+command_button_cycle(CONVERSION_this.hmi_jog_negative_cbtn);
+command_button_cycle(CONVERSION_this.hmi_jog_absolute_cbtn);
+
+CASE descriptor_get_mode(CONVERSION_this.descriptor) OF
+	MODE_ABSENT:
+		RETURN;
+
+	MODE_TO_INACTIVE:
+		;		(*$FIXME: To inactive mode strategy to handle. $*)
+
+	MODE_INACTIVE:
+		;		(*$FIXME: Inactive mode to handle. $*)
+
+	MODE_TEST:
+		CONVERSION_this.command := jog_manager_test_command_handler(CONVERSION_this);
+
+	MODE_OPERATIONAL:
+		CONVERSION_this.command := CONVERSION_this.operational_command;
+
+END_CASE;
+
+jog_manager_read_inputs(CONVERSION_this);
+jog_manager_submit_command(CONVERSION_this);
+
+(*Selection validation*)
+CONVERSION_this.CONVERSION_private.old_list_selected_is_valid :=
+	(CONVERSION_this.CONVERSION_private.old_list_selected > JOG_MANAGER_JOG_LIST_NONE)
+	AND
+	(CONVERSION_this.CONVERSION_private.old_list_selected <= JOG_MANAGER_JOG_LIST_MAX);
+IF	CONVERSION_this.CONVERSION_private.old_list_selected_is_valid
+THEN	
+	CONVERSION_this.CONVERSION_private.old_list_selected_axis_is_valid := CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.old_list_selected].axis <> G_framework.NULL;
+ELSE
+	CONVERSION_this.CONVERSION_private.old_list_selected_axis_is_valid := FALSE;
+END_IF
+IF 	CONVERSION_this.CONVERSION_private.update_parameters > 0
+THEN
+	CONVERSION_this.CONVERSION_private.update_parameters := CONVERSION_this.CONVERSION_private.update_parameters + 1;
+END_IF
+	
+(*Old selection validation*)
+CONVERSION_this.CONVERSION_private.list_selected_is_valid :=
+	(CONVERSION_this.CONVERSION_private.list_selected > JOG_MANAGER_JOG_LIST_NONE)
+	AND
+	(CONVERSION_this.CONVERSION_private.list_selected <= JOG_MANAGER_JOG_LIST_MAX);
+IF	CONVERSION_this.CONVERSION_private.list_selected_is_valid
+THEN
+	CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid := CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis <> G_framework.NULL;
+ELSE
+	CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid := FALSE;
+END_IF
+ 
+(*SW limit and jog direction management*)
+IF 	CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+THEN		
+	CONVERSION_this.CONVERSION_private.sw_limit_active :=
+		(axis_get_modulo(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^) = 0.0)
+		AND
+		(
+			(ABS(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_negative) > 0.0)
+			OR
+			(ABS(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_positive) > 0.0)
+		);
+
+	CONVERSION_this.CONVERSION_private.axis_is_linear := 
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR)
+		OR
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR_PLUS)
+		OR
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR_MINUS);
+		
+	CONVERSION_this.CONVERSION_private.axis_is_rotative := 
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE)
+		OR
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE_PLUS)
+		OR
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE_MINUS);
+		
+	CONVERSION_this.CONVERSION_private.jog_positive_enable :=
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR)
+		OR
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR_PLUS)
+		OR	
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE)
+		OR
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE_PLUS);	
+	
+	CONVERSION_this.CONVERSION_private.jog_negative_enable :=
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR)
+		OR
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR_MINUS)
+		OR	
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE)
+		OR
+		(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE_MINUS);	
+		
+	CONVERSION_this.CONVERSION_private.sw_limit_active_positive :=
+		CONVERSION_this.CONVERSION_private.sw_limit_active
+		AND
+		CONVERSION_this.enable_sw_limit
+		AND
+		(
+			(
+				CONVERSION_this.CONVERSION_private.axis_is_linear
+				AND
+				(CONVERSION_this.axis_act_position_linear >= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_positive)
+			)
+			OR
+			(
+				CONVERSION_this.CONVERSION_private.axis_is_rotative
+				AND
+				(CONVERSION_this.axis_act_position_rotative >= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_positive)
+			)
+		);
+		
+	CONVERSION_this.CONVERSION_private.sw_limit_active_negative :=
+		CONVERSION_this.CONVERSION_private.sw_limit_active
+		AND
+		CONVERSION_this.enable_sw_limit
+		AND
+		(
+			(
+				CONVERSION_this.CONVERSION_private.axis_is_linear
+				AND
+				(CONVERSION_this.axis_act_position_linear <= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_negative)
+			)
+			OR
+			(
+				CONVERSION_this.CONVERSION_private.axis_is_rotative
+				AND
+				(CONVERSION_this.axis_act_position_rotative <= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_negative)
+			)
+		);			
+ELSE
+	CONVERSION_this.CONVERSION_private.sw_limit_active := FALSE;
+	CONVERSION_this.CONVERSION_private.axis_is_linear := FALSE;
+	CONVERSION_this.CONVERSION_private.axis_is_rotative := FALSE;
+END_IF
+	
+(*Transition states*)
+CASE CONVERSION_this.status OF
+	
+	JOG_MANAGER_STATUS_INIT:
+		parameter_overwrite_set_bool_value(FALSE, CONVERSION_this.jog_active_pow);
+		parameter_overwrite_set_bool_value(FALSE, CONVERSION_this.pendant_active_pow);
+		CONVERSION_this.CONVERSION_private.update_parameters := 0;		
+    	CONVERSION_this.status := JOG_MANAGER_STATUS_IDLE;
+
+    JOG_MANAGER_STATUS_IDLE:
+		;
+		
+    JOG_MANAGER_STATUS_READY:
+        IF	CONVERSION_this.jog_active
+		THEN		
+			FOR i := 1 TO CONVERSION_this.parents_next_free-1 DO
+				IF	CONVERSION_this.parents[i]^.jog_active
+				THEN
+					parameter_overwrite_set_bool_value(FALSE, CONVERSION_this.parents[i]^.jog_active_pow);
+				END_IF	
+			END_FOR
+			CONVERSION_this.CONVERSION_private.old_list_selected := JOG_MANAGER_JOG_LIST_NONE;			
+			CONVERSION_this.status := JOG_MANAGER_STATUS_ACTIVE;
+		END_IF
+    
+	JOG_MANAGER_STATUS_ACTIVE:
+        IF	NOT CONVERSION_this.jog_active
+		THEN
+			IF	CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid					 
+			THEN
+				IF	axis_is_disabled(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)
+				THEN
+					CONVERSION_this.status := JOG_MANAGER_STATUS_READY;
+				ELSE					
+					CONVERSION_this.status := JOG_MANAGER_STATUS_SEL_DISABLE_AXIS;										
+				END_IF
+			ELSE
+				CONVERSION_this.status := JOG_MANAGER_STATUS_READY;
+			END_IF
+		END_IF
+		
+		IF 	CONVERSION_this.CONVERSION_private.list_selected <> CONVERSION_this.CONVERSION_private.old_list_selected
+		THEN					
+			CONVERSION_this.CONVERSION_private.update_parameters := 1;							
+			IF	CONVERSION_this.CONVERSION_private.old_list_selected_axis_is_valid					 
+			THEN								
+				CONVERSION_this.status := JOG_MANAGER_STATUS_OLD_DISABLE_AXIS;	
+			ELSE
+				CONVERSION_this.CONVERSION_private.old_list_selected := CONVERSION_this.CONVERSION_private.list_selected;							
+			END_IF				
+		ELSIF CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+		THEN
+			IF 	axis_is_disabled(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)
+				AND
+				axis_is_ok(FALSE, CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)
+				AND
+				(
+					NOT CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].master_axis
+					OR
+					CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].all_slave_axis_engaged
+				)
+			THEN
+				CONVERSION_this.status := JOG_MANAGER_STATUS_SEL_ENABLE_AXIS;
+			END_IF
+		END_IF
+    
+	JOG_MANAGER_STATUS_SEL_DISABLE_AXIS:
+		axis_disable(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+		IF	axis_is_disabled(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)
+		THEN									
+			CONVERSION_this.status := JOG_MANAGER_STATUS_READY;			
+		END_IF
+		
+	JOG_MANAGER_STATUS_OLD_DISABLE_AXIS:
+		axis_disable(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.old_list_selected].axis^);
+		IF	axis_is_disabled(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.old_list_selected].axis^)
+		THEN	
+			CONVERSION_this.CONVERSION_private.old_list_selected := CONVERSION_this.CONVERSION_private.list_selected;		
+			CONVERSION_this.status := JOG_MANAGER_STATUS_ACTIVE;			
+		END_IF
+	
+	JOG_MANAGER_STATUS_SEL_ENABLE_AXIS:
+		axis_enable(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+		IF	axis_is_standstill(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)
+		THEN						
+			CONVERSION_this.status := JOG_MANAGER_STATUS_SEL_ENABLED_AXIS;			
+		END_IF
+		
+	JOG_MANAGER_STATUS_SEL_ENABLED_AXIS:
+		IF	NOT CONVERSION_this.jog_active
+			OR
+			(CONVERSION_this.CONVERSION_private.list_selected <> CONVERSION_this.CONVERSION_private.old_list_selected)
+		THEN
+			CONVERSION_this.status := JOG_MANAGER_STATUS_ACTIVE;
+		END_IF
+		
+		(*Jog positive linear*)
+		IF 	(
+				command_button_is_pressed(CONVERSION_this.hmi_jog_positive_cbtn)
+				OR
+				(
+					CONVERSION_this.has_pendant
+					AND
+					CONVERSION_this.pendant_active
+					AND
+					CONVERSION_this.CONVERSION_private.jog_positive_enable
+					AND
+					NOT CONVERSION_this.CONVERSION_private.sw_limit_active_positive
+					AND
+					CONVERSION_this.CONVERSION_private.jog_pendant_positive
+				)
+				OR
+				(
+					(CONVERSION_this.has_shared_pendant <> G_framework.NULL)
+					AND
+					CONVERSION_this.shared_pendant_active 
+					AND
+					CONVERSION_this.CONVERSION_private.jog_positive_enable
+					AND
+					NOT CONVERSION_this.CONVERSION_private.sw_limit_active_positive
+					AND
+					CONVERSION_this.CONVERSION_private.jog_pendant_positive
+				)
+			)
+			AND 
+			(
+				(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR)
+				OR
+				(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR_PLUS)				
+			) 
+			AND
+			(CONVERSION_this.axis_speed_linear > 0.0)
+		THEN
+			axis_move_velocity(
+				velocity			:= MIN(CONVERSION_this.axis_speed_linear, CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_velocity),
+				acceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_acceleration/csp_main_jogManager.AccDec_divider,
+				deceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_deceleration/csp_main_jogManager.AccDec_divider,
+				jerk				:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_jerk/csp_main_jogManager.AccDec_divider,
+				buffer_mode			:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+			CONVERSION_this.status := JOG_MANAGER_STATUS_LINEAR_JOG_POSITIVE;
+		END_IF
+		
+		(*Jog negative linear*)
+		IF	(
+				command_button_is_pressed(CONVERSION_this.hmi_jog_negative_cbtn)
+				OR
+				(
+					CONVERSION_this.has_pendant
+					AND
+					CONVERSION_this.pendant_active
+					AND
+					CONVERSION_this.CONVERSION_private.jog_negative_enable
+					AND
+					NOT CONVERSION_this.CONVERSION_private.sw_limit_active_negative
+					AND
+					CONVERSION_this.CONVERSION_private.jog_pendant_negative
+				)
+				OR
+				(
+					(CONVERSION_this.has_shared_pendant <> G_framework.NULL)
+					AND
+					CONVERSION_this.shared_pendant_active
+					AND
+					CONVERSION_this.CONVERSION_private.jog_negative_enable
+					AND
+					NOT CONVERSION_this.CONVERSION_private.sw_limit_active_negative
+					AND
+					CONVERSION_this.CONVERSION_private.jog_pendant_negative
+				)
+			)
+			AND 
+			(
+				(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR)
+				OR
+				(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR_MINUS)				
+			) 
+			AND
+			(CONVERSION_this.axis_speed_linear > 0.0)
+		THEN
+			axis_move_velocity(
+				velocity			:= MAX(-CONVERSION_this.axis_speed_linear, -CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_velocity),
+				acceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_acceleration/csp_main_jogManager.AccDec_divider,
+				deceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_deceleration/csp_main_jogManager.AccDec_divider,
+				jerk				:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_jerk/csp_main_jogManager.AccDec_divider,
+				buffer_mode			:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+			CONVERSION_this.status := JOG_MANAGER_STATUS_LINEAR_JOG_NEGATIVE;
+		END_IF
+		
+		(*Jog positive rotative*)
+		IF 	(
+				command_button_is_pressed(CONVERSION_this.hmi_jog_positive_cbtn)
+				OR
+				(
+					CONVERSION_this.has_pendant
+					AND
+					CONVERSION_this.pendant_active
+					AND
+					CONVERSION_this.CONVERSION_private.jog_positive_enable
+					AND
+					NOT CONVERSION_this.CONVERSION_private.sw_limit_active_positive
+					AND
+					CONVERSION_this.CONVERSION_private.jog_pendant_positive
+				)
+				OR
+				(
+					(CONVERSION_this.has_shared_pendant <> G_framework.NULL)
+					AND
+					CONVERSION_this.shared_pendant_active
+					AND
+					CONVERSION_this.CONVERSION_private.jog_positive_enable 
+					AND
+					NOT CONVERSION_this.CONVERSION_private.sw_limit_active_positive
+					AND
+					CONVERSION_this.CONVERSION_private.jog_pendant_positive
+				)
+			)
+			AND 
+			(
+				(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE)
+				OR
+				(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE_PLUS)				
+			) 
+			AND
+			(CONVERSION_this.axis_speed_rotative > 0.0)
+		THEN
+			axis_move_velocity(
+				velocity			:= MIN(CONVERSION_this.axis_speed_rotative, CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_velocity),
+				acceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_acceleration/csp_main_jogManager.AccDec_divider,
+				deceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_deceleration/csp_main_jogManager.AccDec_divider,
+				jerk				:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_jerk/csp_main_jogManager.AccDec_divider,
+				buffer_mode			:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+			CONVERSION_this.status := JOG_MANAGER_STATUS_ROTATIVE_JOG_POSITIVE;
+		END_IF
+		
+		(*Jog negative rotative*)
+		IF 	(
+				command_button_is_pressed(CONVERSION_this.hmi_jog_negative_cbtn)
+				OR
+				(
+					CONVERSION_this.has_pendant
+					AND
+					CONVERSION_this.pendant_active
+					AND
+					CONVERSION_this.CONVERSION_private.jog_negative_enable
+					AND
+					NOT CONVERSION_this.CONVERSION_private.sw_limit_active_negative
+					AND
+					CONVERSION_this.CONVERSION_private.jog_pendant_negative
+				)
+				OR
+				(
+					(CONVERSION_this.has_shared_pendant <> G_framework.NULL)
+					AND
+					CONVERSION_this.shared_pendant_active
+					AND
+					CONVERSION_this.CONVERSION_private.jog_negative_enable
+					AND
+					NOT CONVERSION_this.CONVERSION_private.sw_limit_active_negative
+					AND
+					CONVERSION_this.CONVERSION_private.jog_pendant_negative
+				)
+			)
+			AND 
+			(
+				(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE)
+				OR
+				(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE_MINUS)				
+			) 
+			AND
+			(CONVERSION_this.axis_speed_rotative > 0.0)
+		THEN
+			axis_move_velocity(
+				velocity			:= MAX(-CONVERSION_this.axis_speed_rotative, -CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_velocity),
+				acceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_acceleration/csp_main_jogManager.AccDec_divider,
+				deceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_deceleration/csp_main_jogManager.AccDec_divider,
+				jerk				:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_jerk/csp_main_jogManager.AccDec_divider,
+				buffer_mode			:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+			CONVERSION_this.status := JOG_MANAGER_STATUS_ROTATIVE_JOG_NEGATIVE;
+		END_IF
+		
+		(*Jog absolute linear*)
+		IF 	command_button_is_pressed(CONVERSION_this.hmi_jog_absolute_cbtn)			
+			AND 
+			CONVERSION_this.CONVERSION_private.axis_is_linear
+			AND
+			(CONVERSION_this.axis_speed_linear > 0.0)
+		THEN
+			IF	axis_get_modulo(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^) > 0.0
+			THEN
+				IF (CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR_PLUS)
+				THEN				
+					CONVERSION_this.CONVERSION_private.axis_absolute_moving_direction := AXIS_POSITIVE_DIRECTION;
+				ELSIF (CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_LINEAR_MINUS)
+				THEN
+					CONVERSION_this.CONVERSION_private.axis_absolute_moving_direction := AXIS_NEGATIVE_DIRECTION;				
+				ELSE
+					CONVERSION_this.CONVERSION_private.axis_absolute_moving_direction := AXIS_SHORTEST_WAY;
+				END_IF
+			ELSE
+				CONVERSION_this.CONVERSION_private.axis_absolute_moving_direction := AXIS_CURRENT_DIRECTION;
+			END_IF
+			
+			axis_move_absolute(
+				position 			:= CONVERSION_this.axis_cmd_position_linear,
+				velocity			:= MIN(CONVERSION_this.axis_speed_linear, CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_velocity),
+				direction			:= CONVERSION_this.CONVERSION_private.axis_absolute_moving_direction,
+				acceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_acceleration/csp_main_jogManager.AccDec_divider,
+				deceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_deceleration/csp_main_jogManager.AccDec_divider,
+				jerk				:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_jerk/csp_main_jogManager.AccDec_divider,
+				buffer_mode			:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+			CONVERSION_this.status := JOG_MANAGER_STATUS_ABSOLUTE_STARTING;
+		END_IF
+		
+		(*Jog absolute rotative*)
+		IF 	command_button_is_pressed(CONVERSION_this.hmi_jog_absolute_cbtn)			
+			AND 
+			CONVERSION_this.CONVERSION_private.axis_is_rotative
+			AND
+			(CONVERSION_this.axis_speed_rotative > 0.0)
+		THEN
+			IF	axis_get_modulo(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^) > 0.0
+			THEN
+				IF (CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE_PLUS)
+				THEN				
+					CONVERSION_this.CONVERSION_private.axis_absolute_moving_direction := AXIS_POSITIVE_DIRECTION;
+				ELSIF (CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].jog_type = JOG_TYPE_ROTATIVE_MINUS)
+				THEN
+					CONVERSION_this.CONVERSION_private.axis_absolute_moving_direction := AXIS_NEGATIVE_DIRECTION;				
+				ELSE
+					CONVERSION_this.CONVERSION_private.axis_absolute_moving_direction := AXIS_SHORTEST_WAY;
+				END_IF
+			ELSE
+				CONVERSION_this.CONVERSION_private.axis_absolute_moving_direction := AXIS_CURRENT_DIRECTION;
+			END_IF
+			
+			axis_move_absolute(
+				position 			:= CONVERSION_this.axis_cmd_position_rotative,
+				velocity			:= MIN(CONVERSION_this.axis_speed_rotative, CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_velocity),
+				direction			:= CONVERSION_this.CONVERSION_private.axis_absolute_moving_direction,
+				acceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_acceleration/csp_main_jogManager.AccDec_divider,
+				deceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_deceleration/csp_main_jogManager.AccDec_divider,
+				jerk				:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_jerk/csp_main_jogManager.AccDec_divider,
+				buffer_mode			:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+			CONVERSION_this.status := JOG_MANAGER_STATUS_ABSOLUTE_STARTING;
+		END_IF
+		
+		JOG_MANAGER_STATUS_LINEAR_JOG_POSITIVE:
+			IF	(
+					NOT command_button_is_pressed(CONVERSION_this.hmi_jog_positive_cbtn)
+					AND
+					(
+						NOT CONVERSION_this.CONVERSION_private.jog_pendant_positive
+						OR
+						(
+							NOT CONVERSION_this.pendant_active
+							AND
+							NOT CONVERSION_this.shared_pendant_active
+						)
+					)
+				)	
+				OR
+				(
+					CONVERSION_this.CONVERSION_private.sw_limit_active
+					AND
+					CONVERSION_this.enable_sw_limit
+					AND
+					CONVERSION_this.axis_act_position_linear >= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_positive
+				)
+			THEN
+				axis_stop(
+					deceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_deceleration/csp_main_jogManager.AccDec_divider,
+					jerk				:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_jerk/csp_main_jogManager.AccDec_divider,
+					CONVERSION_this		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+				CONVERSION_this.status := JOG_MANAGER_STATUS_STOPPING;
+			END_IF
+			
+			IF 	NOT axis_is_ok(FALSE, CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)
+			THEN
+				axis_disable(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+				CONVERSION_this.status := JOG_MANAGER_STATUS_ACTIVE;
+			END_IF
+		
+		JOG_MANAGER_STATUS_LINEAR_JOG_NEGATIVE:
+			IF	(
+					NOT command_button_is_pressed(CONVERSION_this.hmi_jog_negative_cbtn)
+					AND
+					(
+						NOT CONVERSION_this.CONVERSION_private.jog_pendant_negative
+						OR
+						(
+							NOT CONVERSION_this.pendant_active
+							AND
+							NOT CONVERSION_this.shared_pendant_active
+						)
+					)
+				)
+				OR
+				(
+					CONVERSION_this.CONVERSION_private.sw_limit_active
+					AND
+					CONVERSION_this.enable_sw_limit
+					AND
+					CONVERSION_this.axis_act_position_linear <= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_negative
+				)
+			THEN
+				axis_stop(
+					deceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_deceleration/csp_main_jogManager.AccDec_divider,
+					jerk				:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_jerk/csp_main_jogManager.AccDec_divider,
+					CONVERSION_this		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+				CONVERSION_this.status := JOG_MANAGER_STATUS_STOPPING;
+			END_IF
+			
+			IF 	NOT axis_is_ok(FALSE, CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)
+			THEN
+				axis_disable(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+				CONVERSION_this.status := JOG_MANAGER_STATUS_ACTIVE;
+			END_IF
+			
+		JOG_MANAGER_STATUS_ROTATIVE_JOG_POSITIVE:
+			IF	(
+					NOT command_button_is_pressed(CONVERSION_this.hmi_jog_positive_cbtn)
+					AND
+					(
+						NOT CONVERSION_this.CONVERSION_private.jog_pendant_positive
+						OR
+						(
+							NOT CONVERSION_this.pendant_active
+							AND
+							NOT CONVERSION_this.shared_pendant_active
+						)
+					)
+				)
+				OR
+				(
+					CONVERSION_this.CONVERSION_private.sw_limit_active
+					AND
+					CONVERSION_this.enable_sw_limit
+					AND
+					CONVERSION_this.axis_act_position_rotative >= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_positive
+				)
+			THEN
+				axis_stop(
+					deceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_deceleration/csp_main_jogManager.AccDec_divider,
+					jerk				:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_jerk/csp_main_jogManager.AccDec_divider,
+					CONVERSION_this		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+				CONVERSION_this.status := JOG_MANAGER_STATUS_STOPPING;
+			END_IF
+			
+			IF 	NOT axis_is_ok(FALSE, CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)
+			THEN
+				axis_disable(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+				CONVERSION_this.status := JOG_MANAGER_STATUS_ACTIVE;
+			END_IF
+		
+		JOG_MANAGER_STATUS_ROTATIVE_JOG_NEGATIVE:
+			IF	(
+					NOT command_button_is_pressed(CONVERSION_this.hmi_jog_negative_cbtn)
+					AND
+					(
+						NOT CONVERSION_this.CONVERSION_private.jog_pendant_negative
+						OR
+						(
+							NOT CONVERSION_this.pendant_active
+							AND
+							NOT CONVERSION_this.shared_pendant_active
+						)
+					)
+				)
+				OR
+				(
+					CONVERSION_this.CONVERSION_private.sw_limit_active
+					AND
+					CONVERSION_this.enable_sw_limit
+					AND
+					CONVERSION_this.axis_act_position_rotative <= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_negative
+				)
+			THEN
+				axis_stop(
+					deceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_deceleration/csp_main_jogManager.AccDec_divider,
+					jerk				:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_jerk/csp_main_jogManager.AccDec_divider,
+					CONVERSION_this		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+				CONVERSION_this.status := JOG_MANAGER_STATUS_STOPPING;
+			END_IF
+			
+			IF 	NOT axis_is_ok(FALSE, CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)
+			THEN
+				axis_disable(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+				CONVERSION_this.status := JOG_MANAGER_STATUS_ACTIVE;
+			END_IF
+			
+		JOG_MANAGER_STATUS_ABSOLUTE_STARTING:
+			IF 	axis_is_absolute_moving(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)	
+			THEN
+				CONVERSION_this.status := JOG_MANAGER_STATUS_ABSOLUTE_MOVING;
+			END_IF
+			
+		JOG_MANAGER_STATUS_ABSOLUTE_MOVING,
+		JOG_MANAGER_STATUS_STOPPING:
+			IF	axis_is_standstill(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)
+			THEN
+				CONVERSION_this.status := JOG_MANAGER_STATUS_SEL_ENABLED_AXIS;
+			END_IF
+			
+			IF 	NOT axis_is_ok(FALSE, CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)
+				OR
+				axis_is_disabled( CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^)
+			THEN
+				axis_disable(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+				CONVERSION_this.status := JOG_MANAGER_STATUS_ACTIVE;
+			END_IF
+			
+		JOG_MANAGER_STATUS_STOP_ABSOLUTE_MOVING:
+			axis_stop(
+				deceleration		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_deceleration/csp_main_jogManager.AccDec_divider,
+				jerk				:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^.parameters.max_jerk/csp_main_jogManager.AccDec_divider,
+				CONVERSION_this		:= CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+			CONVERSION_this.status := JOG_MANAGER_STATUS_STOPPING;
+						
+END_CASE
+
+(*Dynamic diagnosis*)
+
+(*Static diagnosis*)
+
+(*HMI management: position and torque*)
+IF	CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+THEN
+	IF	CONVERSION_this.CONVERSION_private.axis_is_linear
+	THEN
+		CONVERSION_this.axis_act_position_linear := SEL(axis_get_modulo(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^) > 0.0, 
+			axis_get_actual_incremental_position(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^),
+			axis_get_actual_modulo_position(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^));
+	ELSIF CONVERSION_this.CONVERSION_private.axis_is_rotative
+	THEN
+		CONVERSION_this.axis_act_position_rotative := SEL(axis_get_modulo(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^) > 0.0, 
+			axis_get_actual_incremental_position(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^),
+			axis_get_actual_modulo_position(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^));	
+	END_IF
+	CONVERSION_this.axis_act_torque_linear := axis_get_actual_torque(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);
+	CONVERSION_this.axis_act_torque_rotative := axis_get_actual_torque(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^);	
+END_IF
+
+(*HMI management: parameter overwrite*)
+IF 	CONVERSION_this.CONVERSION_private.update_parameters > 2
+THEN
+	CONVERSION_this.CONVERSION_private.update_parameters := 0;
+	
+	parameter_overwrite_set_bool_value(TRUE, CONVERSION_this.enable_sw_limit_pow);
+	IF	CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+	THEN	
+		IF	axis_get_modulo(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^) > 0.0
+		THEN
+			parameter_overwrite_set_lreal_all(			
+				min_value := 0.0, 
+				max_value := axis_get_modulo(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^), 
+				suggested := 0.0, 
+				value := CONVERSION_this.axis_act_position_linear,
+				CONVERSION_this := CONVERSION_this.axis_cmd_position_linear_pow);
+			parameter_overwrite_set_lreal_all(
+				min_value := 0.0, 
+				max_value := axis_get_modulo(CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].axis^), 
+				suggested := 0.0, 
+				value := CONVERSION_this.axis_act_position_rotative,
+				CONVERSION_this := CONVERSION_this.axis_cmd_position_rotative_pow);
+		ELSIF CONVERSION_this.CONVERSION_private.sw_limit_active
+		THEN
+			parameter_overwrite_set_lreal_all(
+				min_value := CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_negative, 
+				max_value := CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_positive,
+				suggested := 0.0,
+				value := CONVERSION_this.axis_act_position_linear,
+				CONVERSION_this := CONVERSION_this.axis_cmd_position_linear_pow);
+			parameter_overwrite_set_lreal_all(
+				min_value := CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_negative, 
+				max_value := CONVERSION_this.axis_list[CONVERSION_this.CONVERSION_private.list_selected].sw_limit_positive,
+				suggested := 0.0,
+				value := CONVERSION_this.axis_act_position_rotative,
+				CONVERSION_this := CONVERSION_this.axis_cmd_position_rotative_pow);
+		ELSE
+			parameter_overwrite_set_lreal_all(
+				min_value := SW_LIMIT_LINEAR_NEGATIVE, 
+				max_value := SW_LIMIT_LINEAR_POSITIVE,
+				suggested := 0.0,
+				value := CONVERSION_this.axis_act_position_linear,
+				CONVERSION_this := CONVERSION_this.axis_cmd_position_linear_pow);
+			parameter_overwrite_set_lreal_all(
+				min_value := SW_LIMIT_ROTATIVE_NEGATIVE, 
+				max_value := SW_LIMIT_ROTATIVE_POSITIVE,
+				suggested := 0.0,
+				value := CONVERSION_this.axis_act_position_rotative,
+				CONVERSION_this := CONVERSION_this.axis_cmd_position_rotative_pow);
+		END_IF					
+	ELSE		
+		parameter_overwrite_set_lreal_all(0.0, 0.0, 0.0, 0.0, CONVERSION_this.axis_cmd_position_linear_pow);
+		parameter_overwrite_set_lreal_all(0.0, 0.0, 0.0, 0.0, CONVERSION_this.axis_cmd_position_rotative_pow);				
+	END_IF	
+END_IF
+
+(*HMI management: jog positive*)
+command_button_set_status(
+	status  			:= SEL(				
+							CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+							AND
+							(CONVERSION_this.status >= JOG_MANAGER_STATUS_SEL_ENABLED_AXIS)
+							AND
+							CONVERSION_this.CONVERSION_private.jog_positive_enable
+							AND
+							(
+								NOT CONVERSION_this.has_pendant
+								OR
+								NOT CONVERSION_this.pendant_active	
+							)	
+							AND
+							(
+								NOT (CONVERSION_this.has_shared_pendant <> G_framework.NULL)
+								OR
+								NOT CONVERSION_this.shared_pendant_active	
+							)		
+							AND 
+							NOT CONVERSION_this.CONVERSION_private.axis_is_absolute_moving
+							AND
+							NOT CONVERSION_this.CONVERSION_private.sw_limit_active_positive,							
+							HMI_OBJECT_STATUS_LOCKED,
+							HMI_OBJECT_STATUS_ON),
+	CONVERSION_this    	:= CONVERSION_this.hmi_jog_positive_cbtn);
+
+(*HMI management: jog negative*)
+command_button_set_status(
+	status  			:= SEL(
+							CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+							AND
+							(CONVERSION_this.status >= JOG_MANAGER_STATUS_SEL_ENABLED_AXIS)
+							AND
+							CONVERSION_this.CONVERSION_private.jog_negative_enable
+							AND
+							(
+								NOT CONVERSION_this.has_pendant
+								OR
+								NOT CONVERSION_this.pendant_active	
+							)
+							AND
+							(
+								NOT (CONVERSION_this.has_shared_pendant <> G_framework.NULL)
+								OR
+								NOT CONVERSION_this.shared_pendant_active	
+							)
+							AND 
+							NOT CONVERSION_this.CONVERSION_private.axis_is_absolute_moving	
+							AND
+							NOT CONVERSION_this.CONVERSION_private.sw_limit_active_negative, 
+							HMI_OBJECT_STATUS_LOCKED,
+							HMI_OBJECT_STATUS_ON),
+	CONVERSION_this    	:= CONVERSION_this.hmi_jog_negative_cbtn);
+
+(*HMI management: jog absolute*)
+command_button_set_status(
+	status  			:= SEL(				
+							(
+								(command_button_get_actual_status(CONVERSION_this.hmi_jog_positive_cbtn) = HMI_OBJECT_STATUS_ON) 
+								OR
+								(command_button_get_actual_status(CONVERSION_this.hmi_jog_negative_cbtn) = HMI_OBJECT_STATUS_ON)
+							)
+							(* Prevent Absolute move of same position, hangs up jog manager *)
+							AND 
+							(
+								
+								(
+									csp_main_jogManager.jog_manager_accuchange.jog_active
+									AND
+									(ABS(csp_main_jogManager.jog_manager_accuchange.axis_act_position_linear -csp_main_jogManager.jog_manager_accuchange.axis_cmd_position_linear) > 0.09)
+								)
+								OR
+								(
+									csp_main_jogManager.jog_manager_real.jog_active
+									AND
+									(ABS(csp_main_jogManager.jog_manager_real.axis_act_position_linear -csp_main_jogManager.jog_manager_real.axis_cmd_position_linear) > 0.09)
+								)
+								OR
+								(
+									csp_main_jogManager.jog_manager_virtual.jog_active
+									AND
+									(ABS(csp_main_jogManager.jog_manager_virtual.axis_act_position_rotative -csp_main_jogManager.jog_manager_virtual.axis_cmd_position_rotative) > 0.09)
+								)
+							), 
+							HMI_OBJECT_STATUS_LOCKED,
+							HMI_OBJECT_STATUS_ON),
+	CONVERSION_this    	:= CONVERSION_this.hmi_jog_absolute_cbtn);
+
+(*HMI management: jog selection*)
+hmi_graphic_object_set_status(
+	status  			:= SEL(
+							(CONVERSION_this.status >= JOG_MANAGER_STATUS_READY)
+							AND 
+							NOT CONVERSION_this.CONVERSION_private.axis_is_absolute_moving,				
+							HMI_OBJECT_STATUS_LOCKED, 
+							HMI_OBJECT_STATUS_ON),
+	CONVERSION_this    	:= CONVERSION_this.hmi_jog_selection_hgos);
+
+(*HMI management: axis type*)
+hmi_graphic_object_set_status(
+	status  			:= SEL(
+							CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+							AND
+							CONVERSION_this.CONVERSION_private.axis_is_rotative, 
+							HMI_OBJECT_STATUS_INVISIBLE, 
+							HMI_OBJECT_STATUS_ON),
+	CONVERSION_this    	:= CONVERSION_this.hmi_rot_selection_hgos);
+
+hmi_graphic_object_set_status(
+	status  			:= SEL(
+							CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+							AND
+							CONVERSION_this.CONVERSION_private.axis_is_linear, 
+							HMI_OBJECT_STATUS_INVISIBLE, 
+							HMI_OBJECT_STATUS_ON),
+	CONVERSION_this    	:= CONVERSION_this.hmi_lin_selection_hgos);
+	
+(*HMI management: sw limit*)
+hmi_graphic_object_set_status(
+	status  			:= SEL(
+							CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+							AND
+							(CONVERSION_this.status >= JOG_MANAGER_STATUS_SEL_ENABLED_AXIS)
+							AND
+							CONVERSION_this.CONVERSION_private.sw_limit_active,													
+							HMI_OBJECT_STATUS_INVISIBLE, 
+							HMI_OBJECT_STATUS_ON),
+	CONVERSION_this    	:= CONVERSION_this.hmi_sw_limit_hgos);
+
+(*HMI management: pendant*)
+IF	CONVERSION_this.has_pendant
+THEN
+	hmi_graphic_object_set_status(
+		status  			:= SEL(
+								NOT CONVERSION_this.CONVERSION_private.axis_is_absolute_moving, 
+								HMI_OBJECT_STATUS_LOCKED, 
+								HMI_OBJECT_STATUS_ON),
+		CONVERSION_this    	:= CONVERSION_this.hmi_pendant_active_hgos);
+		
+	(*Pendant positive led*)	
+	IF	CONVERSION_this.CONVERSION_private.shared_pendant_jog_positive_status
+		OR
+		(
+			CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+			AND
+			(CONVERSION_this.status >= JOG_MANAGER_STATUS_SEL_ENABLED_AXIS)
+			AND
+			CONVERSION_this.CONVERSION_private.jog_positive_enable
+			AND
+			CONVERSION_this.pendant_active								
+			AND
+			NOT CONVERSION_this.CONVERSION_private.sw_limit_active_positive
+		)				
+	THEN
+		led_set_color(
+			color  			:= SEL(CONVERSION_this.CONVERSION_private.jog_pendant_positive, HMI_LED_COLOR_YELLOW, HMI_LED_COLOR_GREEN),
+			CONVERSION_this := CONVERSION_this.hmi_pendant_positive_ld);
+	ELSE
+		led_set_color(
+			color  			:= HMI_LED_COLOR_GREY,
+			CONVERSION_this := CONVERSION_this.hmi_pendant_positive_ld);				
+	END_IF
+	
+	(*Pendant negative led*)	
+	IF	CONVERSION_this.CONVERSION_private.shared_pendant_jog_negative_status
+		OR
+		(
+			CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+			AND
+			(CONVERSION_this.status >= JOG_MANAGER_STATUS_SEL_ENABLED_AXIS)
+			AND
+			CONVERSION_this.CONVERSION_private.jog_negative_enable
+			AND
+			CONVERSION_this.pendant_active	
+			AND							
+			NOT CONVERSION_this.CONVERSION_private.sw_limit_active_negative	
+		)		
+	THEN
+		led_set_color(
+			color  			:= SEL(CONVERSION_this.CONVERSION_private.jog_pendant_negative, HMI_LED_COLOR_YELLOW, HMI_LED_COLOR_GREEN),
+			CONVERSION_this := CONVERSION_this.hmi_pendant_negative_ld);
+	ELSE
+		led_set_color(
+			color  			:= HMI_LED_COLOR_GREY,
+			CONVERSION_this := CONVERSION_this.hmi_pendant_negative_ld);				
+	END_IF
+	
+	led_set_status(
+		status  			:= HMI_OBJECT_STATUS_ON,
+		CONVERSION_this    	:= CONVERSION_this.hmi_pendant_positive_ld);
+		
+	led_set_status(
+		status  			:= HMI_OBJECT_STATUS_ON,
+		CONVERSION_this    	:= CONVERSION_this.hmi_pendant_negative_ld);
+ELSIF (CONVERSION_this.has_shared_pendant <> G_framework.NULL)
+THEN
+	CONVERSION_this.CONVERSION_private.shared_pendant_jog_positive_status := 
+		CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+		AND
+		(CONVERSION_this.status >= JOG_MANAGER_STATUS_SEL_ENABLED_AXIS)
+		AND
+		CONVERSION_this.CONVERSION_private.jog_positive_enable
+		AND
+		CONVERSION_this.shared_pendant_active								
+		AND
+		NOT CONVERSION_this.CONVERSION_private.sw_limit_active_positive;
+	CONVERSION_this.CONVERSION_private.shared_pendant_jog_negative_status :=
+		CONVERSION_this.CONVERSION_private.list_selected_axis_is_valid
+		AND
+		(CONVERSION_this.status >= JOG_MANAGER_STATUS_SEL_ENABLED_AXIS)
+		AND
+		CONVERSION_this.CONVERSION_private.jog_negative_enable
+		AND
+		CONVERSION_this.shared_pendant_active	
+		AND							
+		NOT CONVERSION_this.CONVERSION_private.sw_limit_active_negative;
+ELSE
+	hmi_graphic_object_set_status(
+		status  			:= HMI_OBJECT_STATUS_INVISIBLE,
+		CONVERSION_this    	:= CONVERSION_this.hmi_pendant_active_hgos);
+		
+	led_set_status(
+		status  			:= HMI_OBJECT_STATUS_INVISIBLE,
+		CONVERSION_this    	:= CONVERSION_this.hmi_pendant_positive_ld);
+		
+	led_set_status(
+		status  			:= HMI_OBJECT_STATUS_INVISIBLE,
+		CONVERSION_this    	:= CONVERSION_this.hmi_pendant_negative_ld);		
+END_IF
+	
+(*Fault manager*)
+CASE descriptor_get_stop_status(CONVERSION_this.descriptor) OF
+    STOP_GOING_ON:
+		descriptor_apply_stop(CONVERSION_this.descriptor);
+		
+    STOP_ON:
+		IF 	descriptor_get_reset_level(CONVERSION_this.descriptor)
+        THEN
+            CONVERSION_this.status := JOG_MANAGER_STATUS_INIT;
+			CONVERSION_this.command := CONVERSION_this.operational_command;
+			jog_manager_submit_command(CONVERSION_this);
+        END_IF
+		
+	STOP_OFF:
+		;
+		
+END_CASE]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

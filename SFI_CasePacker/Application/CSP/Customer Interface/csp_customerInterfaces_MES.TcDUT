@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_MES" Id="{84d2f22f-a9a7-470f-bbc1-151295fb4546}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_MES :
+STRUCT
+
+	StartJobReq:					BOOL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Request FROM MES TO start the current job; $*)				
+	RunOutReq:						BOOL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Request FROM MES TO execute a line clearance; $*)				
+	EndJobReq:						BOOL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Request FROM MES TO end the current job; $*)					
+	CycleEnable:					BOOL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Premissive FROM MES TO run the line; $*)					
+	Alarm:							DINT;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Predefined alarms FROM MES; $*)					
+	Warning:						DINT;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Predefined warnings/messages FROM MES; $*)				
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

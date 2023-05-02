@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_transfer_main_safety_drives_sd41400" Id="{c53e9a9a-c7ab-420f-8624-6758b67cca4a}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_transfer_main_safety_drives_sd41400
+VAR
+  cha_smes_sis_shd : safety_integrated_series_shadow;
+  chb_smes_sis_shd : safety_integrated_series_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{4e309d3a-4705-4e84-9136-1fbb991da82c}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	safety_integrated_series_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_main_safety_drives_sd41400.cha_smes_sis, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= cha_smes_sis_shd);
+
+	safety_integrated_series_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_main_safety_drives_sd41400.chb_smes_sis, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= chb_smes_sis_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	safety_integrated_series_shadow_cycle(cha_smes_sis_shd);
+	safety_integrated_series_shadow_cycle(chb_smes_sis_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

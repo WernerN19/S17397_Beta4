@@ -1,0 +1,52 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_case_feed_arm_wrist" Id="{b843eb21-06ae-4a38-81c3-3fe2b5ef1814}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_case_feed_arm_wrist
+VAR
+  axis_shd : axis_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{a48c0797-3370-44f9-9e94-8a25ad61c898}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	axis_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_case_feed_arm_wrist.axis, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= axis_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	axis_shadow_cycle(axis_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

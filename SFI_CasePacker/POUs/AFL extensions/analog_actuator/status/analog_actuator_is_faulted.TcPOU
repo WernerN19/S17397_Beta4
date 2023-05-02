@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_is_faulted" Id="{3d2a6c5e-3848-423f-89c8-d4749e070265}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Returns <i>TRUE</i> if the instance <b><i>this</i></b> has a fault 
+	<a href="#analog_actuator_snapshot"><i>message</i></a>
+    active, <i>FALSE</i> otherwise. 
+$*)
+FUNCTION analog_actuator_is_faulted : BOOL
+VAR_IN_OUT
+    CONVERSION_this:	analog_actuator;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[analog_actuator_is_faulted := descriptor_is_not_ready(CONVERSION_this.descriptor);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

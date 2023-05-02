@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="csp_interface_configuration" Id="{8dee6a37-eb5c-4168-8f4f-ccf7b76ce3c0}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION csp_interface_configuration : VOID
+VAR_IN_OUT
+	motman:																motorization_manager;
+	machine:															machine;
+	
+	CONVERSION_this:													csp_main_configurator_struct;			
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[CONVERSION_this.motman_ref																:= ADR(motman);
+CONVERSION_this.machine_ref																:= ADR(machine);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

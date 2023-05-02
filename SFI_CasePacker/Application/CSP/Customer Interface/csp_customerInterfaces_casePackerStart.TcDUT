@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_casePackerStart" Id="{51087eb9-76d4-4354-962d-e9d17485af23}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_casePackerStart :
+STRUCT
+	
+	Request:					BOOL;				(*$H_R desc := Machine request FOR permission TO start; $*)
+	Ramp:						BOOL;				(*$H_R desc := Machine is in high current start-up ramp; $*)
+	PeakWait:					BOOL;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Request FROM SCADA FOR machine TO delay start; $*)
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,1045 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_loader_virtualMaster" Id="{3f0f9bc3-a9ae-448b-9465-6d1694696cfb}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_loader_virtualMaster
+VAR
+	
+	
+	prc:												process;
+	prc_path:											STRING;
+	
+	fsm_enable_condition:								BOOL := FALSE;
+	fsm_next_status:									CSP_CASE_LOADER_STATUS_enum;
+	fsm_status:											CSP_CASE_LOADER_STATUS_enum;
+	phase_enable:										BOOL  := TRUE;
+	axis: 												axis;
+	
+	phase_position_deg:									LREAL := 0;
+	phase_velocity_degps:								LREAL := 20.0;
+	axis_calculate_cam_slave_master_position_deg:		LREAL := 0.0;
+	axis_calculated_cam_slave_position_deg:				LREAL := 0.0;
+	slave_position_has_been_calculated:					BOOL  := FALSE;
+	engage_enable:										BOOL:=TRUE;
+	disable_req:										BOOL:=FALSE;
+	debug_state_machine:								BOOL:=FALSE;
+	debug_state_machine_one_step:						BOOL:=FALSE;
+ 
+	master_offset_phase:								LREAL;
+	
+	
+	cam_id:												DINT  := LINEAR_CAM;	
+	slave_scaling_mm:									LREAL := 1; 
+	master_scaling_deg:									LREAL := 1; 
+	slave_scaling:										LREAL := 1; 
+	master_scaling:										LREAL := 1; 
+	home_position_master_offset_deg: 					LREAL := 240;
+	loader_slaves_cammed:								BOOL  := FALSE;
+	pusher_tolerance:									LREAL:= 5;
+	
+	target_position:									LREAL;
+	
+	product_loaded:										BOOL;
+	product_pushing:									BOOL;
+	case_loaded_chksect:								check_section;
+	case_loaded_bool:									boolean;
+	stop:												BOOL:= FALSE;
+	master_offset: 										LREAL := 240;
+	master_engage_mode:									axis_cam_engage_mode_enum;
+	slave_offset: 										LREAL := 0;
+
+	At_Reject_product_loaded: 							BOOL := FALSE;
+	engage_after_estop: 								BOOL := FALSE;
+	
+	load_check_ph: 										phase;
+	phgen:												phase_generator;
+	load_check_deg: 									LREAL := 110;
+	
+	product_load_failed: 								BOOLean;
+	product_load_failed_dchk: 							digital_check;
+	phase_done: 										BOOL := FALSE;
+	
+	loader_run_check_ph:								phase;
+	loader_run_check_deg:								LREAL; (* AUTO CALCULATED BASED ON LOADER PUSHER OFFSET *)
+	loader_run_check_before_deg:						LREAL := 10;
+	
+	loader_finishing_after_reject:						BOOL;
+	
+	
+	(* PHASE AND CONNECTION TEST *)
+	connection_status: 									csp_case_connection_status_enum;
+	connection_status_next: 							csp_case_connection_status_enum;
+	connection_done: 									BOOL;
+	connection_running: 								BOOL;
+	connection_error:									BOOL;
+	connection_time_out_tmr:							timer;
+	connection_faulted_aem:	 							message;
+	connection_conditions:								BOOL;
+	connection_done_motcond:							motorization_conditioner;
+	connection_motorization_moving:						BOOL;
+	
+	next_activation_position:							LREAL;	
+	activation_position:								LREAL := 0.0;
+	connection_status1: 								LREAL;
+	connection_status_next1: 							LREAL;
+	
+	phase_status: 										csp_case_phase_status_enum;
+	phase_status_next: 									csp_case_phase_status_enum;
+	phase_running: 										BOOL;
+	phase_error:										BOOL;
+	phase_time_out_tmr:									timer;
+	phase_faulted_aem:	 								message;
+	phase_conditions:									BOOL;
+	phase_slave_position:								LREAL;
+	
+	debug_phase_machine_one_step:						BOOL := FALSE;
+	debug_connection_machine_one_step:					BOOL := FALSE;
+	debug_immediate_stop_aem:							message;
+	debug_immediate_stop:								BOOL;
+	
+	active_cam:											DINT := DWELL_CAM;
+	next_cam:											DINT := DWELL_CAM;
+	
+	dwell:												BOOL;
+	run:												BOOL;
+	
+	Engagement_Error_aem: 								message;
+	engage_count: INT := 0;
+END_VAR
+
+VAR CONSTANT
+	
+	CONSTANTS:											csp_case_loader_constant_struct;
+
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+
+(********************************* BODY *********************************)
+connection_status1 := connection_status;
+connection_status_next1 := connection_status_next; 
+
+(*FSM Control*)
+(*disable_req := NOT machine_is_running(csp.mch)
+                AND machine_is_stop_emergency_active(csp.mch)
+                AND csp_main_motorization_virtualManager.axis.actual_velocity = 0;*)	//_read_var_input
+				
+IF 	axis_is_cam_engaged(csp_case_loader_guide_downstream.axis)
+	//AND axis_is_cam_engaged(csp_case_loader_guide_length.axis)
+	AND axis_is_cam_engaged(csp_case_loader_guide_upstream.axis)
+	AND axis_is_cam_engaged(csp_case_loader_pusher.axis)
+	//AND axis_is_cam_engaged(csp_case_fc_ls_lower_Trailingcloser.axis)
+	//AND axis_is_cam_engaged(csp_case_fc_ls_upper_LeadingMinorCloser.axis)
+THEN
+	loader_slaves_cammed := TRUE;
+ELSE
+	loader_slaves_cammed := FALSE;	
+END_IF
+
+IF 	NOT csp_case_main_safety_emergency.sis.safely_closed_input.status 
+	AND axis_is_cam_engaged(axis) 
+THEN
+	engage_after_estop := TRUE;
+ELSIF csp_case_main_safety_emergency.sis.safely_closed_input.status 
+	AND fsm_status = CSP_CASE_TRANSPORT_STATUS_CAM_ENGAGED 
+THEN
+		engage_after_estop := FALSE;
+END_IF
+
+
+(* PHASE USED TO CHECK AT 0 IF THE STACK WILL BE AT THE LOADER - NOT A DEFINITE STACK - GUESSING THAT IT MAKES IT THROUGH CROSSPUSH LIGHT CURTAIN *)
+phase_set_data(
+	phase				:= load_check_deg,
+	delay				:= 0,			
+	max_compensation	:= 0,			
+	CONVERSION_this		:= load_check_ph);
+	
+	
+(* PHASE TO CHECK RIGHT BEFORE LOADER PUSHER THAT THE STACK IS STILL AT LOADER BASED ON LIGHT CURTAIN *)
+loader_run_check_deg := (360 - csp_case_loader_pusher.master_offset - loader_run_check_before_deg);
+
+phase_set_data(
+	phase				:= loader_run_check_deg,
+	delay				:= 0,			
+	max_compensation	:= 0,			
+	CONVERSION_this		:= loader_run_check_ph);
+
+	
+(* SETS A BIT HIGH OF PRODUCT BEING PUSHED BY LOADER PUSHER *)
+IF 	machine_is_running(csp.mch)
+	AND csp_transfer_upstacker.stack_at_loader
+	AND axis_is_moving(axis) //product was loaded if pos > 150 //dont check when not moving (startup)
+THEN
+	product_pushing := TRUE;
+	At_Reject_product_loaded :=TRUE;
+END_IF
+
+
+(* IF PRODUCT IS BEING PUSHED BY LOADER PUSHER AND REACHES END OF STROKE - TURN PRODUCT LOADED TO HIGH AND NO LONGER BEING PUSHED *)
+IF 	machine_is_running(csp.mch)
+	AND product_pushing
+	AND (ABS(csp_case_loader_pusher.axis.actual_position - csp_case_loader_pusher.slave_scaling) < pusher_tolerance) 
+THEN
+	product_loaded := TRUE;
+	product_pushing := FALSE;
+END_IF
+
+
+(* IF THE PRODUCT IS STILL BEING PUSHED WHEN THE LOADER PUSHER RETURNS TO HOME POSITION THEN ERROR LOADING PRODUCT *)
+IF 	machine_is_running(csp.mch)
+	AND csp_case_virtualMaster.axis.actual_position < 5
+THEN
+	IF product_pushing
+	THEN
+		//boolean_set(product_load_failed);
+	END_IF
+		
+	product_loaded := FALSE;
+	product_pushing := FALSE;
+END_IF
+
+IF 	machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	boolean_reset(product_load_failed);
+END_IF
+
+
+IF	At_Reject_product_loaded 
+	AND axis_is_moving(csp_case_transport_os_trailing.axis) 
+THEN
+	At_Reject_product_loaded := FALSE;
+END_IF
+
+
+IF 	csp_transfer_upstacker.stack_in_case_at_loader
+	AND NOT csp_case_main_services.dry_cycle_mode
+THEN
+	boolean_set(case_loaded_bool);
+ELSE
+	boolean_reset(case_loaded_bool);
+END_IF
+
+(* NEW LOGIC TO CONTROL RUN - USING PHASE/CONNECTION *)
+(* DECIDES WHETHER TO START OR STOP THE CASE VIRTUAL *)
+IF 	phase_edge(load_check_ph)
+THEN
+		
+	IF 
+	( (* NORMAL OPERATION *)
+		//csp_case_loader.cases_primed // CASE PRESENT AT STATION BEFORE LOAD
+		csp_case_loader.case_at_loader // CASES PRESENT AT LOADER IN TRANSPORT
+		AND csp_transfer_upstacker.stack_at_loader // STACK IS AT LOADER FROM CROSSPUSHER
+		AND NOT csp_transfer_crosspusher_sensors.no_load_bool.status 
+		AND NOT csp_transfer_upstacker.stack_in_case_at_loader // STACK IS NOT ALREADY IN THE CASE IN TRANSPORT
+		AND NOT csp_case_transport_virtualMaster.stop_for_reject
+		AND NOT csp_case_fc_ls_upper_leadingMinorCloser.at_upstream_pos
+		AND NOT csp_transfer_crosspusher.reject_running // 6_30_2022
+	)
+	OR 
+	( (* IN CASE JOGH IS ACTIVE TO RUN *)
+		jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+	)
+	THEN
+		dwell := FALSE;
+		run := TRUE;
+	ELSE
+		run := FALSE;
+		dwell := TRUE;
+	END_IF
+		
+END_IF
+
+
+(* Connection Done *)
+IF 	connection_done
+THEN 
+	motorization_conditioner_start_done(connection_done_motcond);
+END_IF
+
+
+(* RESETS AXES IF PHASE DONE AND CONNECTION DONE AND DISABLED *)
+IF 	phase_done
+	AND connection_done
+	AND axis_is_disabled(axis)
+THEN
+	phase_done := FALSE;
+	connection_done := FALSE;
+END_IF
+
+
+(* DISABLES VIRTUAL IS ANY OF THE SLAVES FAULT *)
+IF 	NOT axis_is_disabled(axis)
+	AND NOT axis_is_ok(FALSE, csp_case_loader_pusher.axis)
+	AND NOT axis_is_ok(FALSE, csp_case_loader_guide_upstream.axis)
+	AND NOT axis_is_ok(FALSE, csp_case_loader_guide_downstream.axis)
+	AND NOT axis_is_ok(FALSE, csp_case_fc_ls_upper_leadingMinorCloser.axis)
+	AND NOT axis_is_ok(FALSE, csp_case_fc_ls_lower_trailingCloser.axis)
+THEN
+	; //axis_disable(axis);
+END_IF
+
+
+(* CLEARS PHASE AND CONNECTION ERRORS ON STOP *)
+IF 	machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	phase_error := FALSE;
+	connection_error := FALSE;	
+END_IF
+
+
+phase();
+connection();
+_set_runtime_properties();
+
+(*IF 	active_cam = 0
+	OR 
+	(
+		(csp_transfer_crosspusher_sensors.reject_stack OR csp_transfer_crosspusher.reject_running)
+		AND  active_cam <> DWELL_CAM
+		AND csp_transfer_crosspusher.loader_clear
+	)
+THEN
+		active_cam := DWELL_CAM;
+END_IF
+*)
+
+IF 	csp_transfer_crosspusher_horizontal.axis.actual_position < -5
+	AND axis_is_moving(axis)
+	AND axis_is_cam_engaged(axis)
+THEN
+	process_message_set(1, 0, 0, Engagement_Error_aem);
+ELSE
+	process_message_reset(Engagement_Error_aem);
+END_IF
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{8de748e1-6ef6-4e0a-837e-36865c7ee611}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{3810c6cc-d5e5-4b16-8ff0-9c91757f7afa}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{32054332-7427-4cb9-9a56-c6f996788fc3}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{6b18fffe-4ab5-4504-87bc-4b0a6e4a899a}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_loader_virtualMaster.prc', 
+		process						:= csp_case_loader.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	axis_init(
+		object_name								:= CONCAT(prc_path, '_axis'), 
+		axis_type								:= AXIS_TYPE_VIRTUAL, 
+		encoder_scaling_factor					:= G_VIRTUAL_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo									:= G_MODULO_360_DEG, 
+		process									:= prc, 
+		CONVERSION_this							:= axis);
+	
+	axis_set_max_dynamic(
+		reference_velocity						:=	CONSTANTS.MAX_VELOCITY_MMpSEC,
+		velocity								:=	CONSTANTS.MAX_VELOCITY_MMpSEC,
+		acceleration							:=	CONSTANTS.MAX_ACCELERATION_MMpSEC2,
+		deceleration							:=	CONSTANTS.MAX_DECELERATION_MMpSEC2,
+		jerk									:=	CONSTANTS.MAX_JERK_MMpSEC3,
+		following_error							:=	CONSTANTS.MAX_FOLLOWING_ERROR_MM,
+		CONVERSION_this							:=	axis);
+
+	jog_manager_add_axis(
+		list_index					:= JOG_LIST_CSP_CASE_LOADER_VIRTUAL,
+		axis						:= axis,
+		master_axis					:= TRUE,
+		jog_type					:= JOG_TYPE_ROTATIVE_PLUS,
+		sw_limit_positive			:= 0.0,
+		sw_limit_negative			:= 0.0,
+		CONVERSION_this				:= csp_main_jogManager.jog_manager_virtual);
+		
+	boolean_init(
+		object_name 							:= CONCAT(prc_path, '_case_loaded_bool'),
+		process 								:= prc,
+		CONVERSION_this							:= case_loaded_bool);
+
+	check_section_asynchronous_mode_init(
+		object_name:= CONCAT(prc_path, '_case_loaded_chksect'), 
+		check_enable:=TRUE , 
+		event_to_check:=CHECK_SECTION_EVENT_INPUT_ON , 
+		execution_mode:=CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED , 
+		diagnostic_enable:= FALSE , 
+		status_bits_to_be_true:= common_global_variables.none, //ITEM_PRESENT, 
+		status_bits_to_be_false:=common_global_variables.none, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= ITEM_HAS_LOAD + ITEM_HAS_CARTON, 
+		status_bits_to_reset:=common_global_variables.none , 
+		reject_bit_to_set:= 0 , 
+		_step:=26 , 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:=1 , 
+		reference_phase:=240 , 
+		reference_phase_tolerance:= 0, 
+		max_consecutive_failed_checks:= 1000000, 
+		max_failed_checks_percentage:=10 , 
+		products_for_failed_checks_percentage:= 10000000, 
+		shift_register:= csp_case_main_statistics.sr, 
+		process:= prc , 
+		CONVERSION_this:= case_loaded_chksect);
+		
+	
+			
+	check_section_add_boolean_input(
+			boolean_input:= case_loaded_bool,
+			CONVERSION_this:= case_loaded_chksect);
+		
+		
+	phase_init(
+        object_name 				:= CONCAT(prc_path, '_load_check_ph'),
+        phase 						:= 0,	//Set at runtime!
+        delay 						:= 0,
+        max_compensation 			:= 0,
+        generator 					:= csp_main_motorization_virtualManager.phgen,
+        process 					:= prc,
+        CONVERSION_this 			:= load_check_ph);	
+		
+	phase_init(
+        object_name 				:= CONCAT(prc_path, '_loader_run_check_ph'),
+        phase 						:= 0,	//Set at runtime!
+        delay 						:= 0,
+        max_compensation 			:= 0,
+        generator 					:= phgen, // CHANGE TO LOADER VIRTUAL PHGEN
+        process 					:= prc,
+        CONVERSION_this 			:= loader_run_check_ph);
+		
+	phase_generator_init(
+		object_name					:= CONCAT(prc_path, '_phgen'), 
+		modulo						:= axis_get_modulo(axis), 
+		resolution					:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis						:= axis, 
+		process						:= prc, 
+		CONVERSION_this				:= phgen);
+		
+		
+	
+	digital_check_and_message_init(
+        object_name:= CONCAT(prc_path, 'product_load_failed_dchk'),
+        alarm_if_input_off:= FALSE,
+        alarm_delay:= 0,
+        enabled_at_powerup:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:=  MACHINE_REACTION_EMERGENCY_STOP,//MACHINE_REACTION_EMERGENCY_STOP,
+        typology:=  MESSAGE_TYPOLOGY_ABNORMAL,//MESSAGE_TYPOLOGY_OBLIGATION,
+        process:= prc,
+        CONVERSION_this:= product_load_failed_dchk);
+       
+       
+    digital_check_add_boolean(
+        boolean:= product_load_failed,
+        CONVERSION_this:= product_load_failed_dchk);	
+		
+	boolean_init(
+		object_name 							:= CONCAT(prc_path, '_product_load_failed'),
+		process 								:= prc,
+		CONVERSION_this							:= product_load_failed);
+		
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_phase_faulted_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NORMAL_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	phase_faulted_aem);
+	
+	timer_init(
+		object_name					:= CONCAT(prc_path, 'phase_time_out_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= phase_time_out_tmr);
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, 'debug_immediate_stop_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_STATE,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NORMAL_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	debug_immediate_stop_aem);
+		
+	timer_init(
+		object_name					:= CONCAT(prc_path, 'connection_time_out_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= connection_time_out_tmr);
+		
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_connection_faulted_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_NORMAL_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	connection_faulted_aem);
+		
+	motorization_conditioner_init(
+		object_name					:=	CONCAT(prc_path, 'connection_done_motcond'),
+		velocity_limit				:=	0.0,
+		velocity_limit_active		:=	FALSE,
+		idle_handshake_active		:=	FALSE,
+		execute_handshake_active	:=	TRUE,
+		hold_handshake_active		:=	FALSE,
+		suspend_handshake_active	:=	FALSE,
+		complete_handshake_active	:=	FALSE,
+		abort_handshake_active		:=	FALSE,
+		stop_handshake_active		:=	FALSE,
+		origin						:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:=	csp_main_motorization_manager.motm,
+		process						:=	prc,
+		CONVERSION_this				:=	connection_done_motcond);
+		
+	process_message_init(
+		object_name					:=	CONCAT(prc_path, '_Engagement_Error_aem'), 
+		behaviour					:=	MESSAGE_BEHAVIOUR_EVENT,
+		reset_timeout				:=	0,
+		disableable					:=	TRUE,
+		individual_reset			:=	FALSE,
+		machine_reaction			:=	MACHINE_REACTION_EMERGENCY_STOP,
+		typology					:=	MESSAGE_TYPOLOGY_ABNORMAL,
+		process						:=	prc,
+		CONVERSION_this				:=	Engagement_Error_aem);
+		
+END_IF
+
+IF objects_running()
+THEN
+	motorization_conditioner_cycle(connection_done_motcond);
+	phase_cycle(load_check_ph);
+	phase_cycle(loader_run_check_ph);
+	
+	phase_generator_cycle(phgen);
+	
+	process_cycle(prc);
+	axis_cycle(axis);
+	
+	digital_check_cycle(product_load_failed_dchk);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{af51b272-bb3a-43c8-8e93-7efb13bea56b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{3a932622-33d1-414f-9022-c4c71e954de1}">
+      <Implementation>
+        <ST><![CDATA[disable_req := csp_case.disable_req;
+;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{bc1687a3-b07e-4fc0-a620-a56d8ed224f9}">
+      <Implementation>
+        <ST><![CDATA[(* Cam management *)
+IF 	connection_done
+THEN
+	active_cam := axis.engaged_cam.cam_id;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{706ea2c5-818e-458c-9407-13d1c3157d8e}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="connection" Id="{c361890c-f4cf-0821-0168-5c162a59c950}">
+      <Implementation>
+        <ST><![CDATA[connection_conditions :=	
+	NOT process_message_is_on(connection_faulted_aem)
+	//AND
+	//NOT jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+	AND
+	phase_done;
+
+(* connection_done reset *)
+IF	connection_done
+	AND	
+	NOT connection_conditions
+	AND
+	NOT csp.o_machine_is_running
+THEN
+	connection_done := FALSE;
+END_IF
+
+(* Exit conditions *)
+IF	NOT connection_conditions 
+	AND
+	NOT motorization_manager_is_stopping(csp_main_motorization_manager.motm)	
+THEN	
+	connection_status_next := CSP_CASE_STATUS_CONNECTION_ERROR;
+	connection_status := connection_status_next;	
+END_IF
+
+(*************** MACHINE STATUS ***************)
+CASE connection_status OF
+
+	CSP_CASE_STATUS_CONNECTION_START:	(* Start connection *)
+	
+		IF	(
+				motorization_manager_is_starting(csp_main_motorization_manager.motm) 
+				OR
+				jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+			)
+		THEN
+			connection_running := TRUE;
+			connection_status_next := CSP_CASE_STATUS_CONNECTION_ENGAGE;
+		END_IF
+		
+	CSP_CASE_STATUS_CONNECTION_ENGAGE:		
+	
+		master_offset_phase := csp_main_motorization_virtualManager.axis.actual_modulo_position;	
+			
+		axis_engage_cam(
+			cam_id							:=	active_cam,	
+			master_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+			slave_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+			activation_mode					:=	AXIS_CAM_ACTIVATION_IMMEDIATELY,
+			activation_position				:=	0.0,
+			master_scaling_mode				:=	AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode				:=	AXIS_CAM_SCALING_MODE_AUTOOFFSET,
+			master_offset					:=	LMOD(home_position_master_offset_deg + master_offset_phase, axis_get_modulo(csp_main_motorization_virtualManager.axis)),
+			slave_offset					:=	0.0,
+			master_scaling					:=	master_scaling,
+			slave_scaling					:=	slave_scaling,
+			interpolation_type				:=	AXIS_CAM_INTERPOLATION_SPLINE,	 
+			master							:=	csp_main_motorization_virtualManager.axis,
+			CONVERSION_this					:=	axis);
+		
+		connection_status_next:= CSP_TRANSFER_STATUS_CONNECTION_ENGAGED;
+	
+	CSP_CASE_STATUS_CONNECTION_ENGAGED:
+	
+		IF active_cam = 0
+		THEN
+			active_cam := next_cam;
+		END_IF
+	
+		IF 	axis_is_cam_engaged(axis) 
+		THEN				
+			IF	active_cam <> next_cam
+			THEN							
+				connection_status_next := CSP_TRANSFER_STATUS_CONNECTION_CHANGE_CAM;
+			ELSE
+				connection_status_next:= CSP_TRANSFER_STATUS_CONNECTION_DONE;
+			END_IF
+		END_IF
+		
+	CSP_CASE_STATUS_CONNECTION_CHECK_CHANGE_CAM:						
+		
+		IF 	dwell
+		THEN
+			next_cam := DWELL_CAM;
+			dwell:= FALSE;
+		END_IF
+				
+		IF 	run
+		THEN
+			next_cam := FORWARD_CAM;
+			run := FALSE;
+		END_IF	
+		
+		IF	(active_cam <> next_cam)
+			AND connection_conditions
+		THEN							
+			connection_status_next := CSP_TRANSFER_STATUS_CONNECTION_CHANGE_CAM;
+		END_IF
+			
+		IF	NOT connection_motorization_moving
+		THEN
+			connection_status_next := CSP_TRANSFER_STATUS_CONNECTION_DONE;
+		END_IF
+			
+	
+	CSP_CASE_STATUS_CONNECTION_CHANGE_CAM:	
+		engage_count := engage_count + 1;	
+	
+		axis_engage_cam(
+			cam_id							:=	next_cam,	
+			master_engage_mode				:=	AXIS_CAM_ENGAGE_ABSOLUTE,
+			slave_engage_mode				:=	AXIS_CAM_ENGAGE_RELATIVE,
+			activation_mode					:=	AXIS_CAM_ACTIVATION_NEXT_CYCLE,
+			activation_position				:=	0,
+			master_scaling_mode				:=	AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode				:=	AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			master_offset					:=	home_position_master_offset_deg, 
+			slave_offset					:=	0.0,
+			master_scaling					:=	master_scaling,
+			slave_scaling					:=	slave_scaling,
+			interpolation_type				:=	AXIS_CAM_INTERPOLATION_SPLINE,	 
+			master							:=	csp_main_motorization_virtualManager.axis,
+			CONVERSION_this					:=	axis);	
+	
+		IF	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+		THEN
+			connection_status_next := CSP_TRANSFER_STATUS_CONNECTION_DONE;
+		ELSE
+			IF 	axis_is_cam_engaged(axis)
+			THEN
+				connection_status_next := CSP_TRANSFER_STATUS_CONNECTION_WAIT_NEW_CAM;
+			END_IF
+		END_IF
+	
+	CSP_CASE_STATUS_CONNECTION_WAIT_NEW_CAM:
+	
+		IF	active_cam = next_cam
+		THEN
+			CASE next_cam OF
+				DWELL_CAM:
+					activation_position := next_activation_position;
+				
+				FORWARD_CAM:
+					activation_position := 0;
+					
+			END_CASE
+			connection_status_next := CSP_TRANSFER_STATUS_CONNECTION_CHECK_CHANGE_CAM;
+		END_IF
+		
+		IF	NOT connection_motorization_moving
+		THEN
+			connection_status_next := CSP_TRANSFER_STATUS_CONNECTION_DONE;
+		END_IF
+		
+	CSP_CASE_STATUS_CONNECTION_DONE:	(* Connection done *)	
+	
+		connection_running := FALSE;
+		connection_done := TRUE;
+		
+		IF	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+		THEN
+			motorization_conditioner_start_done(connection_done_motcond);							
+			IF	active_cam <> next_cam
+			THEN
+				connection_status_next := CSP_TRANSFER_STATUS_CONNECTION_WAIT_NEW_CAM;
+			ELSE
+				connection_status_next := CSP_TRANSFER_STATUS_CONNECTION_CHECK_CHANGE_CAM;
+			END_IF
+		END_IF
+	
+	CSP_CASE_STATUS_CONNECTION_ERROR:	(* Connection error *)	
+	
+		IF 	connection_running
+		THEN
+			axis_disable(axis);
+			connection_error := TRUE;						
+		END_IF
+		
+		connection_running	:= FALSE;
+		connection_done 	:= FALSE;	
+		
+		IF	connection_conditions
+		THEN		
+			connection_status_next := CSP_CASE_STATUS_CONNECTION_START;
+		END_IF
+		
+END_CASE
+
+IF 	NOT debug_state_machine
+	OR
+	debug_connection_machine_one_step	
+THEN
+	connection_status := connection_status_next;
+	debug_connection_machine_one_step := FALSE;
+END_IF
+
+connection_motorization_moving	:= 
+	motorization_manager_is_starting(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_execute(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_stopping(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_suspended(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_suspending(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_unsuspending(csp_main_motorization_manager.motm)
+	OR 
+	motorization_manager_is_holding(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_held(csp_main_motorization_manager.motm)
+	OR
+	motorization_manager_is_unholding(csp_main_motorization_manager.motm);	
+	
+(* Connection timeout *)
+IF	(connection_running
+	AND NOT debug_state_machine)	
+	OR connection_error
+THEN
+	IF	timer_is_expired(connection_time_out_tmr)
+	THEN
+		process_message_set(1, connection_status, 0, connection_faulted_aem);
+	END_IF
+ELSE
+	timer_restart(10000, connection_time_out_tmr);
+END_IF
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="phase" Id="{e152ee96-b8df-01b9-32c5-2a04e9f4e56b}">
+      <Implementation>
+        <ST><![CDATA[phase_conditions :=
+	axis_is_ok(FALSE, axis)
+	AND
+	process_is_ready(prc)
+	AND
+	process_subtree_is_ready(prc)
+	//AND
+	//NOT jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+	AND
+	csp_main_motorization.motorization_axis_redefined_at_powerup
+	AND
+	NOT disable_req;		
+	
+(* phase_done reset *)
+IF	phase_done
+	AND
+	NOT phase_conditions
+	//AND 
+	//NOT csp.o_machine_is_running
+THEN
+	//axis_disable(axis);
+	phase_done:= FALSE;
+END_IF
+
+(* Exit condition *)
+IF 	NOT phase_conditions
+THEN
+	phase_status_next := CSP_CASE_PHASE_STATUS_ERROR;
+	phase_status := phase_status_next;	
+END_IF
+
+(*************** MACHINE STATUS ***************)
+CASE phase_status OF
+
+	CSP_CASE_PHASE_STATUS_START:	(* Start phasing *)
+	
+		IF	(
+				motorization_manager_is_starting(csp_main_motorization_manager.motm) //TODOPZ: da decidere a che livello usare le variabili di i e o: wn_feeding.i_motorization_is_starting?					
+				AND 
+				loader_slaves_cammed
+				//OR
+				//jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual)
+			)
+		THEN
+			phase_running := TRUE;			
+			phase_status_next := CSP_CASE_PHASE_STATUS_DISABLE;
+		END_IF
+						
+	CSP_CASE_PHASE_STATUS_DISABLE:
+	
+		axis_disable(axis);		
+		
+		IF 	axis_is_disabled(axis)
+		THEN
+			phase_status_next := CSP_CASE_PHASE_STATUS_ENABLE;
+		END_IF
+		
+	CSP_CASE_PHASE_STATUS_ENABLE:
+	
+		axis_enable(axis);
+		
+		IF 	axis_is_enabled(axis)
+		THEN
+			phase_status_next := CSP_CASE_PHASE_STATUS_ENABLED;
+		END_IF
+		
+	CSP_CASE_PHASE_STATUS_ENABLED:
+	
+		IF 	axis_is_standstill(axis) 
+		THEN
+			phase_status_next := CSP_CASE_PHASE_STATUS_CALCULATE_SLAVE_POSITION_REQUEST;								
+		END_IF
+		
+	CSP_CASE_PHASE_STATUS_CALCULATE_SLAVE_POSITION_REQUEST:
+	
+		slave_position_has_been_calculated := FALSE;
+	
+		(* Gets the position of the master axis *)
+		axis_calculate_cam_slave_master_position_deg := 
+			LMOD(axis_get_actual_modulo_position(csp_main_motorization_virtualManager.axis)
+			+ home_position_master_offset_deg, G_MODULO_360_DEG);
+			
+		(* Gets cam data for slave axis to master *)
+		IF axis_calculate_cam_slave_dynamics_data(
+			cam_id := active_cam,
+			master_scaling := master_scaling,
+			master_position := axis_calculate_cam_slave_master_position_deg,
+			slave_scaling := slave_scaling,
+			CONVERSION_this := axis)
+		THEN
+			phase_status_next := CSP_CASE_PHASE_STATUS_CALCULATING_SLAVE_POSITION;
+		END_IF
+	
+	CSP_CASE_PHASE_STATUS_CALCULATING_SLAVE_POSITION:
+	
+		IF axis_cam_slave_dynamics_data_calculated(axis)
+		THEN
+			axis_calculated_cam_slave_position_deg := axis_get_cam_slave_dynamics_position(axis);
+			slave_position_has_been_calculated := TRUE;
+			phase_status_next := CSP_CASE_PHASE_STATUS_REQUEST;
+				
+		END_IF
+		
+	CSP_CASE_PHASE_STATUS_REQUEST:
+		
+		IF	axis_is_standstill(axis)
+		THEN
+			axis_move_absolute(
+				position 		:= axis_calculated_cam_slave_position_deg,
+				velocity 		:= phase_velocity_degps,
+				direction		:= AXIS_SHORTEST_WAY,
+				acceleration 	:= CONSTANTS.MOTOR_MAX_ACCELERATION_DEGPS2,
+				deceleration 	:= CONSTANTS.MOTOR_MAX_DECELERATION_DEGPS2, 
+				jerk 			:= CONSTANTS.MOTOR_MAX_JERK_DEGPS3, 
+				buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+				CONVERSION_this := axis
+				); 
+			
+		END_IF
+
+		IF 	axis_is_absolute_moving(axis)
+		THEN
+			phase_status_next	:=	CSP_CASE_PHASE_STATUS_PHASING;
+		END_IF
+
+	CSP_CASE_PHASE_STATUS_PHASING:
+
+		IF 	axis_is_standstill(axis)
+		THEN
+			phase_status_next	:=	CSP_TRANSFER_STATUS_PHASED;
+		END_IF
+
+	CSP_TRANSFER_STATUS_PHASED:
+
+		IF 	engage_enable
+		THEN
+			phase_status_next := CSP_CASE_PHASE_STATUS_DONE;
+		END_IF
+		
+		
+	CSP_CASE_PHASE_STATUS_DONE:	(* Phase done *)	
+		
+		phase_running := FALSE;
+		phase_done := TRUE;				
+	
+	CSP_CASE_PHASE_STATUS_ERROR:	(* Phase error *)
+		
+
+		IF	phase_running
+		THEN
+			phase_error := TRUE;
+			axis_disable(axis);									
+		END_IF
+		phase_running := FALSE;
+		
+		IF	phase_conditions 	
+		THEN
+			phase_status_next := CSP_CASE_PHASE_STATUS_START;
+		END_IF
+		
+END_CASE
+
+IF 	NOT debug_state_machine
+	OR
+	debug_phase_machine_one_step	
+THEN
+	phase_status := phase_status_next;
+	debug_phase_machine_one_step := FALSE;
+END_IF
+
+(* Phasing timeout *)
+IF 	(phase_running
+	AND NOT debug_state_machine)
+	OR phase_error
+THEN
+	IF	timer_is_expired(phase_time_out_tmr)
+	THEN
+		process_message_set(1, phase_status, 0, phase_faulted_aem);
+	END_IF
+ELSE
+	timer_restart(10000, phase_time_out_tmr);
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,45 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_case_low" Id="{c5823748-8b7a-46a9-b5d3-8d9302a85773}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_case_low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_csp_case_closing_low();
+
+_csp_case_discharge_low();
+
+_csp_case_feed_low();
+
+_csp_case_flapControl_low();
+
+_csp_case_glue_low();
+
+_csp_case_loader_low();
+
+_csp_case_openFlap_low();
+
+_csp_case_main_low();
+
+_csp_case_topRail_low();
+
+_csp_case_transport_low();
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

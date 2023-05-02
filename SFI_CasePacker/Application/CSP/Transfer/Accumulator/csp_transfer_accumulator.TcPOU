@@ -1,0 +1,182 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_accumulator" Id="{da4be1a7-f06a-41c0-90b5-a8925ef1f540}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_accumulator
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	index_request:									BOOL; (* Upstacker will set this to high when it picks up the cartons and begins route to fingers *)
+	
+	manual_index_belts:								BOOL;
+	index_belts:									BOOL; 
+	
+	lift_not_cammed_dchk:							digital_check;
+	lift_not_cammed_boolean:						boolean;
+	
+	upstacker_virtual_phgen:						phase_generator;
+	upstacker_virtual_phwin:						phase_window; (* Used for the upstacker clear of cartons *)
+	upstacker_cleared_cartons_low_limit:			LREAL := 20; (*$P $*)
+	upstacker_cleared_cartons_high_limit:			LREAL := 30; (*$P $*)
+	upstacker_clear:								BOOL;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{7a9e1081-57dd-4763-a834-53874d2d6c3f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{ffbcabac-a8d7-4695-8fc8-c194a20fc7ca}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{42417599-8c8a-451c-86c4-be12be3b3912}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{d38d9de4-60a5-447c-ab19-5ac80121277a}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_accumulator.prc', 
+		process						:= csp_transfer.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	
+	boolean_init(
+		object_name:= CONCAT(prc_path, '_lift_not_cammed_boolean'), 
+		process:= prc, 
+		CONVERSION_this:= lift_not_cammed_boolean);
+		
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_lift_not_cammed_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 2000, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_NORMAL_STOP, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= lift_not_cammed_dchk);
+		
+	digital_check_add_boolean(
+		boolean:= lift_not_cammed_boolean, 
+		CONVERSION_this:= lift_not_cammed_dchk);
+		
+		
+	(* PHASE GENERATORS *)
+	phase_generator_init(
+		object_name:= CONCAT(prc_path, '_upstacker_virtual_generator'), 
+		modulo:= 360, 
+		resolution:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis:= csp_transfer_upstacker_virtualMaster.axis, 
+		process:= prc, 
+		CONVERSION_this:= upstacker_virtual_phgen);
+		
+	(* PHASE WINDOWS *)
+	phase_window_init(
+		object_name:= CONCAT(prc_path, '_upstacker_virtual_window'), 
+		begin_phase:= upstacker_cleared_cartons_low_limit, 
+		end_phase:= upstacker_cleared_cartons_high_limit, 
+		begin_delay:= 0, 
+		end_delay:= 0, 
+		begin_max_compensation:= 0, 
+		end_max_compensation:= 0, 
+		generator:= upstacker_virtual_phgen, 
+		process:= prc, 
+		CONVERSION_this:= upstacker_virtual_phwin);		
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	digital_check_cycle(lift_not_cammed_dchk);
+	phase_generator_cycle(upstacker_virtual_phgen);	
+	phase_window_cycle(upstacker_virtual_phwin);
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{9e6644e9-2bdf-4fc4-a7dc-afc91c84a852}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{4a36794b-505d-4ad5-9570-cef701de17ef}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{e3c456b1-c1ea-4db7-9e4b-f6934bb00083}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{01ff48ae-ddc3-456b-bab1-7e7786c888ce}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

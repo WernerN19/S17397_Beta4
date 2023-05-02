@@ -1,0 +1,274 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_phaseManager_run_out" Id="{058dca53-4114-00e6-2e52-196220dc3de0}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+WN phase manager program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2021/03/18 	0000.01	 	S.Uccellari 	Creation of the PRG
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_main_phaseManager_run_out
+VAR
+	prc:												process;
+	prc_path:											STRING;
+	
+	fsm_enable_conditions:								BOOL;
+	fsm_status:											INT;
+	
+	rejects_for_low_weight_init_cnt:					UDINT;
+	rejects_for_low_weight_cnt:							UDINT;	
+	rejects_for_low_weight_limit_npr:					UDINT;		(*$P desc := run out - cups under weight; $*)
+
+	confirm_run_out_mode_dpr:							BOOL;		(*$P $*)	
+	confirm_run_out_mode_pow:							parameter_overwrite;	
+	confirm_run_out_mode_visibility:					INT := 1; 	(*$H_R	desc := visibility; $*)
+
+	low_weight_limit_asm:								message;	
+	run_out_complete_asm:								message;	
+	
+	
+	run_out_running:									BOOL;
+	run_out_done:										BOOL;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+(**************************** PROGRAM HANDLER ***************************)
+run_cycle();
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{9b85a45a-ba7c-0baf-2aab-240eb87bbb1b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{f7aa0d5f-d57a-0b1e-0665-9edc44a8fb8c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{7cea1b1f-2292-0675-036f-95fb6d65f90a}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{68ea96e8-0c30-097c-07eb-3330955abf4a}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_main_phaseManager_run_out.prc', 
+		process						:= csp_main_phaseManager.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	parameter_overwrite_bool_init(
+		object_name								:= CONCAT(prc_path, '_confirm_run_out_mode_pow'), 
+		parameter								:= confirm_run_out_mode_dpr, 
+		process									:= prc, 
+		CONVERSION_this							:= confirm_run_out_mode_pow);		
+
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_low_weight_limit_asm'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout				:= 0, 
+		disableable					:= FALSE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_NORMAL_STOP, 
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= low_weight_limit_asm);
+
+	process_message_init(
+		object_name					:= CONCAT(prc_path, '_run_out_complete_asm'), 
+		behaviour					:= MESSAGE_BEHAVIOUR_EVENT, 
+		reset_timeout				:= 0, 
+		disableable					:= FALSE, 
+		individual_reset			:= FALSE, 
+		machine_reaction			:= MACHINE_REACTION_NORMAL_STOP, 
+		typology					:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process						:= prc, 
+		CONVERSION_this				:= run_out_complete_asm);
+
+
+		
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{78f062b5-6d16-031c-23fb-fc2ec80bd380}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{ab570538-4322-0c04-1baa-d54c484e7cbd}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{dff9c810-bbbb-0d03-2b76-b943be054bbb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{c5649b05-98da-0848-1c0b-7d5af9c74ab2}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="run_cycle" Id="{4f4609d5-c0ae-0cb7-35cc-1ec709ca1dc2}">
+      <Implementation>
+        <ST><![CDATA[IF	csp_main_phaseManager.fsm_status = CSP_MAIN_PHASE_MANAGER_STATUS_UNDEFINED_0
+	AND
+	csp_main_phaseManager.p_mes_interface_enable
+THEN	
+	fsm_status := 0;
+END_IF
+
+fsm_enable_conditions :=
+	(
+		csp_main_phaseManager.fsm_status
+		=
+		CSP_MAIN_PHASE_MANAGER_STATUS_RUNOUT_60
+	);
+	
+IF	NOT fsm_enable_conditions
+THEN
+	process_message_reset(low_weight_limit_asm);	
+	IF	run_out_running	
+	THEN
+		fsm_status := 666;
+	END_IF;	
+END_IF
+
+CASE fsm_status OF
+	0:
+		confirm_run_out_mode_visibility := 1;	
+		csp_main.i_csp_data_ref^.Status.RunOutComplete := FALSE;
+		IF fsm_enable_conditions
+		THEN
+			run_out_done := FALSE;
+			run_out_running := TRUE;
+			fsm_status := 20;
+		END_IF
+		
+	20:		
+		fsm_status := 30;			
+		
+
+	30:	
+		fsm_status := 40;	
+
+	40:
+		confirm_run_out_mode_visibility := 1;
+		csp_main.i_csp_data_ref^.Status.RunOut := TRUE; (* use this to empty the filler *)
+
+			fsm_status := 555;
+
+
+	50: 
+		;
+		(*IF filler_empty
+		THEN
+			process_message_set(
+				errorID_1			:= 1, 
+				errorID_2			:= 0, 
+				errorID_3			:= 0, 
+				CONVERSION_this		:= run_out_complete_asm);
+
+			run_out step1 AND run out cartoner
+			
+			fsm_status := 555;
+		END_IF*)
+		
+		
+	555:
+		csp_main.i_csp_data_ref^.Status.RunOut := FALSE;	
+		csp_main.i_csp_data_ref^.Status.RunOutComplete := TRUE;
+		run_out_running := FALSE;
+		run_out_done := TRUE;
+		confirm_run_out_mode_visibility := 1;
+		
+		IF	csp_main.i_filler_upstream_coffee //MARCO 0904
+		THEN
+			run_out_running := FALSE;
+			run_out_done := FALSE;
+			fsm_status := 0;
+		END_IF		
+		
+	666:
+		run_out_running := FALSE;
+		run_out_done := FALSE;
+		confirm_run_out_mode_visibility := 1;		
+		csp_main.i_csp_data_ref^.Status.RunOut := FALSE;		
+		csp_main.i_csp_data_ref^.Status.RunOutComplete := FALSE;
+		//IF NOT csp_main.i_upstream_coffee^.Down //MARCO 0904
+		//THEN
+			fsm_status := 0;
+		//END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

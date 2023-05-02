@@ -1,0 +1,3030 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_glue" Id="{7ff7d909-2ce0-4017-86ea-971a1af0a237}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/02/19 	0000.00	 	G.Imbriaco		First object declatation and purge function.
+										TODO: 	- one_product_shot_req from machine logic
+												- wait drive board firmware update to use object parameter
+												- shift register reject information in case of error
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_glue
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+
+	gd_glue:										BOOL := FALSE;
+	
+	Test_glue_bool:									bool:=false;
+	one_product_shot_req:							BOOL:=FALSE; 
+	purge_req:										BOOL:=FALSE;(*$P $*)
+	purge_run_req:									BOOL:=FALSE;(*$P $*)
+	p_purge_frequency_hz:							INT := 20;(*$P $*)
+
+	purge_running:									message;	
+	
+	purge_position:									BOOL:=FALSE;
+	run_position:									BOOL:=TRUE;
+
+	purge_conditions:								BOOL;
+	purge_command:									BOOL;
+	purge_in_progress:								BOOL;(*$M $*)
+	debug_purge:									BOOL;
+	purge_frequency:								INT;
+	auto_purge_request:								BOOL;
+	
+	product_presence_from_shift_bool:				BOOL;
+	force_product_presence:							BOOL;
+	
+	enable_conditions:								BOOL;
+	run_conditions:									BOOL;
+	debug:											BOOL;
+	
+	glue_check_phase_old:							REAL;
+	
+	fsm_status:										csp_case_glue_status_enum;(*$M $*)
+	fsm_next_status:								csp_case_glue_status_enum;
+	fsm_enable_condition:							BOOL:=FALSE;
+	debug_state_machine:							BOOL:=FALSE;
+	debug_state_machine_one_step:					BOOL:=FALSE;
+	
+	fsm_status_NEW:									csp_case_glue_status_enum;(*$M $*)
+	fsm_next_status_NEW:							csp_case_glue_status_enum;
+
+	hmi_purge_active_cbtn:							command_button;
+	hmi_purge_active_dpr:							BOOL:=FALSE; 
+	hmi_purge_active_hgos:							hmi_graphic_object_status;
+	
+	purge_active_motcond:							motorization_conditioner;
+	
+	hmi_os_glue_upper_gun1_cbtn:					command_button;
+	hmi_os_glue_upper_gun2_cbtn:					command_button;
+	hmi_os_glue_lower_gun1_cbtn:					command_button;
+	hmi_os_glue_lower_gun2_cbtn:					command_button;
+	
+	hmi_os_glue_upper_gun1_hgos:					hmi_graphic_object_status;
+	hmi_os_glue_upper_gun2_hgos:					hmi_graphic_object_status;
+	hmi_os_glue_lower_gun1_hgos:					hmi_graphic_object_status;
+	hmi_os_glue_lower_gun2_hgos:					hmi_graphic_object_status;
+	
+	hmi_ls_glue_upper_gun1_cbtn:					command_button;
+	hmi_ls_glue_upper_gun2_cbtn:					command_button;
+	hmi_ls_glue_lower_gun1_cbtn:					command_button;
+	hmi_ls_glue_lower_gun2_cbtn:					command_button;
+	
+	hmi_ls_glue_upper_gun1_hgos:					hmi_graphic_object_status;
+	hmi_ls_glue_upper_gun2_hgos:					hmi_graphic_object_status;
+	hmi_ls_glue_lower_gun1_hgos:					hmi_graphic_object_status;
+	hmi_ls_glue_lower_gun2_hgos:					hmi_graphic_object_status;
+	Test_purge_logic: 								BOOL := FALSE;
+	
+	case_at_glue_sr: 								INT := 27;
+	toggle_eye: 									BOOL := FALSE;
+	glue_pe_active:									BOOL;
+	toggle_shift_reg: 								BOOL;
+	glue_shift_active: 								BOOL := FALSE;
+	
+	glue_vm_phgen: 									phase_generator;
+	
+	glue_leading_upper_on: 							LREAL := 172;
+	glue_leading_upper_off: 						LREAL := 202;
+	glue_leading_upper_phwin: 						phase_window;
+	
+	glue_trailing_upper_on: 						LREAL := 294;
+	glue_trailing_upper_off: 						LREAL := 340;
+	glue_trailing_upper_phwin: 						phase_window;
+	
+	glue_head_offset:								LREAL := 71;
+	
+	glue_on: 										LREAL;
+	
+	glue_leading_lower_on: 							LREAL;
+	glue_leading_lower_off: 						LREAL;
+	glue_leading_lower_phwin: 						phase_window;
+	
+	glue_trailing_lower_on: 						LREAL;
+	glue_trailing_lower_off: 						LREAL;
+	glue_trailing_lower_phwin: 						phase_window;
+	
+	CONVERSION_MM_TO_DEG:							LREAL := 0.5905511811023622; //609.6mm = 24"
+	
+	hot_glue_bypass: 								BOOL :=FALSE; (*$P $*)
+	os_upper_bypass_req:							BOOL:=FALSE;(*$P $*)
+	os_lower_bypass_req:							BOOL:=FALSE;(*$P $*)
+	ls_upper_bypass_req:							BOOL:=FALSE;(*$P $*)
+	ls_lower_bypass_req:							BOOL:=FALSE;(*$P $*)
+	
+	(* NEW GLUE LOGIC *)
+	os_case_at_glue_latch: 							BOOL := FALSE;
+	ls_case_at_glue_latch: 							BOOL := FALSE;
+	
+	glue_strip_length_mm:							LREAL := 10; (*$P $*) // length of glue strip
+	glue_strip_length_deg:							LREAL;
+	less_glue_strip_mm:								LREAL := -1; // -1 at 17.2 AND 4 at 5
+	less_glue_strip_deg:							LREAL;
+	
+	max_comp_deg:									LREAL;
+	
+	max_glue_strip_deg:								LREAL;
+	current_deg_per_ms:								LREAL := 1;
+	max_glue_time_ms:								UDINT;
+	
+	number_of_dots:									DINT; (*$P $*)
+	dot_1_enable:									BOOL;
+	dot_2_enable:									BOOL;
+	dot_3_enable:									BOOL;
+	dot_4_enable:									BOOL;
+	dot_5_enable:									BOOL;
+	dot_6_enable:									BOOL;
+	
+	os_upper_gun_1_enable:							BOOL := TRUE;
+	os_upper_gun_2_enable:							BOOL := TRUE;
+	os_lower_gun_1_enable:							BOOL := TRUE;
+	os_lower_gun_2_enable:							BOOL := TRUE;
+	
+	ls_upper_gun_1_enable:							BOOL := TRUE;
+	ls_upper_gun_2_enable:							BOOL := TRUE;
+	ls_lower_gun_1_enable:							BOOL := TRUE;
+	ls_lower_gun_2_enable:							BOOL := TRUE;
+	
+	os_upper_gun_1_on_tmr:							timer;
+	os_upper_gun_2_on_tmr:							timer;
+	os_lower_gun_1_on_tmr:							timer;
+	os_lower_gun_2_on_tmr:							timer;
+	
+	ls_upper_gun_1_on_tmr:							timer;
+	ls_upper_gun_2_on_tmr:							timer;
+	ls_lower_gun_1_on_tmr:							timer;
+	ls_lower_gun_2_on_tmr:							timer;
+	
+	
+	(* OS START MM'S *)
+	os_leading_upper_start_mm:						LREAL := 290; (*$P $*) // offest to start on upper leading
+	os_leading_upper_start_deg:						LREAL;
+	os_leading_lower_start_mm:						LREAL := 206; (*$P $*) // offest to start on lower leading
+	os_leading_lower_start_deg:						LREAL;
+	
+	os_trailing_upper_start_mm: 					LREAL := 497; (*$P $*) // offest to start on upper trailing
+	os_trailing_upper_start_deg:					LREAL;
+	os_trailing_lower_start_mm:						LREAL := 413; (*$P $*) // offest to start on lower trailing
+	os_trailing_lower_start_deg:					LREAL;
+	
+	(* OS LEADING FLAP PHASE WINDOWS *)
+	os_leading_upper_dot_1_phwin:					phase_window;
+	os_leading_upper_dot_2_phwin:					phase_window;
+	os_leading_upper_dot_3_phwin:					phase_window;
+	os_leading_upper_dot_4_phwin:					phase_window;
+	os_leading_upper_dot_5_phwin:					phase_window;
+	os_leading_upper_dot_6_phwin:					phase_window;
+	
+	os_leading_lower_dot_1_phwin:					phase_window;
+	os_leading_lower_dot_2_phwin:					phase_window;
+	os_leading_lower_dot_3_phwin:					phase_window;
+	os_leading_lower_dot_4_phwin:					phase_window;
+	os_leading_lower_dot_5_phwin:					phase_window;
+	os_leading_lower_dot_6_phwin:					phase_window;
+	
+	(* OS TRAILING FLAP PHASE WINDOWS *)
+	os_trailing_upper_dot_1_phwin:					phase_window;
+	os_trailing_upper_dot_2_phwin:					phase_window;
+	os_trailing_upper_dot_3_phwin:					phase_window;
+	os_trailing_upper_dot_4_phwin:					phase_window;
+	os_trailing_upper_dot_5_phwin:					phase_window;
+	os_trailing_upper_dot_6_phwin:					phase_window;
+	
+	os_trailing_lower_dot_1_phwin:					phase_window;
+	os_trailing_lower_dot_2_phwin:					phase_window;
+	os_trailing_lower_dot_3_phwin:					phase_window;
+	os_trailing_lower_dot_4_phwin:					phase_window;
+	os_trailing_lower_dot_5_phwin:					phase_window;
+	os_trailing_lower_dot_6_phwin:					phase_window;
+	
+	(* OS PHASE WINDOW ON OFFS *)
+	os_leading_upper_dot_1_on:						LREAL;
+	os_leading_upper_dot_1_on_comp:					LREAL;
+	os_leading_upper_dot_1_off:						LREAL;
+	os_leading_upper_dot_1_off_comp:				LREAL;
+	os_leading_upper_dot_2_on:						LREAL;
+	os_leading_upper_dot_2_on_comp:					LREAL;
+	os_leading_upper_dot_2_off:						LREAL;
+	os_leading_upper_dot_2_off_comp:				LREAL;
+	os_leading_upper_dot_3_on:						LREAL;
+	os_leading_upper_dot_3_on_comp:					LREAL;
+	os_leading_upper_dot_3_off:						LREAL;
+	os_leading_upper_dot_3_off_comp:				LREAL;
+	os_leading_upper_dot_4_on:						LREAL;
+	os_leading_upper_dot_4_on_comp:					LREAL;
+	os_leading_upper_dot_4_off:						LREAL;
+	os_leading_upper_dot_4_off_comp:				LREAL;
+	os_leading_upper_dot_5_on:						LREAL;
+	os_leading_upper_dot_5_on_comp:					LREAL;
+	os_leading_upper_dot_5_off:						LREAL;
+	os_leading_upper_dot_5_off_comp:				LREAL;
+	os_leading_upper_dot_6_on:						LREAL;
+	os_leading_upper_dot_6_on_comp:					LREAL;
+	os_leading_upper_dot_6_off:						LREAL;
+	os_leading_upper_dot_6_off_comp:				LREAL;
+	
+	os_leading_lower_dot_1_on:						LREAL;
+	os_leading_lower_dot_1_on_comp:					LREAL;
+	os_leading_lower_dot_1_off:						LREAL;
+	os_leading_lower_dot_1_off_comp:				LREAL;
+	os_leading_lower_dot_2_on:						LREAL;
+	os_leading_lower_dot_2_on_comp:					LREAL;
+	os_leading_lower_dot_2_off:						LREAL;
+	os_leading_lower_dot_2_off_comp:				LREAL;
+	os_leading_lower_dot_3_on:						LREAL;
+	os_leading_lower_dot_3_on_comp:					LREAL;
+	os_leading_lower_dot_3_off:						LREAL;
+	os_leading_lower_dot_3_off_comp:				LREAL;
+	os_leading_lower_dot_4_on:						LREAL;
+	os_leading_lower_dot_4_on_comp:					LREAL;
+	os_leading_lower_dot_4_off:						LREAL;
+	os_leading_lower_dot_4_off_comp:				LREAL;
+	os_leading_lower_dot_5_on:						LREAL;
+	os_leading_lower_dot_5_on_comp:					LREAL;
+	os_leading_lower_dot_5_off:						LREAL;
+	os_leading_lower_dot_5_off_comp:				LREAL;
+	os_leading_lower_dot_6_on:						LREAL;
+	os_leading_lower_dot_6_on_comp:					LREAL;
+	os_leading_lower_dot_6_off:						LREAL;
+	os_leading_lower_dot_6_off_comp:				LREAL;
+	
+	os_trailing_upper_dot_1_on:						LREAL;
+	os_trailing_upper_dot_1_on_comp:				LREAL;
+	os_trailing_upper_dot_1_off:					LREAL;
+	os_trailing_upper_dot_1_off_comp:				LREAL;
+	os_trailing_upper_dot_2_on:						LREAL;
+	os_trailing_upper_dot_2_on_comp:				LREAL;
+	os_trailing_upper_dot_2_off:					LREAL;
+	os_trailing_upper_dot_2_off_comp:				LREAL;
+	os_trailing_upper_dot_3_on:						LREAL;
+	os_trailing_upper_dot_3_on_comp:				LREAL;
+	os_trailing_upper_dot_3_off:					LREAL;
+	os_trailing_upper_dot_3_off_comp:				LREAL;
+	os_trailing_upper_dot_4_on:						LREAL;
+	os_trailing_upper_dot_4_on_comp:				LREAL;
+	os_trailing_upper_dot_4_off:					LREAL;
+	os_trailing_upper_dot_4_off_comp:				LREAL;
+	os_trailing_upper_dot_5_on:						LREAL;
+	os_trailing_upper_dot_5_on_comp:				LREAL;
+	os_trailing_upper_dot_5_off:					LREAL;
+	os_trailing_upper_dot_5_off_comp:				LREAL;
+	os_trailing_upper_dot_6_on:						LREAL;
+	os_trailing_upper_dot_6_on_comp:				LREAL;
+	os_trailing_upper_dot_6_off:					LREAL;
+	os_trailing_upper_dot_6_off_comp:				LREAL;
+	
+	os_trailing_lower_dot_1_on:						LREAL;
+	os_trailing_lower_dot_1_on_comp:				LREAL;
+	os_trailing_lower_dot_1_off:					LREAL;
+	os_trailing_lower_dot_1_off_comp:				LREAL;
+	os_trailing_lower_dot_2_on:						LREAL;
+	os_trailing_lower_dot_2_on_comp:				LREAL;
+	os_trailing_lower_dot_2_off:					LREAL;
+	os_trailing_lower_dot_2_off_comp:				LREAL;
+	os_trailing_lower_dot_3_on:						LREAL;
+	os_trailing_lower_dot_3_on_comp:				LREAL;
+	os_trailing_lower_dot_3_off:					LREAL;
+	os_trailing_lower_dot_3_off_comp:				LREAL;
+	os_trailing_lower_dot_4_on:						LREAL;
+	os_trailing_lower_dot_4_on_comp:				LREAL;
+	os_trailing_lower_dot_4_off:					LREAL;
+	os_trailing_lower_dot_4_off_comp:				LREAL;
+	os_trailing_lower_dot_5_on:						LREAL;
+	os_trailing_lower_dot_5_on_comp:				LREAL;
+	os_trailing_lower_dot_5_off:					LREAL;
+	os_trailing_lower_dot_5_off_comp:				LREAL;
+	os_trailing_lower_dot_6_on:						LREAL;
+	os_trailing_lower_dot_6_on_comp:				LREAL;
+	os_trailing_lower_dot_6_off:					LREAL;
+	os_trailing_lower_dot_6_off_comp:				LREAL;
+	
+	
+	(* LS START MM'S *)
+	ls_leading_upper_start_mm:						LREAL := 290; (*$P $*) // offest to start on upper leading
+	ls_leading_upper_start_deg:						LREAL;
+	ls_leading_lower_start_mm:						LREAL := 206; (*$P $*) // offest to start on lower leading
+	ls_leading_lower_start_deg:						LREAL;
+	
+	ls_trailing_upper_start_mm: 					LREAL := 497; (*$P $*) // offest to start on upper trailing
+	ls_trailing_upper_start_deg:					LREAL;
+	ls_trailing_lower_start_mm:						LREAL := 413; (*$P $*) // offest to start on lower trailing
+	ls_trailing_lower_start_deg:					LREAL;
+	
+	(* LS LEADING FLAP PHASE WINDOWS *)
+	ls_leading_upper_dot_1_phwin:					phase_window;
+	ls_leading_upper_dot_2_phwin:					phase_window;
+	ls_leading_upper_dot_3_phwin:					phase_window;
+	ls_leading_upper_dot_4_phwin:					phase_window;
+	ls_leading_upper_dot_5_phwin:					phase_window;
+	ls_leading_upper_dot_6_phwin:					phase_window;
+	
+	ls_leading_lower_dot_1_phwin:					phase_window;
+	ls_leading_lower_dot_2_phwin:					phase_window;
+	ls_leading_lower_dot_3_phwin:					phase_window;
+	ls_leading_lower_dot_4_phwin:					phase_window;
+	ls_leading_lower_dot_5_phwin:					phase_window;
+	ls_leading_lower_dot_6_phwin:					phase_window;
+	
+	(* LS TRAILING FLAP PHASE WINDOWS *)
+	ls_trailing_upper_dot_1_phwin:					phase_window;
+	ls_trailing_upper_dot_2_phwin:					phase_window;
+	ls_trailing_upper_dot_3_phwin:					phase_window;
+	ls_trailing_upper_dot_4_phwin:					phase_window;
+	ls_trailing_upper_dot_5_phwin:					phase_window;
+	ls_trailing_upper_dot_6_phwin:					phase_window;
+	
+	ls_trailing_lower_dot_1_phwin:					phase_window;
+	ls_trailing_lower_dot_2_phwin:					phase_window;
+	ls_trailing_lower_dot_3_phwin:					phase_window;
+	ls_trailing_lower_dot_4_phwin:					phase_window;
+	ls_trailing_lower_dot_5_phwin:					phase_window;
+	ls_trailing_lower_dot_6_phwin:					phase_window;
+	
+	(* LS PHASE WINDOW ON OFFS *)
+	ls_leading_upper_dot_1_on:						LREAL;
+	ls_leading_upper_dot_1_on_comp:					LREAL;
+	ls_leading_upper_dot_1_off:						LREAL;
+	ls_leading_upper_dot_1_off_comp:				LREAL;
+	ls_leading_upper_dot_2_on:						LREAL;
+	ls_leading_upper_dot_2_on_comp:					LREAL;
+	ls_leading_upper_dot_2_off:						LREAL;
+	ls_leading_upper_dot_2_off_comp:				LREAL;
+	ls_leading_upper_dot_3_on:						LREAL;
+	ls_leading_upper_dot_3_on_comp:					LREAL;
+	ls_leading_upper_dot_3_off:						LREAL;
+	ls_leading_upper_dot_3_off_comp:				LREAL;
+	ls_leading_upper_dot_4_on:						LREAL;
+	ls_leading_upper_dot_4_on_comp:					LREAL;
+	ls_leading_upper_dot_4_off:						LREAL;
+	ls_leading_upper_dot_4_off_comp:				LREAL;
+	ls_leading_upper_dot_5_on:						LREAL;
+	ls_leading_upper_dot_5_on_comp:					LREAL;
+	ls_leading_upper_dot_5_off:						LREAL;
+	ls_leading_upper_dot_5_off_comp:				LREAL;
+	ls_leading_upper_dot_6_on:						LREAL;
+	ls_leading_upper_dot_6_on_comp:					LREAL;
+	ls_leading_upper_dot_6_off:						LREAL;
+	ls_leading_upper_dot_6_off_comp:				LREAL;
+	
+	ls_leading_lower_dot_1_on:						LREAL;
+	ls_leading_lower_dot_1_on_comp:					LREAL;
+	ls_leading_lower_dot_1_off:						LREAL;
+	ls_leading_lower_dot_1_off_comp:				LREAL;
+	ls_leading_lower_dot_2_on:						LREAL;
+	ls_leading_lower_dot_2_on_comp:					LREAL;
+	ls_leading_lower_dot_2_off:						LREAL;
+	ls_leading_lower_dot_2_off_comp:				LREAL;
+	ls_leading_lower_dot_3_on:						LREAL;
+	ls_leading_lower_dot_3_on_comp:					LREAL;
+	ls_leading_lower_dot_3_off:						LREAL;
+	ls_leading_lower_dot_3_off_comp:				LREAL;
+	ls_leading_lower_dot_4_on:						LREAL;
+	ls_leading_lower_dot_4_on_comp:					LREAL;
+	ls_leading_lower_dot_4_off:						LREAL;
+	ls_leading_lower_dot_4_off_comp:				LREAL;
+	ls_leading_lower_dot_5_on:						LREAL;
+	ls_leading_lower_dot_5_on_comp:					LREAL;
+	ls_leading_lower_dot_5_off:						LREAL;
+	ls_leading_lower_dot_5_off_comp:				LREAL;
+	ls_leading_lower_dot_6_on:						LREAL;
+	ls_leading_lower_dot_6_on_comp:					LREAL;
+	ls_leading_lower_dot_6_off:						LREAL;
+	ls_leading_lower_dot_6_off_comp:				LREAL;
+	
+	ls_trailing_upper_dot_1_on:						LREAL;
+	ls_trailing_upper_dot_1_on_comp:				LREAL;
+	ls_trailing_upper_dot_1_off:					LREAL;
+	ls_trailing_upper_dot_1_off_comp:				LREAL;
+	ls_trailing_upper_dot_2_on:						LREAL;
+	ls_trailing_upper_dot_2_on_comp:				LREAL;
+	ls_trailing_upper_dot_2_off:					LREAL;
+	ls_trailing_upper_dot_2_off_comp:				LREAL;
+	ls_trailing_upper_dot_3_on:						LREAL;
+	ls_trailing_upper_dot_3_on_comp:				LREAL;
+	ls_trailing_upper_dot_3_off:					LREAL;
+	ls_trailing_upper_dot_3_off_comp:				LREAL;
+	ls_trailing_upper_dot_4_on:						LREAL;
+	ls_trailing_upper_dot_4_on_comp:				LREAL;
+	ls_trailing_upper_dot_4_off:					LREAL;
+	ls_trailing_upper_dot_4_off_comp:				LREAL;
+	ls_trailing_upper_dot_5_on:						LREAL;
+	ls_trailing_upper_dot_5_on_comp:				LREAL;
+	ls_trailing_upper_dot_5_off:					LREAL;
+	ls_trailing_upper_dot_5_off_comp:				LREAL;
+	ls_trailing_upper_dot_6_on:						LREAL;
+	ls_trailing_upper_dot_6_on_comp:				LREAL;
+	ls_trailing_upper_dot_6_off:					LREAL;
+	ls_trailing_upper_dot_6_off_comp:				LREAL;
+	
+	ls_trailing_lower_dot_1_on:						LREAL;
+	ls_trailing_lower_dot_1_on_comp:				LREAL;
+	ls_trailing_lower_dot_1_off:					LREAL;
+	ls_trailing_lower_dot_1_off_comp:				LREAL;
+	ls_trailing_lower_dot_2_on:						LREAL;
+	ls_trailing_lower_dot_2_on_comp:				LREAL;
+	ls_trailing_lower_dot_2_off:					LREAL;
+	ls_trailing_lower_dot_2_off_comp:				LREAL;
+	ls_trailing_lower_dot_3_on:						LREAL;
+	ls_trailing_lower_dot_3_on_comp:				LREAL;
+	ls_trailing_lower_dot_3_off:					LREAL;
+	ls_trailing_lower_dot_3_off_comp:				LREAL;
+	ls_trailing_lower_dot_4_on:						LREAL;
+	ls_trailing_lower_dot_4_on_comp:				LREAL;
+	ls_trailing_lower_dot_4_off:					LREAL;
+	ls_trailing_lower_dot_4_off_comp:				LREAL;
+	ls_trailing_lower_dot_5_on:						LREAL;
+	ls_trailing_lower_dot_5_on_comp:				LREAL;
+	ls_trailing_lower_dot_5_off:					LREAL;
+	ls_trailing_lower_dot_5_off_comp:				LREAL;
+	ls_trailing_lower_dot_6_on:						LREAL;
+	ls_trailing_lower_dot_6_on_comp:				LREAL;
+	ls_trailing_lower_dot_6_off:					LREAL;
+	ls_trailing_lower_dot_6_off_comp:				LREAL;
+	
+	(* NEW GLUE OUTPUTS *)
+	os_upper_gun_1_do:								digital_output;
+	os_upper_gun_2_do:								digital_output;
+	os_lower_gun_1_do:								digital_output;
+	os_lower_gun_2_do:								digital_output;
+	
+	ls_upper_gun_1_do:								digital_output;
+	ls_upper_gun_2_do:								digital_output;
+	ls_lower_gun_1_do:								digital_output;
+	ls_lower_gun_2_do:								digital_output;
+	
+	enable_conditions_off: 							BOOL := FALSE;
+	hmi_glue_ready_hgos:							hmi_graphic_object_status;
+	hmi_glue_not_ready_hgos: 						hmi_graphic_object_status;
+	OS_lower_glue_gun_disabled_wem:					message;					//PRS 7/14/2021
+	OS_upper_glue_gun_disabled_wem:					message;					//PRS 7/14/2021
+	LS_lower_glue_gun_disabled_wem:					message;					//PRS 7/14/2021
+	LS_upper_glue_gun_disabled_wem:					message;					//PRS 7/14/2021
+	absent_test: 									BOOL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+absent_test := FALSE;
+(********************************* BODY *********************************)
+(* USED TO CHANGE VISIBILITY ON MESSAGE FOR RFID *)
+IF NOT enable_conditions
+	THEN
+	enable_conditions_off := TRUE;
+	ELSE
+	enable_conditions_off := FALSE; 
+END_IF
+
+
+	hmi_graphic_object_set_status(
+        status  			:= SEL(enable_conditions, HMI_OBJECT_STATUS_INVISIBLE, HMI_OBJECT_STATUS_ON),
+        CONVERSION_this     := hmi_glue_ready_hgos);
+	
+	hmi_graphic_object_set_status(
+        status  			:= SEL(enable_conditions_off, HMI_OBJECT_STATUS_ON, HMI_OBJECT_STATUS_INVISIBLE),
+        CONVERSION_this     := hmi_glue_not_ready_hgos);
+		
+IF NOT purge_req
+THEN
+	motorization_conditioner_start_done(purge_active_motcond);
+END_IF
+
+
+(* UPPER LEADING FLAP PHWIN - MANUAL SET*)
+phase_window_set_phases_data(
+	begin_phase:=  glue_leading_upper_on,
+	end_phase:=  glue_leading_upper_off,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= glue_leading_upper_phwin);
+
+(* UPPER TRAILING FLAP PHWIN - MANUAL SET*)	
+phase_window_set_phases_data(
+    begin_phase:=  glue_trailing_upper_on,
+    end_phase:=  glue_trailing_upper_off,
+    begin_delay:= 0,
+    end_delay:= 0,
+    begin_max_compensation:= 0,
+    end_max_compensation:= 0,
+    CONVERSION_this:= glue_trailing_upper_phwin);
+
+	
+(* AUTO SET PHWIN OF LOWER BY GUN OFFSET *)
+glue_leading_lower_on := glue_leading_upper_on - (CONVERSION_MM_TO_DEG * glue_head_offset);
+glue_leading_lower_off := glue_leading_upper_off - (CONVERSION_MM_TO_DEG * glue_head_offset);
+
+glue_trailing_lower_on := glue_trailing_upper_on - (CONVERSION_MM_TO_DEG * glue_head_offset);
+glue_trailing_lower_off := glue_trailing_upper_off - (CONVERSION_MM_TO_DEG * glue_head_offset);		
+
+	
+(* LOWER LEADING FLAP PHWIN *)
+phase_window_set_phases_data(
+	begin_phase:=  glue_leading_lower_on,
+	end_phase:=  glue_leading_lower_off,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= glue_leading_lower_phwin);
+	
+(* LOWER TRAILING FLAP PHWIN *)
+phase_window_set_phases_data(
+    begin_phase:=  glue_trailing_lower_on,
+    end_phase:=  glue_trailing_lower_off,
+    begin_delay:= 0,
+    end_delay:= 0,
+    begin_max_compensation:= 0,
+    end_max_compensation:= 0,
+    CONVERSION_this:= glue_trailing_lower_phwin);
+
+	
+(************************************************************************)
+
+(**************************** PROGRAM HANDLER ***************************)
+
+(* LOGIC TO DETERMINE IF GD OR BECKHOFF GLUE BOARDS *) (* GD Boards Removed *)
+
+(* NEW GLUE CYCLE *)
+_dot_calculations();
+_run_cycle_NEW();
+
+
+
+(* OS UPPER GUN 1 TIMEOUT *)
+IF NOT digital_output_is_active(os_upper_gun_1_do)
+	THEN
+		timer_restart(max_glue_time_ms, os_upper_gun_1_on_tmr);
+END_IF
+
+IF	timer_is_expired(os_upper_gun_1_on_tmr)
+	THEN
+		digital_output_reset(os_upper_gun_1_do);
+END_IF
+
+(* OS UPPER GUN 2 TIMEOUT *)
+IF NOT digital_output_is_active(os_upper_gun_2_do)
+	THEN
+		timer_restart(max_glue_time_ms, os_upper_gun_2_on_tmr);
+END_IF
+
+IF	timer_is_expired(os_upper_gun_2_on_tmr)
+	THEN
+		digital_output_reset(os_upper_gun_2_do);
+END_IF
+
+(* OS lower GUN 1 TIMEOUT *)
+IF NOT digital_output_is_active(os_lower_gun_1_do)
+	THEN
+		timer_restart(max_glue_time_ms, os_lower_gun_1_on_tmr);
+END_IF
+
+IF	timer_is_expired(os_lower_gun_1_on_tmr)
+	THEN
+		digital_output_reset(os_lower_gun_1_do);
+END_IF
+
+(* OS lower GUN 2 TIMEOUT *)
+IF NOT digital_output_is_active(os_lower_gun_2_do)
+	THEN
+		timer_restart(max_glue_time_ms, os_lower_gun_2_on_tmr);
+END_IF
+
+IF	timer_is_expired(os_lower_gun_2_on_tmr)
+	THEN
+		digital_output_reset(os_lower_gun_2_do);
+END_IF
+
+
+(* ls UPPER GUN 1 TIMEOUT *)
+IF NOT digital_output_is_active(ls_upper_gun_1_do)
+	THEN
+		timer_restart(max_glue_time_ms, ls_upper_gun_1_on_tmr);
+END_IF
+
+IF	timer_is_expired(ls_upper_gun_1_on_tmr)
+	THEN
+		digital_output_reset(ls_upper_gun_1_do);
+END_IF
+
+(* ls UPPER GUN 2 TIMEOUT *)
+IF NOT digital_output_is_active(ls_upper_gun_2_do)
+	THEN
+		timer_restart(max_glue_time_ms, ls_upper_gun_2_on_tmr);
+END_IF
+
+IF	timer_is_expired(ls_upper_gun_2_on_tmr)
+	THEN
+		digital_output_reset(ls_upper_gun_2_do);
+END_IF
+
+(* ls lower GUN 1 TIMEOUT *)
+IF NOT digital_output_is_active(ls_lower_gun_1_do)
+	THEN
+		timer_restart(max_glue_time_ms, ls_lower_gun_1_on_tmr);
+END_IF
+
+IF	timer_is_expired(ls_lower_gun_1_on_tmr)
+	THEN
+		digital_output_reset(ls_lower_gun_1_do);
+END_IF
+
+(* ls lower GUN 2 TIMEOUT *)
+IF NOT digital_output_is_active(ls_lower_gun_2_do)
+	THEN
+		timer_restart(max_glue_time_ms, ls_lower_gun_2_on_tmr);
+END_IF
+
+IF	timer_is_expired(ls_lower_gun_2_on_tmr)
+	THEN
+		digital_output_reset(ls_lower_gun_2_do);
+END_IF
+
+//PRS 7/14/2021
+IF os_lower_bypass_req THEN
+	process_message_set(1,1,1,OS_lower_glue_gun_disabled_wem);
+ELSE
+	process_message_reset(OS_lower_glue_gun_disabled_wem);
+END_IF
+IF os_upper_bypass_req THEN
+	process_message_set(1,1,1,OS_upper_glue_gun_disabled_wem);
+ELSE
+	process_message_reset(OS_upper_glue_gun_disabled_wem);
+END_IF
+IF ls_lower_bypass_req THEN
+	process_message_set(1,1,1,LS_lower_glue_gun_disabled_wem);
+ELSE
+	process_message_reset(LS_lower_glue_gun_disabled_wem);
+END_IF
+IF ls_upper_bypass_req THEN
+	process_message_set(1,1,1,LS_upper_glue_gun_disabled_wem);
+ELSE
+	process_message_reset(LS_upper_glue_gun_disabled_wem);
+END_IF
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_dot_calculations" Id="{278aedba-62c6-063a-096c-418a791e8047}">
+      <Implementation>
+        <ST><![CDATA[(* PHASE WINDOW CALCULATIONS *)
+//upper_to_lower_offset_deg := upper_to_lower_offset_mm * CONVERSION_MM_TO_DEG;
+glue_strip_length_deg := glue_strip_length_mm * CONVERSION_MM_TO_DEG;
+
+
+// USED TO DETERMINE SPEED COMP
+// NEED LOGIC HERE FOR THIS
+max_comp_deg := -2 * CONVERSION_MM_TO_DEG;
+
+IF csp_main_motorization_manager.motm.actual_velocity_setpoint > 20
+	THEN
+		less_glue_strip_deg := max_comp_deg;
+ELSE
+	less_glue_strip_deg := (-0.4098 * csp_main_motorization_manager.motm.actual_velocity + 6.0492) * CONVERSION_MM_TO_DEG;
+END_IF
+
+
+max_glue_strip_deg := glue_strip_length_deg + (-2.1 * max_comp_deg); (* -2.1 is to use 2 of the max comps for start and end and the .1 is for an extra amount in case a full timer is done *)
+
+current_deg_per_ms := ((csp_main_motorization_manager.motm.actual_velocity_setpoint * 360) / 60) / 1000; (* Set point velocity * 360 degrees a cycle then divided by 60 to get degree per second then 1000 for degrees per ms *)
+
+max_glue_time_ms := LREAL_TO_UDINT(max_glue_strip_deg / MAX(0.0001, current_deg_per_ms));
+
+
+(* NUMBER OF DOTS *)
+IF number_of_dots >= 1
+THEN
+	dot_1_enable := TRUE;
+ELSE
+	dot_1_enable := FALSE;
+END_IF
+
+IF number_of_dots >= 2
+THEN
+	dot_2_enable := TRUE;
+ELSE
+	dot_2_enable := FALSE;
+END_IF
+
+IF number_of_dots >= 3
+THEN
+	dot_3_enable := TRUE;
+ELSE
+	dot_3_enable := FALSE;
+END_IF
+
+IF number_of_dots >= 4
+THEN
+	dot_4_enable := TRUE;
+ELSE
+	dot_4_enable := FALSE;
+END_IF
+
+IF number_of_dots >= 5
+THEN
+	dot_5_enable := TRUE;
+ELSE
+	dot_5_enable := FALSE;
+END_IF
+
+IF number_of_dots >= 6
+THEN
+	dot_6_enable := TRUE;
+ELSE
+	dot_6_enable := FALSE;
+END_IF
+
+
+
+(* OS LEADING UPPER DOTS *)
+os_leading_upper_start_deg := os_leading_upper_start_mm * CONVERSION_MM_TO_DEG;
+
+os_leading_upper_dot_1_on := os_leading_upper_start_deg;
+os_leading_upper_dot_1_off := os_leading_upper_dot_1_on + glue_strip_length_deg;
+
+os_leading_upper_dot_2_on := os_leading_upper_dot_1_off + glue_strip_length_deg;
+os_leading_upper_dot_2_off := os_leading_upper_dot_2_on + glue_strip_length_deg;
+
+os_leading_upper_dot_3_on := os_leading_upper_dot_2_off + glue_strip_length_deg;
+os_leading_upper_dot_3_off := os_leading_upper_dot_3_on + glue_strip_length_deg;
+
+os_leading_upper_dot_4_on := os_leading_upper_dot_3_off + glue_strip_length_deg;
+os_leading_upper_dot_4_off := os_leading_upper_dot_4_on + glue_strip_length_deg;
+
+os_leading_upper_dot_5_on := os_leading_upper_dot_4_off + glue_strip_length_deg;
+os_leading_upper_dot_5_off := os_leading_upper_dot_5_on + glue_strip_length_deg;
+
+os_leading_upper_dot_6_on := os_leading_upper_dot_5_off + glue_strip_length_deg;
+os_leading_upper_dot_6_off := os_leading_upper_dot_6_on + glue_strip_length_deg;
+
+(* OS LEADING LOWER DOTS *)
+os_leading_lower_start_deg := os_leading_lower_start_mm * CONVERSION_MM_TO_DEG;
+
+os_leading_lower_dot_1_on := os_leading_lower_start_deg;
+os_leading_lower_dot_1_off := os_leading_lower_dot_1_on + glue_strip_length_deg;
+
+os_leading_lower_dot_2_on := os_leading_lower_dot_1_off + glue_strip_length_deg;
+os_leading_lower_dot_2_off := os_leading_lower_dot_2_on + glue_strip_length_deg;
+
+os_leading_lower_dot_3_on := os_leading_lower_dot_2_off + glue_strip_length_deg;
+os_leading_lower_dot_3_off := os_leading_lower_dot_3_on + glue_strip_length_deg;
+
+os_leading_lower_dot_4_on := os_leading_lower_dot_3_off + glue_strip_length_deg;
+os_leading_lower_dot_4_off := os_leading_lower_dot_4_on + glue_strip_length_deg;
+
+os_leading_lower_dot_5_on := os_leading_lower_dot_4_off + glue_strip_length_deg;
+os_leading_lower_dot_5_off := os_leading_lower_dot_5_on + glue_strip_length_deg;
+
+os_leading_lower_dot_6_on := os_leading_lower_dot_5_off + glue_strip_length_deg;
+os_leading_lower_dot_6_off := os_leading_lower_dot_6_on + glue_strip_length_deg;
+
+
+(* OS UPPER LEADING DOT 1 PHASE WINDOW *)
+os_leading_upper_dot_1_on_comp := os_leading_upper_dot_1_on + less_glue_strip_deg;
+os_leading_upper_dot_1_off_comp := os_leading_upper_dot_1_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_leading_upper_dot_1_on_comp,
+	end_phase:=  os_leading_upper_dot_1_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_leading_upper_dot_1_phwin);
+
+(* OS UPPER LEADING DOT 2 PHASE WINDOW *)
+os_leading_upper_dot_2_on_comp := os_leading_upper_dot_2_on + less_glue_strip_deg;
+os_leading_upper_dot_2_off_comp := os_leading_upper_dot_2_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_leading_upper_dot_2_on_comp,
+	end_phase:=  os_leading_upper_dot_2_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_leading_upper_dot_2_phwin);
+
+(* OS UPPER LEADING DOT 3 PHASE WINDOW *)
+os_leading_upper_dot_3_on_comp := os_leading_upper_dot_3_on + less_glue_strip_deg;
+os_leading_upper_dot_3_off_comp := os_leading_upper_dot_3_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_leading_upper_dot_3_on_comp,
+	end_phase:=  os_leading_upper_dot_3_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_leading_upper_dot_3_phwin);
+	
+(* OS UPPER LEADING DOT 4 PHASE WINDOW *)
+os_leading_upper_dot_4_on_comp := os_leading_upper_dot_4_on + less_glue_strip_deg;
+os_leading_upper_dot_4_off_comp := os_leading_upper_dot_4_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_leading_upper_dot_4_on_comp,
+	end_phase:=  os_leading_upper_dot_4_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_leading_upper_dot_4_phwin);
+
+(* OS UPPER LEADING DOT 5 PHASE WINDOW *)
+os_leading_upper_dot_5_on_comp := os_leading_upper_dot_5_on + less_glue_strip_deg;
+os_leading_upper_dot_5_off_comp := os_leading_upper_dot_5_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_leading_upper_dot_5_on_comp,
+	end_phase:=  os_leading_upper_dot_5_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_leading_upper_dot_5_phwin);
+	
+(* OS UPPER LEADING DOT 6 PHASE WINDOW *)
+os_leading_upper_dot_6_on_comp := os_leading_upper_dot_6_on + less_glue_strip_deg;
+os_leading_upper_dot_6_off_comp := os_leading_upper_dot_6_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_leading_upper_dot_6_on_comp,
+	end_phase:=  os_leading_upper_dot_6_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_leading_upper_dot_6_phwin);
+	
+(* OS lower leading DOT 1 PHASE WINDOW *)
+os_leading_lower_dot_1_on_comp := os_leading_lower_dot_1_on + less_glue_strip_deg;
+os_leading_lower_dot_1_off_comp := os_leading_lower_dot_1_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_leading_lower_dot_1_on_comp,
+	end_phase:=  os_leading_lower_dot_1_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_leading_lower_dot_1_phwin);
+
+(* OS lower leading DOT 2 PHASE WINDOW *)
+os_leading_lower_dot_2_on_comp := os_leading_lower_dot_2_on + less_glue_strip_deg;
+os_leading_lower_dot_2_off_comp := os_leading_lower_dot_2_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_leading_lower_dot_2_on_comp,
+	end_phase:=  os_leading_lower_dot_2_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_leading_lower_dot_2_phwin);
+
+(* OS lower leading DOT 3 PHASE WINDOW *)
+os_leading_lower_dot_3_on_comp := os_leading_lower_dot_3_on + less_glue_strip_deg;
+os_leading_lower_dot_3_off_comp := os_leading_lower_dot_3_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_leading_lower_dot_3_on_comp,
+	end_phase:=  os_leading_lower_dot_3_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_leading_lower_dot_3_phwin);
+	
+(* OS lower leading DOT 4 PHASE WINDOW *)
+os_leading_lower_dot_4_on_comp := os_leading_lower_dot_4_on + less_glue_strip_deg;
+os_leading_lower_dot_4_off_comp := os_leading_lower_dot_4_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_leading_lower_dot_4_on_comp,
+	end_phase:=  os_leading_lower_dot_4_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_leading_lower_dot_4_phwin);
+
+(* OS lower leading DOT 5 PHASE WINDOW *)
+os_leading_lower_dot_5_on_comp := os_leading_lower_dot_5_on + less_glue_strip_deg;
+os_leading_lower_dot_5_off_comp := os_leading_lower_dot_5_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_leading_lower_dot_5_on_comp,
+	end_phase:=  os_leading_lower_dot_5_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_leading_lower_dot_5_phwin);
+	
+(* OS lower leading DOT 6 PHASE WINDOW *)
+os_leading_lower_dot_6_on_comp := os_leading_lower_dot_6_on + less_glue_strip_deg;
+os_leading_lower_dot_6_off_comp := os_leading_lower_dot_6_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_leading_lower_dot_6_on_comp,
+	end_phase:=  os_leading_lower_dot_6_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_leading_lower_dot_6_phwin);
+	
+	
+(* OS trailing UPPER DOTS *)
+os_trailing_upper_start_deg := os_trailing_upper_start_mm * CONVERSION_MM_TO_DEG;
+
+os_trailing_upper_dot_1_on := os_trailing_upper_start_deg;
+os_trailing_upper_dot_1_off := os_trailing_upper_dot_1_on + glue_strip_length_deg;
+
+os_trailing_upper_dot_2_on := os_trailing_upper_dot_1_off + glue_strip_length_deg;
+os_trailing_upper_dot_2_off := os_trailing_upper_dot_2_on + glue_strip_length_deg;
+
+os_trailing_upper_dot_3_on := os_trailing_upper_dot_2_off + glue_strip_length_deg;
+os_trailing_upper_dot_3_off := os_trailing_upper_dot_3_on + glue_strip_length_deg;
+
+os_trailing_upper_dot_4_on := os_trailing_upper_dot_3_off + glue_strip_length_deg;
+os_trailing_upper_dot_4_off := os_trailing_upper_dot_4_on + glue_strip_length_deg;
+
+os_trailing_upper_dot_5_on := os_trailing_upper_dot_4_off + glue_strip_length_deg;
+os_trailing_upper_dot_5_off := os_trailing_upper_dot_5_on + glue_strip_length_deg;
+
+os_trailing_upper_dot_6_on := os_trailing_upper_dot_5_off + glue_strip_length_deg;
+os_trailing_upper_dot_6_off := os_trailing_upper_dot_6_on + glue_strip_length_deg;
+
+(* OS trailing LOWER DOTS *)
+os_trailing_lower_start_deg := os_trailing_lower_start_mm * CONVERSION_MM_TO_DEG;
+
+os_trailing_lower_dot_1_on := os_trailing_lower_start_deg;
+os_trailing_lower_dot_1_off := os_trailing_lower_dot_1_on + glue_strip_length_deg;
+
+os_trailing_lower_dot_2_on := os_trailing_lower_dot_1_off + glue_strip_length_deg;
+os_trailing_lower_dot_2_off := os_trailing_lower_dot_2_on + glue_strip_length_deg;
+
+os_trailing_lower_dot_3_on := os_trailing_lower_dot_2_off + glue_strip_length_deg;
+os_trailing_lower_dot_3_off := os_trailing_lower_dot_3_on + glue_strip_length_deg;
+
+os_trailing_lower_dot_4_on := os_trailing_lower_dot_3_off + glue_strip_length_deg;
+os_trailing_lower_dot_4_off := os_trailing_lower_dot_4_on + glue_strip_length_deg;
+
+os_trailing_lower_dot_5_on := os_trailing_lower_dot_4_off + glue_strip_length_deg;
+os_trailing_lower_dot_5_off := os_trailing_lower_dot_5_on + glue_strip_length_deg;
+
+os_trailing_lower_dot_6_on := os_trailing_lower_dot_5_off + glue_strip_length_deg;
+os_trailing_lower_dot_6_off := os_trailing_lower_dot_6_on + glue_strip_length_deg;
+
+(* OS UPPER trailing DOT 1 PHASE WINDOW *)
+os_trailing_upper_dot_1_on_comp := os_trailing_upper_dot_1_on + less_glue_strip_deg;
+os_trailing_upper_dot_1_off_comp := os_trailing_upper_dot_1_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_trailing_upper_dot_1_on_comp,
+	end_phase:=  os_trailing_upper_dot_1_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_trailing_upper_dot_1_phwin);
+
+(* OS UPPER trailing DOT 2 PHASE WINDOW *)
+os_trailing_upper_dot_2_on_comp := os_trailing_upper_dot_2_on + less_glue_strip_deg;
+os_trailing_upper_dot_2_off_comp := os_trailing_upper_dot_2_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_trailing_upper_dot_2_on_comp,
+	end_phase:=  os_trailing_upper_dot_2_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_trailing_upper_dot_2_phwin);
+
+(* OS UPPER trailing DOT 3 PHASE WINDOW *)
+os_trailing_upper_dot_3_on_comp := os_trailing_upper_dot_3_on + less_glue_strip_deg;
+os_trailing_upper_dot_3_off_comp := os_trailing_upper_dot_3_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_trailing_upper_dot_3_on_comp,
+	end_phase:=  os_trailing_upper_dot_3_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_trailing_upper_dot_3_phwin);
+	
+(* OS UPPER trailing DOT 4 PHASE WINDOW *)
+os_trailing_upper_dot_4_on_comp := os_trailing_upper_dot_4_on + less_glue_strip_deg;
+os_trailing_upper_dot_4_off_comp := os_trailing_upper_dot_4_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_trailing_upper_dot_4_on_comp,
+	end_phase:=  os_trailing_upper_dot_4_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_trailing_upper_dot_4_phwin);
+
+(* OS UPPER trailing DOT 5 PHASE WINDOW *)
+os_trailing_upper_dot_5_on_comp := os_trailing_upper_dot_5_on + less_glue_strip_deg;
+os_trailing_upper_dot_5_off_comp := os_trailing_upper_dot_5_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_trailing_upper_dot_5_on_comp,
+	end_phase:=  os_trailing_upper_dot_5_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_trailing_upper_dot_5_phwin);
+	
+(* OS UPPER trailing DOT 6 PHASE WINDOW *)
+os_trailing_upper_dot_6_on_comp := os_trailing_upper_dot_6_on + less_glue_strip_deg;
+os_trailing_upper_dot_6_off_comp := os_trailing_upper_dot_6_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_trailing_upper_dot_6_on_comp,
+	end_phase:=  os_trailing_upper_dot_6_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_trailing_upper_dot_6_phwin);
+	
+(* OS UPPER TRAILING DOT 1 PHASE WINDOW *)
+os_trailing_lower_dot_1_on_comp := os_trailing_lower_dot_1_on + less_glue_strip_deg;
+os_trailing_lower_dot_1_off_comp := os_trailing_lower_dot_1_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_trailing_lower_dot_1_on_comp,
+	end_phase:=  os_trailing_lower_dot_1_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_trailing_lower_dot_1_phwin);
+
+(* OS UPPER TRAILING DOT 2 PHASE WINDOW *)
+os_trailing_lower_dot_2_on_comp := os_trailing_lower_dot_2_on + less_glue_strip_deg;
+os_trailing_lower_dot_2_off_comp := os_trailing_lower_dot_2_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_trailing_lower_dot_2_on_comp,
+	end_phase:=  os_trailing_lower_dot_2_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_trailing_lower_dot_2_phwin);
+
+(* OS UPPER TRAILING DOT 3 PHASE WINDOW *)
+os_trailing_lower_dot_3_on_comp := os_trailing_lower_dot_3_on + less_glue_strip_deg;
+os_trailing_lower_dot_3_off_comp := os_trailing_lower_dot_3_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_trailing_lower_dot_3_on_comp,
+	end_phase:=  os_trailing_lower_dot_3_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_trailing_lower_dot_3_phwin);
+	
+(* OS UPPER TRAILING DOT 4 PHASE WINDOW *)
+os_trailing_lower_dot_4_on_comp := os_trailing_lower_dot_4_on + less_glue_strip_deg;
+os_trailing_lower_dot_4_off_comp := os_trailing_lower_dot_4_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_trailing_lower_dot_4_on_comp,
+	end_phase:=  os_trailing_lower_dot_4_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_trailing_lower_dot_4_phwin);
+
+(* OS UPPER TRAILING DOT 5 PHASE WINDOW *)
+os_trailing_lower_dot_5_on_comp := os_trailing_lower_dot_5_on + less_glue_strip_deg;
+os_trailing_lower_dot_5_off_comp := os_trailing_lower_dot_5_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_trailing_lower_dot_5_on_comp,
+	end_phase:=  os_trailing_lower_dot_5_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_trailing_lower_dot_5_phwin);
+	
+(* OS UPPER TRAILING DOT 6 PHASE WINDOW *)
+os_trailing_lower_dot_6_on_comp := os_trailing_lower_dot_6_on + less_glue_strip_deg;
+os_trailing_lower_dot_6_off_comp := os_trailing_lower_dot_6_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  os_trailing_lower_dot_6_on_comp,
+	end_phase:=  os_trailing_lower_dot_6_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= os_trailing_lower_dot_6_phwin);
+	
+	
+(* LS LEADING UPPER DOTS *)
+ls_leading_upper_start_deg := ls_leading_upper_start_mm * CONVERSION_MM_TO_DEG;
+
+ls_leading_upper_dot_1_on := ls_leading_upper_start_deg;
+ls_leading_upper_dot_1_off := ls_leading_upper_dot_1_on + glue_strip_length_deg;
+
+ls_leading_upper_dot_2_on := ls_leading_upper_dot_1_off + glue_strip_length_deg;
+ls_leading_upper_dot_2_off := ls_leading_upper_dot_2_on + glue_strip_length_deg;
+
+ls_leading_upper_dot_3_on := ls_leading_upper_dot_2_off + glue_strip_length_deg;
+ls_leading_upper_dot_3_off := ls_leading_upper_dot_3_on + glue_strip_length_deg;
+
+ls_leading_upper_dot_4_on := ls_leading_upper_dot_3_off + glue_strip_length_deg;
+ls_leading_upper_dot_4_off := ls_leading_upper_dot_4_on + glue_strip_length_deg;
+
+ls_leading_upper_dot_5_on := ls_leading_upper_dot_4_off + glue_strip_length_deg;
+ls_leading_upper_dot_5_off := ls_leading_upper_dot_5_on + glue_strip_length_deg;
+
+ls_leading_upper_dot_6_on := ls_leading_upper_dot_5_off + glue_strip_length_deg;
+ls_leading_upper_dot_6_off := ls_leading_upper_dot_6_on + glue_strip_length_deg;
+
+(* LS LEADING LOWER DOTS *)
+ls_leading_lower_start_deg := ls_leading_lower_start_mm * CONVERSION_MM_TO_DEG;
+
+ls_leading_lower_dot_1_on := ls_leading_lower_start_deg;
+ls_leading_lower_dot_1_off := ls_leading_lower_dot_1_on + glue_strip_length_deg;
+
+ls_leading_lower_dot_2_on := ls_leading_lower_dot_1_off + glue_strip_length_deg;
+ls_leading_lower_dot_2_off := ls_leading_lower_dot_2_on + glue_strip_length_deg;
+
+ls_leading_lower_dot_3_on := ls_leading_lower_dot_2_off + glue_strip_length_deg;
+ls_leading_lower_dot_3_off := ls_leading_lower_dot_3_on + glue_strip_length_deg;
+
+ls_leading_lower_dot_4_on := ls_leading_lower_dot_3_off + glue_strip_length_deg;
+ls_leading_lower_dot_4_off := ls_leading_lower_dot_4_on + glue_strip_length_deg;
+
+ls_leading_lower_dot_5_on := ls_leading_lower_dot_4_off + glue_strip_length_deg;
+ls_leading_lower_dot_5_off := ls_leading_lower_dot_5_on + glue_strip_length_deg;
+
+ls_leading_lower_dot_6_on := ls_leading_lower_dot_5_off + glue_strip_length_deg;
+ls_leading_lower_dot_6_off := ls_leading_lower_dot_6_on + glue_strip_length_deg;
+
+
+(* LS UPPER LEADING DOT 1 PHASE WINDOW *)
+ls_leading_upper_dot_1_on_comp := ls_leading_upper_dot_1_on + less_glue_strip_deg;
+ls_leading_upper_dot_1_off_comp := ls_leading_upper_dot_1_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_leading_upper_dot_1_on_comp,
+	end_phase:=  ls_leading_upper_dot_1_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_leading_upper_dot_1_phwin);
+
+(* LS UPPER LEADING DOT 2 PHASE WINDOW *)
+ls_leading_upper_dot_2_on_comp := ls_leading_upper_dot_2_on + less_glue_strip_deg;
+ls_leading_upper_dot_2_off_comp := ls_leading_upper_dot_2_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_leading_upper_dot_2_on_comp,
+	end_phase:=  ls_leading_upper_dot_2_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_leading_upper_dot_2_phwin);
+
+(* LS UPPER LEADING DOT 3 PHASE WINDOW *)
+ls_leading_upper_dot_3_on_comp := ls_leading_upper_dot_3_on + less_glue_strip_deg;
+ls_leading_upper_dot_3_off_comp := ls_leading_upper_dot_3_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_leading_upper_dot_3_on_comp,
+	end_phase:=  ls_leading_upper_dot_3_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_leading_upper_dot_3_phwin);
+	
+(* LS UPPER LEADING DOT 4 PHASE WINDOW *)
+ls_leading_upper_dot_4_on_comp := ls_leading_upper_dot_4_on + less_glue_strip_deg;
+ls_leading_upper_dot_4_off_comp := ls_leading_upper_dot_4_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_leading_upper_dot_4_on_comp,
+	end_phase:=  ls_leading_upper_dot_4_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_leading_upper_dot_4_phwin);
+
+(* LS UPPER LEADING DOT 5 PHASE WINDOW *)
+ls_leading_upper_dot_5_on_comp := ls_leading_upper_dot_5_on + less_glue_strip_deg;
+ls_leading_upper_dot_5_off_comp := ls_leading_upper_dot_5_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_leading_upper_dot_5_on_comp,
+	end_phase:=  ls_leading_upper_dot_5_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_leading_upper_dot_5_phwin);
+	
+(* LS UPPER LEADING DOT 6 PHASE WINDOW *)
+ls_leading_upper_dot_6_on_comp := ls_leading_upper_dot_6_on + less_glue_strip_deg;
+ls_leading_upper_dot_6_off_comp := ls_leading_upper_dot_6_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_leading_upper_dot_6_on_comp,
+	end_phase:=  ls_leading_upper_dot_6_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_leading_upper_dot_6_phwin);
+	
+(* LS lower leading DOT 1 PHASE WINDOW *)
+ls_leading_lower_dot_1_on_comp := ls_leading_lower_dot_1_on + less_glue_strip_deg;
+ls_leading_lower_dot_1_off_comp := ls_leading_lower_dot_1_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_leading_lower_dot_1_on_comp,
+	end_phase:=  ls_leading_lower_dot_1_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_leading_lower_dot_1_phwin);
+
+(* LS lower leading DOT 2 PHASE WINDOW *)
+ls_leading_lower_dot_2_on_comp := ls_leading_lower_dot_2_on + less_glue_strip_deg;
+ls_leading_lower_dot_2_off_comp := ls_leading_lower_dot_2_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_leading_lower_dot_2_on_comp,
+	end_phase:=  ls_leading_lower_dot_2_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_leading_lower_dot_2_phwin);
+
+(* LS lower leading DOT 3 PHASE WINDOW *)
+ls_leading_lower_dot_3_on_comp := ls_leading_lower_dot_3_on + less_glue_strip_deg;
+ls_leading_lower_dot_3_off_comp := ls_leading_lower_dot_3_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_leading_lower_dot_3_on_comp,
+	end_phase:=  ls_leading_lower_dot_3_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_leading_lower_dot_3_phwin);
+	
+(* LS lower leading DOT 4 PHASE WINDOW *)
+ls_leading_lower_dot_4_on_comp := ls_leading_lower_dot_4_on + less_glue_strip_deg;
+ls_leading_lower_dot_4_off_comp := ls_leading_lower_dot_4_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_leading_lower_dot_4_on_comp,
+	end_phase:=  ls_leading_lower_dot_4_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_leading_lower_dot_4_phwin);
+
+(* LS lower leading DOT 5 PHASE WINDOW *)
+ls_leading_lower_dot_5_on_comp := ls_leading_lower_dot_5_on + less_glue_strip_deg;
+ls_leading_lower_dot_5_off_comp := ls_leading_lower_dot_5_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_leading_lower_dot_5_on_comp,
+	end_phase:=  ls_leading_lower_dot_5_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_leading_lower_dot_5_phwin);
+	
+(* LS lower leading DOT 6 PHASE WINDOW *)
+ls_leading_lower_dot_6_on_comp := ls_leading_lower_dot_6_on + less_glue_strip_deg;
+ls_leading_lower_dot_6_off_comp := ls_leading_lower_dot_6_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_leading_lower_dot_6_on_comp,
+	end_phase:=  ls_leading_lower_dot_6_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_leading_lower_dot_6_phwin);
+	
+	
+(* LS trailing UPPER DOTS *)
+ls_trailing_upper_start_deg := ls_trailing_upper_start_mm * CONVERSION_MM_TO_DEG;
+
+ls_trailing_upper_dot_1_on := ls_trailing_upper_start_deg;
+ls_trailing_upper_dot_1_off := ls_trailing_upper_dot_1_on + glue_strip_length_deg;
+
+ls_trailing_upper_dot_2_on := ls_trailing_upper_dot_1_off + glue_strip_length_deg;
+ls_trailing_upper_dot_2_off := ls_trailing_upper_dot_2_on + glue_strip_length_deg;
+
+ls_trailing_upper_dot_3_on := ls_trailing_upper_dot_2_off + glue_strip_length_deg;
+ls_trailing_upper_dot_3_off := ls_trailing_upper_dot_3_on + glue_strip_length_deg;
+
+ls_trailing_upper_dot_4_on := ls_trailing_upper_dot_3_off + glue_strip_length_deg;
+ls_trailing_upper_dot_4_off := ls_trailing_upper_dot_4_on + glue_strip_length_deg;
+
+ls_trailing_upper_dot_5_on := ls_trailing_upper_dot_4_off + glue_strip_length_deg;
+ls_trailing_upper_dot_5_off := ls_trailing_upper_dot_5_on + glue_strip_length_deg;
+
+ls_trailing_upper_dot_6_on := ls_trailing_upper_dot_5_off + glue_strip_length_deg;
+ls_trailing_upper_dot_6_off := ls_trailing_upper_dot_6_on + glue_strip_length_deg;
+
+(* LS trailing LOWER DOTS *)
+ls_trailing_lower_start_deg := ls_trailing_lower_start_mm * CONVERSION_MM_TO_DEG;
+
+ls_trailing_lower_dot_1_on := ls_trailing_lower_start_deg;
+ls_trailing_lower_dot_1_off := ls_trailing_lower_dot_1_on + glue_strip_length_deg;
+
+ls_trailing_lower_dot_2_on := ls_trailing_lower_dot_1_off + glue_strip_length_deg;
+ls_trailing_lower_dot_2_off := ls_trailing_lower_dot_2_on + glue_strip_length_deg;
+
+ls_trailing_lower_dot_3_on := ls_trailing_lower_dot_2_off + glue_strip_length_deg;
+ls_trailing_lower_dot_3_off := ls_trailing_lower_dot_3_on + glue_strip_length_deg;
+
+ls_trailing_lower_dot_4_on := ls_trailing_lower_dot_3_off + glue_strip_length_deg;
+ls_trailing_lower_dot_4_off := ls_trailing_lower_dot_4_on + glue_strip_length_deg;
+
+ls_trailing_lower_dot_5_on := ls_trailing_lower_dot_4_off + glue_strip_length_deg;
+ls_trailing_lower_dot_5_off := ls_trailing_lower_dot_5_on + glue_strip_length_deg;
+
+ls_trailing_lower_dot_6_on := ls_trailing_lower_dot_5_off + glue_strip_length_deg;
+ls_trailing_lower_dot_6_off := ls_trailing_lower_dot_6_on + glue_strip_length_deg;
+
+(* LS UPPER trailing DOT 1 PHASE WINDOW *)
+ls_trailing_upper_dot_1_on_comp := ls_trailing_upper_dot_1_on + less_glue_strip_deg;
+ls_trailing_upper_dot_1_off_comp := ls_trailing_upper_dot_1_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_trailing_upper_dot_1_on_comp,
+	end_phase:=  ls_trailing_upper_dot_1_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_trailing_upper_dot_1_phwin);
+
+(* LS UPPER trailing DOT 2 PHASE WINDOW *)
+ls_trailing_upper_dot_2_on_comp := ls_trailing_upper_dot_2_on + less_glue_strip_deg;
+ls_trailing_upper_dot_2_off_comp := ls_trailing_upper_dot_2_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_trailing_upper_dot_2_on_comp,
+	end_phase:=  ls_trailing_upper_dot_2_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_trailing_upper_dot_2_phwin);
+
+(* LS UPPER trailing DOT 3 PHASE WINDOW *)
+ls_trailing_upper_dot_3_on_comp := ls_trailing_upper_dot_3_on + less_glue_strip_deg;
+ls_trailing_upper_dot_3_off_comp := ls_trailing_upper_dot_3_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_trailing_upper_dot_3_on_comp,
+	end_phase:=  ls_trailing_upper_dot_3_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_trailing_upper_dot_3_phwin);
+	
+(* LS UPPER trailing DOT 4 PHASE WINDOW *)
+ls_trailing_upper_dot_4_on_comp := ls_trailing_upper_dot_4_on + less_glue_strip_deg;
+ls_trailing_upper_dot_4_off_comp := ls_trailing_upper_dot_4_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_trailing_upper_dot_4_on_comp,
+	end_phase:=  ls_trailing_upper_dot_4_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_trailing_upper_dot_4_phwin);
+
+(* LS UPPER trailing DOT 5 PHASE WINDOW *)
+ls_trailing_upper_dot_5_on_comp := ls_trailing_upper_dot_5_on + less_glue_strip_deg;
+ls_trailing_upper_dot_5_off_comp := ls_trailing_upper_dot_5_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_trailing_upper_dot_5_on_comp,
+	end_phase:=  ls_trailing_upper_dot_5_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_trailing_upper_dot_5_phwin);
+	
+(* LS UPPER trailing DOT 6 PHASE WINDOW *)
+ls_trailing_upper_dot_6_on_comp := ls_trailing_upper_dot_6_on + less_glue_strip_deg;
+ls_trailing_upper_dot_6_off_comp := ls_trailing_upper_dot_6_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_trailing_upper_dot_6_on_comp,
+	end_phase:=  ls_trailing_upper_dot_6_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_trailing_upper_dot_6_phwin);
+	
+(* LS UPPER TRAILING DOT 1 PHASE WINDOW *)
+ls_trailing_lower_dot_1_on_comp := ls_trailing_lower_dot_1_on + less_glue_strip_deg;
+ls_trailing_lower_dot_1_off_comp := ls_trailing_lower_dot_1_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_trailing_lower_dot_1_on_comp,
+	end_phase:=  ls_trailing_lower_dot_1_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_trailing_lower_dot_1_phwin);
+
+(* LS UPPER TRAILING DOT 2 PHASE WINDOW *)
+ls_trailing_lower_dot_2_on_comp := ls_trailing_lower_dot_2_on + less_glue_strip_deg;
+ls_trailing_lower_dot_2_off_comp := ls_trailing_lower_dot_2_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_trailing_lower_dot_2_on_comp,
+	end_phase:=  ls_trailing_lower_dot_2_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_trailing_lower_dot_2_phwin);
+
+(* LS UPPER TRAILING DOT 3 PHASE WINDOW *)
+ls_trailing_lower_dot_3_on_comp := ls_trailing_lower_dot_3_on + less_glue_strip_deg;
+ls_trailing_lower_dot_3_off_comp := ls_trailing_lower_dot_3_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_trailing_lower_dot_3_on_comp,
+	end_phase:=  ls_trailing_lower_dot_3_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_trailing_lower_dot_3_phwin);
+	
+(* LS UPPER TRAILING DOT 4 PHASE WINDOW *)
+ls_trailing_lower_dot_4_on_comp := ls_trailing_lower_dot_4_on + less_glue_strip_deg;
+ls_trailing_lower_dot_4_off_comp := ls_trailing_lower_dot_4_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_trailing_lower_dot_4_on_comp,
+	end_phase:=  ls_trailing_lower_dot_4_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_trailing_lower_dot_4_phwin);	
+
+(* LS UPPER TRAILING DOT 5 PHASE WINDOW *)
+ls_trailing_lower_dot_5_on_comp := ls_trailing_lower_dot_5_on + less_glue_strip_deg;
+ls_trailing_lower_dot_5_off_comp := ls_trailing_lower_dot_5_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_trailing_lower_dot_5_on_comp,
+	end_phase:=  ls_trailing_lower_dot_5_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_trailing_lower_dot_5_phwin);
+	
+(* LS UPPER TRAILING DOT 6 PHASE WINDOW *)
+ls_trailing_lower_dot_6_on_comp := ls_trailing_lower_dot_6_on + less_glue_strip_deg;
+ls_trailing_lower_dot_6_off_comp := ls_trailing_lower_dot_6_off - less_glue_strip_deg;
+
+phase_window_set_phases_data(
+	begin_phase:=  ls_trailing_lower_dot_6_on_comp,
+	end_phase:=  ls_trailing_lower_dot_6_off_comp,
+	begin_delay:= 0,
+	end_delay:= 0,
+	begin_max_compensation:= 0,
+	end_max_compensation:= 0,
+	CONVERSION_this:= ls_trailing_lower_dot_6_phwin);	]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_messages" Id="{3c73a32c-a580-402d-b7b0-44aa52fc39e0}">
+      <Implementation>
+        <ST><![CDATA[IF purge_command
+THEN 
+	process_message_set(errorID_1:= 1, errorID_2:= 0, errorID_3:= 0, CONVERSION_this:= purge_running);
+ELSE
+	process_message_reset(purge_running);
+END_IF
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{97aebf10-fe30-42a0-aa34-b492b58981d6}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{b4cd57a2-d5f5-43e3-95a4-77dc82d87837}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{8a9721d6-db9b-4569-b5ad-18f757257e56}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_glue.prc', 
+		process						:= csp_case.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_purge_running'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= purge_running);
+	
+	//PRS 7/14/2021	
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_OS_lower_glue_gun_disabled_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NORMAL, 
+        process:= prc,
+        CONVERSION_this:= OS_lower_glue_gun_disabled_wem);
+	
+	//PRS 7/14/2021	
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_OS_upper_glue_gun_disabled_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NORMAL, 
+        process:= prc,
+        CONVERSION_this:= OS_upper_glue_gun_disabled_wem);	
+
+	//PRS 7/14/2021	
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_LS_lower_glue_gun_disabled_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NORMAL, 
+        process:= prc,
+        CONVERSION_this:= LS_lower_glue_gun_disabled_wem);
+	
+	//PRS 7/14/2021	
+	process_message_init(
+        object_name:= CONCAT(prc_path, '_LS_upper_glue_gun_disabled_wem'),
+        behaviour:= MESSAGE_BEHAVIOUR_STATE,
+        reset_timeout:= 0,
+        disableable:= TRUE,
+        individual_reset:= FALSE,
+        machine_reaction:= MACHINE_REACTION_NO_STOP, 
+        typology:=  MESSAGE_TYPOLOGY_NORMAL, 
+        process:= prc,
+        CONVERSION_this:= LS_upper_glue_gun_disabled_wem);		
+		
+		
+	motorization_conditioner_init(
+		object_name					:=	CONCAT(prc_path, '_purge_active_motcond'),
+		velocity_limit				:=	0.0,
+		velocity_limit_active		:=	FALSE,
+		idle_handshake_active		:=	FALSE,
+		execute_handshake_active	:=	TRUE,
+		hold_handshake_active		:=	FALSE,
+		suspend_handshake_active	:=	FALSE,
+		complete_handshake_active	:=	FALSE,
+		abort_handshake_active		:=	FALSE,
+		stop_handshake_active		:=	FALSE,
+		origin						:=	MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:=	csp_main_motorization_manager.motm,
+		process						:=	prc,
+		CONVERSION_this				:=	purge_active_motcond);
+
+		
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_purge_active_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_purge_active_cbtn);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_purge_active_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_purge_active_hgos);	
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_glue_ready_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_glue_ready_hgos);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_glue_not_ready_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_glue_not_ready_hgos);	
+	
+//Glue Purge pb OS upper gun 1
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_os_glue_upper_gun1_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_os_glue_upper_gun1_cbtn);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_os_glue_upper_gun1_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_os_glue_upper_gun1_hgos);	
+
+//Glue Purge pb OS upper gun 2
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_os_glue_upper_gun2_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_os_glue_upper_gun2_cbtn);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_os_glue_upper_gun2_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_os_glue_upper_gun2_hgos);			
+
+//Glue Purge pb OS lower gun 1
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_os_glue_lower_gun1_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_os_glue_lower_gun1_cbtn);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_os_glue_lower_gun1_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_os_glue_lower_gun1_hgos);	
+
+//Glue Purge pb OS lower gun 2
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_os_glue_lower_gun2_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_os_glue_lower_gun2_cbtn);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_os_glue_lower_gun2_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_os_glue_lower_gun2_hgos);	
+
+
+//Glue Purge pb LS upper gun 1
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_ls_glue_upper_gun1_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_ls_glue_upper_gun1_cbtn);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_ls_glue_upper_gun1_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_ls_glue_upper_gun1_hgos);	
+
+//Glue Purge pb LS upper gun 2
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_ls_glue_upper_gun2_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_ls_glue_upper_gun2_cbtn);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_ls_glue_upper_gun2_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_ls_glue_upper_gun2_hgos);			
+
+//Glue Purge pb LS lower gun 1
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_Ls_glue_lower_gun1_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_ls_glue_lower_gun1_cbtn);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_ls_glue_lower_gun1_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_ls_glue_lower_gun1_hgos);	
+
+//Glue Purge pb LS lower gun 2
+	command_button_init(
+	    object_name 				:= CONCAT(prc_path, '_hmi_ls_glue_lower_gun2_cbtn'),
+	    process 					:= prc,
+	    CONVERSION_this 			:= hmi_ls_glue_lower_gun2_cbtn);
+		
+	hmi_graphic_object_status_init(
+        object_name         		:= CONCAT(prc_path, '_hmi_ls_glue_lower_gun2_hgos'),
+        process             		:= prc,
+        CONVERSION_this             := hmi_ls_glue_lower_gun2_hgos);
+
+	//Created to be the axis for the shift registers	
+	phase_generator_init(
+		object_name								:=CONCAT(PRC_PATH, '_glue_vm_phgen'), 
+		modulo									:=360 , 
+		resolution								:= PHASE_GENERATOR_RESOLUTION_UNIT, 
+		axis									:= csp_case_transport_os_trailing.axis, 
+		process									:=prc , 
+		CONVERSION_this							:= glue_vm_phgen);
+
+//Upper major flap check cam and phase generator		
+
+	phase_window_init(
+		object_name								:=CONCAT(PRC_PATH, '_glue_phwin'), 
+		begin_phase								:=glue_leading_upper_on, 
+		end_phase								:=glue_leading_upper_off, 
+		begin_delay								:=0, 
+		end_delay								:=0, 
+		begin_max_compensation					:=0, 
+		end_max_compensation					:=0, 
+		generator								:=glue_vm_phgen , 
+		process									:=prc , 
+		CONVERSION_this							:=glue_leading_upper_phwin);	
+		
+//lower major flap check cam and phase generator 		
+
+	phase_window_init(
+		object_name								:=CONCAT(PRC_PATH, '_glue_phwin'), 
+		begin_phase								:=glue_leading_lower_on, 
+		end_phase								:=glue_leading_lower_off, 
+		begin_delay								:=0, 
+		end_delay								:=0, 
+		begin_max_compensation					:=0, 
+		end_max_compensation					:=0, 
+		generator								:=glue_vm_phgen , 
+		process									:=prc , 
+		CONVERSION_this							:=glue_leading_lower_phwin);	
+
+//Upper major flap check 2 cam and phase generator		
+	
+	phase_window_init(
+		object_name								:=CONCAT(PRC_PATH, '_glue_2_phwin'), 
+		begin_phase								:=glue_trailing_upper_on, 
+		end_phase								:=glue_trailing_upper_off, 
+		begin_delay								:=0, 
+		end_delay								:=0, 
+		begin_max_compensation					:=0, 
+		end_max_compensation					:=0, 
+		generator								:=glue_vm_phgen , 
+		process									:=prc , 
+		CONVERSION_this							:=glue_trailing_upper_phwin);	
+		
+//Lower major flap check 2 cam and phase generator		
+	
+	phase_window_init(
+		object_name								:=CONCAT(PRC_PATH, '_glue_2_phwin'), 
+		begin_phase								:=glue_trailing_lower_on, 
+		end_phase								:=glue_trailing_lower_off, 
+		begin_delay								:=0, 
+		end_delay								:=0, 
+		begin_max_compensation					:=0, 
+		end_max_compensation					:=0, 
+		generator								:=glue_vm_phgen , 
+		process									:=prc , 
+		CONVERSION_this							:=glue_trailing_lower_phwin);	
+		
+		
+		
+	(* NEW GLUE GUNS USING DIGITAL OUTPUTS *)
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_os_upper_gun_1_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= os_upper_gun_1_do);
+		
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_os_upper_gun_2_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= os_upper_gun_2_do);
+		
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_os_lower_gun_1_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= os_lower_gun_1_do);
+		
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_os_lower_gun_2_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= os_lower_gun_2_do);
+		
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_ls_upper_gun_1_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= ls_upper_gun_1_do);
+		
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_ls_upper_gun_2_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= ls_upper_gun_2_do);
+		
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_ls_lower_gun_1_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= ls_lower_gun_1_do);
+		
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_ls_lower_gun_2_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= ls_lower_gun_2_do);
+		
+	(* OS LEADING UPPER PHWIN *)
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_leading_upper_dot_1_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_leading_upper_dot_1_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_leading_upper_dot_2_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_leading_upper_dot_2_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_leading_upper_dot_3_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_leading_upper_dot_3_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_leading_upper_dot_4_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_leading_upper_dot_4_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_leading_upper_dot_5_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_leading_upper_dot_5_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_leading_upper_dot_6_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_leading_upper_dot_6_phwin);
+		
+		
+	(* OS LEADING LOWER PHWIN *)
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_leading_lower_dot_1_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_leading_lower_dot_1_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_leading_lower_dot_2_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_leading_lower_dot_2_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_leading_lower_dot_3_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_leading_lower_dot_3_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_leading_lower_dot_4_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_leading_lower_dot_4_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_leading_lower_dot_5_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_leading_lower_dot_5_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_leading_lower_dot_6_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_leading_lower_dot_6_phwin);	
+		
+	(* OS trailing UPPER PHWIN *)
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_trailing_upper_dot_1_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_trailing_upper_dot_1_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_trailing_upper_dot_2_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_trailing_upper_dot_2_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_trailing_upper_dot_3_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_trailing_upper_dot_3_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_trailing_upper_dot_4_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_trailing_upper_dot_4_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_trailing_upper_dot_5_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_trailing_upper_dot_5_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_trailing_upper_dot_6_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_trailing_upper_dot_6_phwin);	
+		
+		
+	(* OS trailing LOWER PHWIN *)
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_trailing_lower_dot_1_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_trailing_lower_dot_1_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_trailing_lower_dot_2_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_trailing_lower_dot_2_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_trailing_lower_dot_3_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_trailing_lower_dot_3_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_trailing_lower_dot_4_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_trailing_lower_dot_4_phwin);
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_trailing_lower_dot_5_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_trailing_lower_dot_5_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_os_trailing_lower_dot_6_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= os_trailing_lower_dot_6_phwin);
+		
+	
+	(* LS LEADING UPPER PHWIN *)
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_leading_upper_dot_1_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_leading_upper_dot_1_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_leading_upper_dot_2_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_leading_upper_dot_2_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_leading_upper_dot_3_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_leading_upper_dot_3_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_leading_upper_dot_4_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_leading_upper_dot_4_phwin);		
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_leading_upper_dot_5_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_leading_upper_dot_5_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_leading_upper_dot_6_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_leading_upper_dot_6_phwin);	
+		
+		
+	(* LS LEADING LOWER PHWIN *)
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_leading_lower_dot_1_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_leading_lower_dot_1_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_leading_lower_dot_2_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_leading_lower_dot_2_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_leading_lower_dot_3_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_leading_lower_dot_3_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_leading_lower_dot_4_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_leading_lower_dot_4_phwin);		
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_leading_lower_dot_5_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_leading_lower_dot_5_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_leading_lower_dot_6_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_leading_lower_dot_6_phwin);	
+		
+	(* LS trailing UPPER PHWIN *)
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_trailing_upper_dot_1_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_trailing_upper_dot_1_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_trailing_upper_dot_2_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_trailing_upper_dot_2_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_trailing_upper_dot_3_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_trailing_upper_dot_3_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_trailing_upper_dot_4_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_trailing_upper_dot_4_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_trailing_upper_dot_3_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_trailing_upper_dot_5_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_trailing_upper_dot_4_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_trailing_upper_dot_6_phwin);	
+		
+		
+	(* LS trailing LOWER PHWIN *)
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_trailing_lower_dot_1_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_trailing_lower_dot_1_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_trailing_lower_dot_2_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_trailing_lower_dot_2_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_trailing_lower_dot_3_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_trailing_lower_dot_3_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_trailing_lower_dot_4_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_trailing_lower_dot_4_phwin);
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_trailing_lower_dot_3_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_trailing_lower_dot_5_phwin);	
+		
+	phase_window_init(
+		object_name								:= CONCAT(PRC_PATH, '_ls_trailing_lower_dot_4_phwin'), 
+		begin_phase								:= 0, // SET AT RUNTIME
+		end_phase								:= 0, // SET AT RUNTIME
+		begin_delay								:= 0, 
+		end_delay								:= 0, 
+		begin_max_compensation					:= 0, 
+		end_max_compensation					:= 0, 
+		generator								:= glue_vm_phgen , 
+		process									:= prc , 
+		CONVERSION_this							:= ls_trailing_lower_dot_6_phwin);
+		
+		
+	(* GUN DO TIMER ON TIMEOUTS *)
+	timer_init(
+		object_name					:= CONCAT(prc_path, '_os_upper_gun_1_on_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= os_upper_gun_1_on_tmr);
+		
+	timer_init(
+		object_name					:= CONCAT(prc_path, '_os_upper_gun_2_on_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= os_upper_gun_2_on_tmr);
+		
+	timer_init(
+		object_name					:= CONCAT(prc_path, '_os_lower_gun_1_on_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= os_lower_gun_1_on_tmr);
+		
+	timer_init(
+		object_name					:= CONCAT(prc_path, '_os_lower_gun_2_on_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= os_lower_gun_2_on_tmr);
+		
+	
+	timer_init(
+		object_name					:= CONCAT(prc_path, '_ls_upper_gun_1_on_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= ls_upper_gun_1_on_tmr);
+		
+	timer_init(
+		object_name					:= CONCAT(prc_path, '_ls_upper_gun_2_on_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= ls_upper_gun_2_on_tmr);
+		
+	timer_init(
+		object_name					:= CONCAT(prc_path, '_ls_lower_gun_1_on_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= ls_lower_gun_1_on_tmr);
+		
+	timer_init(
+		object_name					:= CONCAT(prc_path, '_ls_lower_gun_2_on_tmr'),
+		process						:= prc,
+		CONVERSION_this				:= ls_lower_gun_2_on_tmr);	
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	phase_generator_cycle(glue_vm_phgen);
+	motorization_conditioner_cycle(purge_active_motcond);
+	
+	phase_window_cycle(glue_leading_upper_phwin);
+	phase_window_cycle(glue_trailing_upper_phwin);
+	phase_window_cycle(glue_leading_lower_phwin);
+	phase_window_cycle(glue_trailing_lower_phwin);
+	
+	command_button_cycle(hmi_purge_active_cbtn);
+	command_button_cycle(hmi_os_glue_upper_gun1_cbtn);
+	command_button_cycle(hmi_os_glue_upper_gun2_cbtn);
+	command_button_cycle(hmi_os_glue_lower_gun1_cbtn);
+	command_button_cycle(hmi_os_glue_lower_gun2_cbtn);
+	command_button_cycle(hmi_ls_glue_upper_gun1_cbtn);
+	command_button_cycle(hmi_ls_glue_upper_gun2_cbtn);
+	command_button_cycle(hmi_ls_glue_lower_gun1_cbtn);
+	command_button_cycle(hmi_ls_glue_lower_gun2_cbtn);
+	
+	(* NEW OUTPUT PHWIN *)
+	
+	(* OS PHWIN *)
+	phase_window_cycle(os_leading_upper_dot_1_phwin);
+	phase_window_cycle(os_leading_upper_dot_2_phwin);
+	phase_window_cycle(os_leading_upper_dot_3_phwin);
+	phase_window_cycle(os_leading_upper_dot_4_phwin);
+	phase_window_cycle(os_leading_upper_dot_5_phwin);
+	phase_window_cycle(os_leading_upper_dot_6_phwin);
+	
+	phase_window_cycle(os_leading_lower_dot_1_phwin);
+	phase_window_cycle(os_leading_lower_dot_2_phwin);
+	phase_window_cycle(os_leading_lower_dot_3_phwin);
+	phase_window_cycle(os_leading_lower_dot_4_phwin);
+	phase_window_cycle(os_leading_lower_dot_5_phwin);
+	phase_window_cycle(os_leading_lower_dot_6_phwin);
+	
+	phase_window_cycle(os_trailing_upper_dot_1_phwin);
+	phase_window_cycle(os_trailing_upper_dot_2_phwin);
+	phase_window_cycle(os_trailing_upper_dot_3_phwin);
+	phase_window_cycle(os_trailing_upper_dot_4_phwin);
+	phase_window_cycle(os_trailing_upper_dot_5_phwin);
+	phase_window_cycle(os_trailing_upper_dot_6_phwin);
+	
+	phase_window_cycle(os_trailing_lower_dot_1_phwin);
+	phase_window_cycle(os_trailing_lower_dot_2_phwin);
+	phase_window_cycle(os_trailing_lower_dot_3_phwin);
+	phase_window_cycle(os_trailing_lower_dot_4_phwin);
+	phase_window_cycle(os_trailing_lower_dot_5_phwin);
+	phase_window_cycle(os_trailing_lower_dot_6_phwin);
+	
+	(* LS PHWIN *)
+	phase_window_cycle(ls_leading_upper_dot_1_phwin);
+	phase_window_cycle(ls_leading_upper_dot_2_phwin);
+	phase_window_cycle(ls_leading_upper_dot_3_phwin);
+	phase_window_cycle(ls_leading_upper_dot_4_phwin);
+	phase_window_cycle(ls_leading_upper_dot_5_phwin);
+	phase_window_cycle(ls_leading_upper_dot_6_phwin);
+	
+	phase_window_cycle(ls_leading_lower_dot_1_phwin);
+	phase_window_cycle(ls_leading_lower_dot_2_phwin);
+	phase_window_cycle(ls_leading_lower_dot_3_phwin);
+	phase_window_cycle(ls_leading_lower_dot_4_phwin);
+	phase_window_cycle(ls_leading_lower_dot_5_phwin);
+	phase_window_cycle(ls_leading_lower_dot_6_phwin);
+	
+	phase_window_cycle(ls_trailing_upper_dot_1_phwin);
+	phase_window_cycle(ls_trailing_upper_dot_2_phwin);
+	phase_window_cycle(ls_trailing_upper_dot_3_phwin);
+	phase_window_cycle(ls_trailing_upper_dot_4_phwin);
+	phase_window_cycle(ls_trailing_upper_dot_5_phwin);
+	phase_window_cycle(ls_trailing_upper_dot_6_phwin);
+	
+	phase_window_cycle(ls_trailing_lower_dot_1_phwin);
+	phase_window_cycle(ls_trailing_lower_dot_2_phwin);
+	phase_window_cycle(ls_trailing_lower_dot_3_phwin);
+	phase_window_cycle(ls_trailing_lower_dot_4_phwin);
+	phase_window_cycle(ls_trailing_lower_dot_5_phwin);
+	phase_window_cycle(ls_trailing_lower_dot_6_phwin);
+	
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{813a2253-55f0-454c-a9c3-89d37609ff0a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{8c837774-6dec-47e8-ac8d-6953eb86a464}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_run_cycle_NEW" Id="{41d4716f-73fa-08a5-2b74-e03e1ee2551b}">
+      <Implementation>
+        <ST><![CDATA[enable_conditions :=
+	digital_input_is_active(csp_case_glue_hotMelt.ready_di);	
+
+(* GLUE IS READY AND MACHINE IS STOPPED READY FOR PURGE *)
+IF	enable_conditions
+	AND
+	(	
+		motorization_manager_is_stopped(csp_main_motorization_manager.motm)
+		OR
+		motorization_manager_is_aborted(csp_main_motorization_manager.motm)
+	)
+THEN
+	(* Purge HMI Button enable - LINKED TO HMI *)
+	IF purge_req	
+	THEN
+		(* At the moment there not purge position as well as Cartoner !! *)
+		purge_position := TRUE;
+		run_position := FALSE;
+	ELSE
+		purge_position := FALSE;
+		run_position := TRUE;	
+	END_IF
+END_IF
+
+	
+purge_conditions :=
+	enable_conditions
+	AND
+	purge_req;
+	//AND
+	//purge_position;
+	
+run_conditions :=
+	enable_conditions (* GLUE HOTMELT IS READY *)
+	AND csp_main_motorization_virtualManager.axis.actual_velocity > 0 (* MAIN MOTORIZATION IS MOVING *)
+	AND NOT hot_glue_bypass;
+	
+
+CASE fsm_status_NEW OF
+	
+	(* CHECKS TO SEE IF IT WILL BE PURGE OR RUN *)
+	CSP_CASE_GLUE_STATUS_INIT:
+	
+		purge_in_progress := FALSE;
+	
+		IF purge_conditions
+		THEN
+			purge_in_progress := TRUE;
+			fsm_next_status_NEW := CSP_CASE_GLUE_STATUS_PURGE_ACTIVATE;
+		ELSIF run_conditions
+		THEN	
+			fsm_next_status_NEW := CSP_CASE_GLUE_STATUS_RUNNING;
+		END_IF
+		
+		
+	(* PURGE ACTIVATE *)
+	CSP_CASE_GLUE_STATUS_PURGE_ACTIVATE:
+	
+		(* OS UPPER GUN 1 *)
+		IF	command_button_is_pressed(hmi_os_glue_upper_gun1_cbtn)  
+		THEN
+			digital_output_set(os_upper_gun_1_do);
+		ELSE
+			digital_output_reset(os_upper_gun_1_do);
+		END_IF
+		
+		(* OS UPPER GUN 2 *)
+		IF	command_button_is_pressed(hmi_os_glue_upper_gun2_cbtn)  
+		THEN
+			digital_output_set(os_upper_gun_2_do);
+		ELSE
+			digital_output_reset(os_upper_gun_2_do);
+		END_IF
+		
+		(* OS LOWER GUN 1 *)
+		IF	command_button_is_pressed(hmi_os_glue_lower_gun1_cbtn)  
+		THEN
+			digital_output_set(os_lower_gun_1_do);
+		ELSE
+			digital_output_reset(os_lower_gun_1_do);
+		END_IF
+		
+		(* OS LOWER GUN 2 *)
+		IF	command_button_is_pressed(hmi_os_glue_lower_gun2_cbtn) 
+		THEN
+			digital_output_set(os_lower_gun_2_do);
+		ELSE
+			digital_output_reset(os_lower_gun_2_do);
+		END_IF
+		
+		(* LS UPPER GUN 1 *)
+		IF	command_button_is_pressed(hmi_ls_glue_upper_gun1_cbtn)  
+		THEN
+			digital_output_set(ls_upper_gun_1_do);
+		ELSE
+			digital_output_reset(ls_upper_gun_1_do);
+		END_IF
+		
+		(* LS UPPER GUN 2 *)
+		IF	command_button_is_pressed(hmi_ls_glue_upper_gun2_cbtn) 
+		THEN
+			digital_output_set(ls_upper_gun_2_do);
+		ELSE
+			digital_output_reset(ls_upper_gun_2_do);
+		END_IF
+		
+		(* LS LOWER GUN 1 *)
+		IF	command_button_is_pressed(hmi_ls_glue_lower_gun1_cbtn) 
+		THEN
+			digital_output_set(ls_lower_gun_1_do);
+		ELSE
+			digital_output_reset(ls_lower_gun_1_do);
+		END_IF
+		
+		(* LS LOWER GUN 2 *)
+		IF	command_button_is_pressed(hmi_ls_glue_lower_gun2_cbtn) 
+		THEN
+			digital_output_set(ls_lower_gun_2_do);
+		ELSE
+			digital_output_reset(ls_lower_gun_2_do);
+		END_IF
+		
+		
+		IF NOT purge_conditions
+		THEN
+			fsm_next_status_NEW := CSP_CASE_GLUE_STATUS_PURGE_WAITING_DEACTIVATE;
+		END_IF
+		
+		
+	(* RESET ALL GLUE DIGITAL OUTPUTS *)
+	CSP_CASE_GLUE_STATUS_PURGE_WAITING_DEACTIVATE:
+		
+		(* OS GUNS RESET *)
+		digital_output_reset(os_upper_gun_1_do);
+		digital_output_reset(os_upper_gun_2_do);
+		digital_output_reset(os_lower_gun_1_do);
+		digital_output_reset(os_lower_gun_2_do);
+		
+		(* LS GUNS RESET *)
+		digital_output_reset(ls_upper_gun_1_do);
+		digital_output_reset(ls_upper_gun_2_do);
+		digital_output_reset(ls_lower_gun_1_do);
+		digital_output_reset(ls_lower_gun_2_do);
+		
+		fsm_next_status_NEW := CSP_CASE_GLUE_STATUS_INIT;		
+	
+		
+	(* RUNNING CONDITIONS ARE MET - MACHINE IS IN RUN MODE *)	
+	CSP_CASE_GLUE_STATUS_RUNNING:
+
+		(* OS GLUE PE GOES HIGH AND TRAILING LUG IS MOVING - CASE AT GLUE LATCH *)
+		IF digital_input_is_active(csp_case_glue_sensors.case_present_os_di) 
+			AND digital_input_is_active(csp_case_glue_sensors.case_present_ls_di) 
+			AND axis_is_moving(csp_case_transport_os_trailing.axis)
+			AND axis_is_cam_engaged(csp_case_transport_os_trailing.axis)
+		THEN
+			os_case_at_glue_latch := TRUE;
+		END_IF
+		
+		(* LS GLUE PE GOES HIGH AND TRAILING LUG IS MOVING - CASE AT GLUE LATCH *)
+		IF digital_input_is_active(csp_case_glue_sensors.case_present_ls_di) 
+			AND digital_input_is_active(csp_case_glue_sensors.case_present_os_di) 
+			AND axis_is_moving(csp_case_transport_os_trailing.axis)
+			AND axis_is_cam_engaged(csp_case_transport_os_trailing.axis)
+		THEN
+			ls_case_at_glue_latch := TRUE;
+		END_IF
+		
+		
+		(* CASE AT GLUE GOES FALSE WHEN AXIS IS MOVING AND MODULO GOES OUT OF RANGE *)
+		IF (os_case_at_glue_latch OR ls_case_at_glue_latch)
+			AND axis_is_moving(csp_case_transport_os_trailing.axis) 
+			AND axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis) > glue_trailing_upper_off //unlatch case at glue when past trailing glue flap window
+			OR NOT axis_is_cam_engaged(csp_case_transport_os_trailing.axis)
+			OR (csp.o_machine_is_stopped
+			AND NOT axis_is_moving(csp_case_virtualMaster.axis))//unlatch on stop since glue will dry before closing
+		THEN
+			os_case_at_glue_latch := FALSE;
+			ls_case_at_glue_latch := FALSE;
+		END_IF
+		
+		IF toggle_shift_reg 
+			AND	
+			shift_register_step_has_status_item(
+			step_id := case_at_glue_sr,
+			status_bits_to_be_true := ITEM_HAS_LOAD,
+			status_bits_to_be_false := 0,
+			CONVERSION_this :=csp_case_main_statistics.sr)
+		THEN 
+			glue_shift_active :=TRUE;
+		ELSE
+			glue_shift_active :=FALSE;
+		END_IF				
+	
+		
+	(* RUN CONDITIONS *)
+		IF run_conditions
+			AND axis_is_moving(csp_case_transport_os_trailing.axis)
+		THEN
+			(* CHECKS PHASE WINDOWS TO DETERMINE IF GLUE GUN SHOULD BE ON *)
+			
+			(* OS UPPER DOTS *)
+			IF os_case_at_glue_latch
+				AND (
+						(dot_1_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_leading_upper_dot_1_phwin)) (* LEADING UPPER DOT 1 *)
+						OR (dot_2_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_leading_upper_dot_2_phwin)) (* LEADING UPPER DOT 2 *)
+						OR (dot_3_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_leading_upper_dot_3_phwin)) (* LEADING UPPER DOT 3 *)
+						OR (dot_4_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_leading_upper_dot_4_phwin)) (* LEADING UPPER DOT 4 *)
+						OR (dot_5_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_leading_upper_dot_5_phwin)) (* LEADING UPPER DOT 5 *)
+						OR (dot_6_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_leading_upper_dot_6_phwin)) (* LEADING UPPER DOT 6 *)
+						OR (dot_1_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_trailing_upper_dot_1_phwin)) (* TRAILING UPPER DOT 1 *)
+						OR (dot_2_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_trailing_upper_dot_2_phwin)) (* TRAILING UPPER DOT 2 *)
+						OR (dot_3_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_trailing_upper_dot_3_phwin)) (* TRAILING UPPER DOT 3 *)
+						OR (dot_4_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_trailing_upper_dot_4_phwin)) (* TRAILING UPPER DOT 4 *)
+						OR (dot_5_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_trailing_upper_dot_5_phwin)) (* TRAILING UPPER DOT 5 *)
+						OR (dot_6_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_trailing_upper_dot_6_phwin)) (* TRAILING UPPER DOT 6 *)
+				)
+				AND NOT os_upper_bypass_req
+			THEN
+					(* OS UPPER GUN 1 IF ENABLED *)
+					IF os_upper_gun_1_enable
+					THEN
+						digital_output_set(os_upper_gun_1_do);
+					END_IF
+					(* OS UPPER GUN 2 IF ENABLED *)
+					IF os_upper_gun_2_enable
+					THEN
+						digital_output_set(os_upper_gun_2_do);
+					END_IF
+			ELSE
+				digital_output_reset(os_upper_gun_1_do);
+				digital_output_reset(os_upper_gun_2_do);
+			END_IF
+			
+			(* OS LOWER DOTS *)
+			IF os_case_at_glue_latch
+				AND (
+						(dot_1_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_leading_lower_dot_1_phwin)) (* LEADING lower DOT 1 *)
+						OR (dot_2_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_leading_lower_dot_2_phwin)) (* LEADING lower DOT 2 *)
+						OR (dot_3_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_leading_lower_dot_3_phwin)) (* LEADING lower DOT 3 *)
+						OR (dot_4_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_leading_lower_dot_4_phwin)) (* LEADING lower DOT 4 *)
+						OR (dot_5_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_leading_lower_dot_5_phwin)) (* LEADING lower DOT 5 *)
+						OR (dot_6_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_leading_lower_dot_6_phwin)) (* LEADING lower DOT 6 *)
+						OR (dot_1_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_trailing_lower_dot_1_phwin)) (* TRAILING lower DOT 1 *)
+						OR (dot_2_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_trailing_lower_dot_2_phwin)) (* TRAILING lower DOT 2 *)
+						OR (dot_3_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_trailing_lower_dot_3_phwin)) (* TRAILING lower DOT 3 *)
+						OR (dot_4_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_trailing_lower_dot_4_phwin)) (* TRAILING lower DOT 4 *)
+						OR (dot_5_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_trailing_lower_dot_5_phwin)) (* TRAILING lower DOT 5 *)
+						OR (dot_6_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_os_trailing.axis), os_trailing_lower_dot_6_phwin)) (* TRAILING lower DOT 6 *)
+				)
+				AND NOT os_lower_bypass_req
+			THEN
+				(* OS LOWER GUN 1 IF ENABLED *)
+				IF os_lower_gun_1_enable
+				THEN
+					digital_output_set(os_lower_gun_1_do);
+				END_IF
+				(* OS LOWER GUN 2 IF ENABLED *)
+				IF os_lower_gun_2_enable
+				THEN
+					digital_output_set(os_lower_gun_2_do);
+				END_IF
+			ELSE
+				digital_output_reset(os_lower_gun_1_do);
+				digital_output_reset(os_lower_gun_2_do);
+			END_IF
+			
+			
+			(* LS UPPER DOTS *)
+			IF ls_case_at_glue_latch
+				AND (
+						(dot_1_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_leading_upper_dot_1_phwin)) (* LEADING UPPER DOT 1 *)
+						OR (dot_2_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_leading_upper_dot_2_phwin)) (* LEADING UPPER DOT 2 *)
+						OR (dot_3_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_leading_upper_dot_3_phwin)) (* LEADING UPPER DOT 3 *)
+						OR (dot_4_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_leading_upper_dot_4_phwin)) (* LEADING UPPER DOT 4 *)
+						OR (dot_5_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_leading_upper_dot_5_phwin)) (* LEADING UPPER DOT 5 *)
+						OR (dot_6_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_leading_upper_dot_6_phwin)) (* LEADING UPPER DOT 6 *)
+						OR (dot_1_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_trailing_upper_dot_1_phwin)) (* TRAILING UPPER DOT 1 *)
+						OR (dot_2_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_trailing_upper_dot_2_phwin)) (* TRAILING UPPER DOT 2 *)
+						OR (dot_3_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_trailing_upper_dot_3_phwin)) (* TRAILING UPPER DOT 3 *)
+						OR (dot_4_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_trailing_upper_dot_4_phwin)) (* TRAILING UPPER DOT 4 *)
+						OR (dot_5_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_trailing_upper_dot_5_phwin)) (* TRAILING UPPER DOT 3 *)
+						OR (dot_6_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_trailing_upper_dot_6_phwin)) (* TRAILING UPPER DOT 4 *)
+				)
+				AND NOT ls_upper_bypass_req
+			THEN
+				(* LS UPPER GUN 1 IF ENABLED *)
+				IF ls_upper_gun_1_enable
+				THEN
+					digital_output_set(ls_upper_gun_1_do);
+				END_IF
+				(* LS UPPER GUN 2 IF ENABLED *)
+				IF ls_upper_gun_2_enable
+				THEN
+					digital_output_set(ls_upper_gun_2_do);
+				END_IF
+			ELSE
+				digital_output_reset(ls_upper_gun_1_do);
+				digital_output_reset(ls_upper_gun_2_do);
+			END_IF
+			
+			(* LS LOWER DOTS *)
+			IF ls_case_at_glue_latch
+				AND (
+						(dot_1_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_leading_lower_dot_1_phwin)) (* LEADING lower DOT 1 *)
+						OR (dot_2_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_leading_lower_dot_2_phwin)) (* LEADING lower DOT 2 *)
+						OR (dot_3_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_leading_lower_dot_3_phwin)) (* LEADING lower DOT 3 *)
+						OR (dot_4_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_leading_lower_dot_4_phwin)) (* LEADING lower DOT 4 *)
+						OR (dot_5_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_leading_lower_dot_5_phwin)) (* LEADING lower DOT 5 *)
+						OR (dot_6_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_leading_lower_dot_6_phwin)) (* LEADING lower DOT 6 *)
+						OR (dot_1_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_trailing_lower_dot_1_phwin)) (* TRAILING lower DOT 1 *)
+						OR (dot_2_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_trailing_lower_dot_2_phwin)) (* TRAILING lower DOT 2 *)
+						OR (dot_3_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_trailing_lower_dot_3_phwin)) (* TRAILING lower DOT 3 *)
+						OR (dot_4_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_trailing_lower_dot_4_phwin)) (* TRAILING lower DOT 4 *)
+						OR (dot_5_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_trailing_lower_dot_5_phwin)) (* TRAILING lower DOT 3 *)
+						OR (dot_6_enable AND phase_window_position_is_in_window(axis_get_actual_modulo_position(csp_case_transport_ls_trailing.axis), ls_trailing_lower_dot_6_phwin)) (* TRAILING lower DOT 4 *)
+				)
+				AND NOT ls_lower_bypass_req
+			THEN
+				(* LS LOWER GUN 1 IF ENABLED *)
+				IF ls_lower_gun_1_enable
+				THEN
+					digital_output_set(ls_lower_gun_1_do);
+				END_IF
+				(* LS LOWER GUN 2 IF ENABLED *)
+				IF ls_lower_gun_2_enable
+				THEN
+					digital_output_set(ls_lower_gun_2_do);
+				END_IF
+			ELSE
+				digital_output_reset(ls_lower_gun_1_do);
+				digital_output_reset(ls_lower_gun_2_do);
+			END_IF
+			
+			
+		ELSE (* LOST RUN CONDITIONS OR GLUE LATCH OR AXIS IS NOT MOVING *)
+			(* OS GUNS RESET *)
+			digital_output_reset(os_upper_gun_1_do);
+			digital_output_reset(os_upper_gun_2_do);
+			digital_output_reset(os_lower_gun_1_do);
+			digital_output_reset(os_lower_gun_2_do);
+			
+			(* LS GUNS RESET *)
+			digital_output_reset(ls_upper_gun_1_do);
+			digital_output_reset(ls_upper_gun_2_do);
+			digital_output_reset(ls_lower_gun_1_do);
+			digital_output_reset(ls_lower_gun_2_do);
+			
+			fsm_next_status_NEW := CSP_CASE_GLUE_STATUS_INIT;
+		END_IF
+				
+END_CASE
+
+
+IF NOT debug_state_machine
+	OR
+	debug_state_machine_one_step
+THEN
+	fsm_status_NEW := fsm_next_status_NEW; // TEMP RMH 9.16.2020
+	debug_state_machine_one_step := FALSE;
+END_IF
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{b0eca561-6217-4e5d-9c21-f7c76b2529e9}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{57e3dfe5-204e-4b6a-806b-adebd473ebc7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

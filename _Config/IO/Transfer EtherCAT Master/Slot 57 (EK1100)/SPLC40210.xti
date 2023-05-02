@@ -1,0 +1,1294 @@
+<?xml version="1.0"?>
+<TcSmItem xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.beckhoff.com/schemas/2012/07/TcSmProject" TcSmVersion="1.0" TcVersion="3.1.4024.7" ClassName="CFlbTermDef" SubType="9099">
+	<DataTypes>
+		<DataType>
+			<Name GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety" TcBaseType="true">FSOE_6</Name>
+			<BitSize>48</BitSize>
+			<SubItem>
+				<Name>FSoE CMD</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>FSoE Data</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000032}">BITARR8</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>FSoE CRC_0</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000005}">UINT</Type>
+				<BitSize>16</BitSize>
+				<BitOffs>16</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>FSoE ConnID</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000005}">UINT</Type>
+				<BitSize>16</BitSize>
+				<BitOffs>32</BitOffs>
+			</SubItem>
+		</DataType>
+		<DataType>
+			<Name GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}" AutoDeleteType="true">FSOE_7</Name>
+			<BitSize>56</BitSize>
+			<SubItem>
+				<Name>FSoE CMD</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>FSoE Data 0</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000033}">BITARR16</Type>
+				<BitSize>16</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>FSoE CRC_0</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000005}">UINT</Type>
+				<BitSize>16</BitSize>
+				<BitOffs>24</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>FSoE ConnID</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000005}">UINT</Type>
+				<BitSize>16</BitSize>
+				<BitOffs>40</BitOffs>
+			</SubItem>
+			<Hides>
+				<Hide GUID="{DFA8D4FD-47A3-4AE7-8AC9-DBDC7DEC52DF}"/>
+			</Hides>
+		</DataType>
+		<DataType>
+			<Name GUID="{18071995-0000-0000-0000-002000000003}" IecBaseType="true" BitType="true" AutoDeleteType="true" HideSubItems="true">ARRAY [0..2] OF BIT</Name>
+			<BitSize>3</BitSize>
+			<BaseType GUID="{18071995-0000-0000-0000-000000000010}">BIT</BaseType>
+			<ArrayInfo>
+				<LBound>0</LBound>
+				<Elements>3</Elements>
+			</ArrayInfo>
+		</DataType>
+		<DataType>
+			<Name GUID="{8EA147D6-69F3-6C3B-79EE-020724104888}" AutoDeleteType="true">INFODATA_1525530285</Name>
+			<BitSize>32</BitSize>
+			<SubItem>
+				<Name>State</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Diag</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data OutputChannel1</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>24</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data OutputChannel2</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>25</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data OutputChannel3</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>26</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data OutputChannel4</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>27</BitOffs>
+			</SubItem>
+		</DataType>
+		<DataType>
+			<Name GUID="{96A14884-0391-D304-B951-29DC4C13D4AF}" AutoDeleteType="true">INFODATA_1916657131</Name>
+			<BitSize>40</BitSize>
+			<SubItem>
+				<Name>State</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Diag</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 1.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>16</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 1.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>17</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 2.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>18</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 2.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>19</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 3.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>20</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 3.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>21</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 4.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>22</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 4.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>23</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 5.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>24</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 5.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>25</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 6.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>26</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 6.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>27</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 7.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>28</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 7.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>29</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 8.Input</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>30</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data FSIN Module 8.Module Fault</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>31</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 1.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>32</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 2.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>33</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 3.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>34</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 4.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>35</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 5.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>36</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 6.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>37</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 7.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>38</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data FSIN Module 8.ErrAck</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>39</BitOffs>
+			</SubItem>
+		</DataType>
+		<DataType>
+			<Name GUID="{B208A071-D569-BBDE-3F1F-5D1BE42630FF}" AutoDeleteType="true">INFODATA_3795782120</Name>
+			<BitSize>32</BitSize>
+			<SubItem>
+				<Name>State</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Diag</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[0]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>16</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[1]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>17</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[2]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>18</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[3]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>19</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[4]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>20</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[5]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>21</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[6]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>22</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data Safe Data Byte 0[7]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>23</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[0]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>24</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[1]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>25</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[2]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>26</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[3]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>27</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[4]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>28</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[5]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>29</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[6]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>30</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data Safe Data Byte 0[7]</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>31</BitOffs>
+			</SubItem>
+		</DataType>
+		<DataType>
+			<Name GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}" AutoDeleteType="true">INFODATA_260366207</Name>
+			<BitSize>48</BitSize>
+			<SubItem>
+				<Name>State</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Diag</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMESStatus</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>16</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMSTStatus</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>17</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM1Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>18</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM2Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>19</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM3Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>20</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM4Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>21</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM5Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>22</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM6Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>23</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM7Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>24</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM8Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>25</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM9Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>26</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM10Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>27</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM11Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>28</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SMM12Status</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>29</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data EncoderStandstill</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>30</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Input Safe Data SafetyStatus</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>31</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data ModeSelectionSignal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>32</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data EmergencyStopSignal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>33</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data EnablingControl</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>34</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM1Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>35</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM2Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>36</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM3Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>37</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM4Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>38</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM5Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>39</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM6Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>40</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM7Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>41</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM8Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>42</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM9Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>43</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM10Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>44</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM11Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>45</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SMM12Signal</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>46</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Output Safe Data SafeOutput_local</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000010}">BIT</Type>
+				<BitSize>1</BitSize>
+				<BitOffs>47</BitOffs>
+			</SubItem>
+			<Hides>
+				<Hide GUID="{B1FC1127-5E8D-4199-A068-4638F17A5DFD}"/>
+			</Hides>
+		</DataType>
+		<DataType>
+			<Name GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}" AutoDeleteType="true">INFODATA_GRP_3</Name>
+			<BitSize>16</BitSize>
+			<SubItem>
+				<Name>State</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>0</BitOffs>
+			</SubItem>
+			<SubItem>
+				<Name>Diag</Name>
+				<Type GUID="{18071995-0000-0000-0000-000000000002}">USINT</Type>
+				<BitSize>8</BitSize>
+				<BitOffs>8</BitOffs>
+			</SubItem>
+			<Hides>
+				<Hide GUID="{4CD4796F-0A9C-46B0-B367-9C1C98E7C6B7}"/>
+			</Hides>
+		</DataType>
+		<DataType>
+			<Name GUID="{18071995-0000-0000-0000-002000000010}" IecBaseType="true" AutoDeleteType="true" HideSubItems="true">ARRAY [0..1] OF BYTE</Name>
+			<BitSize>16</BitSize>
+			<BaseType GUID="{18071995-0000-0000-0000-000000000001}">BYTE</BaseType>
+			<ArrayInfo>
+				<LBound>0</LBound>
+				<Elements>2</Elements>
+			</ArrayInfo>
+		</DataType>
+	</DataTypes>
+	<ImageDatas>
+		<ImageData Id="1000">424dd6020000000000003600000028000000100000000e0000000100180000000000a002000074120000741200000000000000000000ff00ffff00ffff00ffff00ffff00ffff00ff008066008099008066008099008066ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffff00000000ffff000000008099ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffff00ffff00ffff00ffff008066ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffff00ffff00ffff00ffff008099ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffff00000000ffff000000008066ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffffff000000ffffff0000008099ff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ffff00ff00ffff00ffff00ffff00ffff008066ff00ffff00ffff00ffff00ffff00ff66009999006666009999006666009999006600ffff00000000ffff000000008099ff00ffff00ffff00ffff00ffff00ff99006666009999006666009999006666009900ffff0000ff00ffff0000ff008066ff00ffff00ffff00ffff00ffff00ff66009999006666009999006666009999006600ffff00ffff00ffff00ffff008099ff00ffff00ffff00ffff00ffff00ff99006666009999006666009999006666009900ffff00000000ffff000000008066ff00ffff00ffff00ffff00ffff00ff66009999006666009999006666009999006600ffff00ffff00ffff00ffff008099ff00ffff00ffff00ffff00ffff00ff99006666009999006666009999006666009900ffff00800000ffff008000008066ff00ffff00ffff00ffff00ffff00ff66009999006666009999006666009999006600ffff00ffff00ffff00ffff008099ff00ffff00ffff00ffff00ffff00ff</ImageData>
+	</ImageDatas>
+	<Box Id="155" BoxType="9099" BoxFlags="#x00000020">
+		<Name>__FILENAME__</Name>
+		<ImageId>1000</ImageId>
+		<EtherCAT SlaveType="2" PdiType="#x0005" MboxDataLinkLayer="true" StateMBoxPolling="true" CycleMBoxPollingTime="0" CoeType="3" FoeType="1" VendorId="#x00000002" ProductCode="#x1afe3052" RevisionNo="#x00110000" InfoDataAddr="true" RepeatSupport="true" TimeoutMailbox2="10000" TComSupport="true" CheckRevisionNoType="3" PortPhys="51" SafetyLogicSupported="true" MaxSlotCount="256" MaxSlotGroupCount="1" SlotPdoIncrement="1" SlotIndexIncrement="16" Type="EL6910, TwinSAFE PLC" Desc="EL6910">
+			<SyncMan>001000012600010001000000000100010001001026010000</SyncMan>
+			<SyncMan>001100012200010002000000000100010001001122010000</SyncMan>
+			<SyncMan>00129f002400010003000000000000000200001224010000</SyncMan>
+			<SyncMan>001d35012000010004000000000000000200001d20010000</SyncMan>
+			<SyncMan>002e00002400000003000000000000000000002e24000000</SyncMan>
+			<SyncMan>002f00002000000004000000000000000000002f20000000</SyncMan>
+			<Fmmu>0000000000000000001200020100000001000000060000000200000000000000</Fmmu>
+			<Fmmu>0000000000000000001d00010100000002000000060000000300000000000000</Fmmu>
+			<Fmmu>00000000000000000d0800010100000003000000000000000000000000000000</Fmmu>
+			<Fmmu>0000000000000000000000020000000001000000060000000400010000000000</Fmmu>
+			<Fmmu>0000000000000000000000010000000002000000060000000500010000000000</Fmmu>
+			<BootStrapData>0010f400f410f400</BootStrapData>
+			<SuName>SPLC40210</SuName>
+			<SuTask>#x05000010</SuTask>
+			<MBoxUserCmdData>004003000a00000000000000030010000000000000000000000000000000000020f3100502000000010000</MBoxUserCmdData>
+			<Pdo Name="ConnectionInputs" Index="#x1a00" Flags="#x2011" SyncMan="3">
+				<Entry Name="Interface.SPLC40210Slot66_17 TxPDO" Index="#x7000" Sub="#x01">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot60_109 TxPDO" Index="#x7000" Sub="#x02">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot61_136 TxPDO" Index="#x7000" Sub="#x03">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot68_145 TxPDO" Index="#x7000" Sub="#x04">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot70_146 TxPDO" Index="#x7000" Sub="#x05">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot72_147 TxPDO" Index="#x7000" Sub="#x06">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot59_156 TxPDO" Index="#x7000" Sub="#x07">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000_173 TxPDO" Index="#x7000" Sub="#x08">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="SD41100.SD41100_ChA_33 TxPDO" Index="#x7000" Sub="#x09">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41100.SD41100_ChB_34 TxPDO" Index="#x7000" Sub="#x0a">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41200.SD41200_ChA_97 TxPDO" Index="#x7000" Sub="#x0b">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41200.SD41200_ChB_98 TxPDO" Index="#x7000" Sub="#x0c">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41300.SD41300_ChA_99 TxPDO" Index="#x7000" Sub="#x0d">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41300.SD41300_ChB_100 TxPDO" Index="#x7000" Sub="#x0e">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41400.SD41400_ChA_101 TxPDO" Index="#x7000" Sub="#x0f">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41400.SD41400_ChB_102 TxPDO" Index="#x7000" Sub="#x10">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41500.SD41500_ChA_103 TxPDO" Index="#x7000" Sub="#x11">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41500.SD41500_ChB_104 TxPDO" Index="#x7000" Sub="#x12">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41600.SD41600_ChA_105 TxPDO" Index="#x7000" Sub="#x13">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41600.SD41600_ChB_106 TxPDO" Index="#x7000" Sub="#x14">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41700.SD41700_ChA_107 TxPDO" Index="#x7000" Sub="#x15">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41700.SD41700_ChB_108 TxPDO" Index="#x7000" Sub="#x16">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="ConnectionOutputs" Index="#x1600" InOut="1" Flags="#x2011" SyncMan="2">
+				<Entry Name="Interface.SPLC40210Slot66_17 RxPDO" Index="#x6000" Sub="#x01">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot60_109 RxPDO" Index="#x6000" Sub="#x02">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot61_136 RxPDO" Index="#x6000" Sub="#x03">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot68_145 RxPDO" Index="#x6000" Sub="#x04">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot70_146 RxPDO" Index="#x6000" Sub="#x05">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot72_147 RxPDO" Index="#x6000" Sub="#x06">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot59_156 RxPDO" Index="#x6000" Sub="#x07">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000_173 RxPDO" Index="#x6000" Sub="#x08">
+					<Type GUID="{2438F91B-E188-4ED7-8594-54354F9ED6A4}" Namespace="Safety">FSOE_6</Type>
+				</Entry>
+				<Entry Name="SD41100.SD41100_ChA_33 RxPDO" Index="#x6000" Sub="#x09">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41100.SD41100_ChB_34 RxPDO" Index="#x6000" Sub="#x0a">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41200.SD41200_ChA_97 RxPDO" Index="#x6000" Sub="#x0b">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41200.SD41200_ChB_98 RxPDO" Index="#x6000" Sub="#x0c">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41300.SD41300_ChA_99 RxPDO" Index="#x6000" Sub="#x0d">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41300.SD41300_ChB_100 RxPDO" Index="#x6000" Sub="#x0e">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41400.SD41400_ChA_101 RxPDO" Index="#x6000" Sub="#x0f">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41400.SD41400_ChB_102 RxPDO" Index="#x6000" Sub="#x10">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41500.SD41500_ChA_103 RxPDO" Index="#x6000" Sub="#x11">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41500.SD41500_ChB_104 RxPDO" Index="#x6000" Sub="#x12">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41600.SD41600_ChA_105 RxPDO" Index="#x6000" Sub="#x13">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41600.SD41600_ChB_106 RxPDO" Index="#x6000" Sub="#x14">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41700.SD41700_ChA_107 RxPDO" Index="#x6000" Sub="#x15">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+				<Entry Name="SD41700.SD41700_ChB_108 RxPDO" Index="#x6000" Sub="#x16">
+					<Type GUID="{EF6DFE7D-393E-4B1F-8993-0093BDB66430}">FSOE_7</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="StandardInputs" Index="#x1bf0" Flags="#x2011" SyncMan="3">
+				<Entry Name="Interface.csp_transfer_main_safety_emergencyHMI_button_stop_sioprotection_safely_closed_inputstatus_6" Index="#x7000" Sub="#x01">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.csp_transfer_main_safety_emergencysissafely_closed_inputstatus_11" Index="#x7000" Sub="#x02">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.csp_transfer_main_safety_emergencyHMI_button_sioprotection_discrepancy_inputstatus_12" Index="#x7000" Sub="#x03">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply.csp_transfer_main_safety_drives_PS41020sissafely_closed_inputstatus_16" Index="#x7000" Sub="#x04">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply.csp_transfer_main_safety_drives_PS41020sisdiscrepancy_inputstatus_24" Index="#x7000" Sub="#x05">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesCommonConfiguration.csp_transfer_main_safety_drives_commonConfigurationrack_smes_sissafely_closed_inputstatus_28" Index="#x7000" Sub="#x06">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41100.csp_transfer_main_safety_drives_SD41100chA_smes_sissafely_closed_inputstatus_31" Index="#x7000" Sub="#x07">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41100.csp_transfer_main_safety_drives_SD41100chB_smes_sissafely_closed_inputstatus_32" Index="#x7000" Sub="#x08">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41100.csp_transfer_main_safety_drives_SD41100sigsafety_group_fb_err_inputstatus_35" Index="#x7000" Sub="#x09">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41100.csp_transfer_main_safety_drives_SD41100sigsafety_group_com_err_inputstatus_36" Index="#x7000" Sub="#x0a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41200.csp_transfer_main_safety_drives_SD41200chA_smes_sissafely_closed_inputstatus_50" Index="#x7000" Sub="#x0b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41200.csp_transfer_main_safety_drives_SD41200chB_smes_sissafely_closed_inputstatus_52" Index="#x7000" Sub="#x0c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41200.csp_transfer_main_safety_drives_SD41200sigsafety_group_com_err_inputstatus_53" Index="#x7000" Sub="#x0d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41200.csp_transfer_main_safety_drives_SD41200sigsafety_group_fb_err_inputstatus_54" Index="#x7000" Sub="#x0e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41300.csp_transfer_main_safety_drives_SD41300chA_smes_sissafely_closed_inputstatus_61" Index="#x7000" Sub="#x0f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41300.csp_transfer_main_safety_drives_SD41300chB_smes_sissafely_closed_inputstatus_62" Index="#x7000" Sub="#x10">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41300.csp_transfer_main_safety_drives_SD41300sigsafety_group_com_err_inputstatus_63" Index="#x7000" Sub="#x11">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41300.csp_transfer_main_safety_drives_SD41300sigsafety_group_fb_err_inputstatus_64" Index="#x7000" Sub="#x12">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41400.csp_transfer_main_safety_drives_SD41400chA_smes_sissafely_closed_inputstatus_69" Index="#x7000" Sub="#x13">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41400.csp_transfer_main_safety_drives_SD41400chB_smes_sissafely_closed_inputstatus_70" Index="#x7000" Sub="#x14">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41400.csp_transfer_main_safety_drives_SD41400sigsafety_group_com_err_inputstatus_71" Index="#x7000" Sub="#x15">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41400.csp_transfer_main_safety_drives_SD41400sigsafety_group_fb_err_inputstatus_72" Index="#x7000" Sub="#x16">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41500.csp_transfer_main_safety_drives_SD41500chA_smes_sissafely_closed_inputstatus_77" Index="#x7000" Sub="#x17">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41500.csp_transfer_main_safety_drives_SD41500chB_smes_sissafely_closed_inputstatus_78" Index="#x7000" Sub="#x18">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41500.csp_transfer_main_safety_drives_SD41500sigsafety_group_com_err_inputstatus_79" Index="#x7000" Sub="#x19">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41500.csp_transfer_main_safety_drives_SD41500sigsafety_group_fb_err_inputstatus_80" Index="#x7000" Sub="#x1a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41600.csp_transfer_main_safety_drives_SD41600chA_smes_sissafely_closed_inputstatus_85" Index="#x7000" Sub="#x1b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41600.csp_transfer_main_safety_drives_SD41600chB_smes_sissafely_closed_inputstatus_86" Index="#x7000" Sub="#x1c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41600.csp_transfer_main_safety_drives_SD41600sigsafety_group_fb_err_inputstatus_87" Index="#x7000" Sub="#x1d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41600.csp_transfer_main_safety_drives_SD41600sigsafety_group_com_err_inputstatus_88" Index="#x7000" Sub="#x1e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41700.csp_transfer_main_safety_drives_SD41700chA_smes_sissafely_closed_inputstatus_93" Index="#x7000" Sub="#x1f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41700.csp_transfer_main_safety_drives_SD41700chB_smes_sissafely_closed_inputstatus_94" Index="#x7000" Sub="#x20">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41700.csp_transfer_main_safety_drives_SD41700sigsafety_group_com_err_inputstatus_95" Index="#x7000" Sub="#x21">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41700.csp_transfer_main_safety_drives_SD41700sigsafety_group_fb_err_inputstatus_96" Index="#x7000" Sub="#x22">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.csp_transfer_main_safety_emergencydelayed_sissafely_closed_inputstatus_111" Index="#x7000" Sub="#x23">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardsdelayed_sissafely_closed_inputstatus_114" Index="#x7000" Sub="#x24">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_3protection_discrepancy_inputstatus_115" Index="#x7000" Sub="#x25">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_3safely_locked_inputstatus_116" Index="#x7000" Sub="#x26">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_3safely_closed_and_locked_inputstatus_118" Index="#x7000" Sub="#x27">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssissafely_closed_inputstatus_124" Index="#x7000" Sub="#x28">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_4safely_closed_and_locked_inputstatus_125" Index="#x7000" Sub="#x29">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_4protection_discrepancy_inputstatus_126" Index="#x7000" Sub="#x2a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_5protection_discrepancy_inputstatus_128" Index="#x7000" Sub="#x2b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_5safely_closed_and_locked_inputstatus_129" Index="#x7000" Sub="#x2c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_5safely_locked_inputstatus_130" Index="#x7000" Sub="#x2d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_6protection_discrepancy_inputstatus_132" Index="#x7000" Sub="#x2e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_6safely_closed_and_locked_inputstatus_133" Index="#x7000" Sub="#x2f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SafetyToken.csp_transfer_main_safety_tokensissafely_closed_inputstatus_137" Index="#x7000" Sub="#x30">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SafetyToken.csp_transfer_main_safety_tokensioprotection_discrepancy_inputstatus_140" Index="#x7000" Sub="#x31">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_4safely_locked_inputstatus_141" Index="#x7000" Sub="#x32">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_6safely_locked_inputstatus_142" Index="#x7000" Sub="#x33">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_7protection_discrepancy_inputstatus_148" Index="#x7000" Sub="#x34">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_7safely_closed_and_locked_inputstatus_149" Index="#x7000" Sub="#x35">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_8safely_closed_and_locked_inputstatus_150" Index="#x7000" Sub="#x36">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_8protection_discrepancy_inputstatus_151" Index="#x7000" Sub="#x37">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_7safely_locked_inputstatus_152" Index="#x7000" Sub="#x38">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_8safely_locked_inputstatus_153" Index="#x7000" Sub="#x39">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.csp_transfer_main_safety_accUChangesissafely_closed_inputstatus_162" Index="#x7000" Sub="#x3a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.csp_transfer_main_safety_accUChangesisdiscrepancy_inputstatus_169" Index="#x7000" Sub="#x3b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_transfer_main_safety_tokensioprotection_safely_closed_inputstatus_171" Index="#x7000" Sub="#x3c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply.csp_transfer_main_safety_drives_PS41020sigsafety_group_fb_err_inputstatus_172" Index="#x7000" Sub="#x3d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry>
+					<Type GUID="{18071995-0000-0000-0000-002000000003}">ARRAY [0..2] OF BIT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="StandardOutputs" Index="#x17f0" InOut="1" Flags="#x2011" SyncMan="2">
+				<Entry Name="EmergencyCircuit.csp_transfer_main_safety_emergencysigsafety_group_err_ack_outputstatus_1" Index="#x6000" Sub="#x01">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.csp_transfer_main_safety_emergencysigsafety_group_run_outputstatus_2" Index="#x6000" Sub="#x02">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_transfer_main_safety_interfaceSPLC40210_sigsafety_group_err_ack_outputstatus_3" Index="#x6000" Sub="#x03">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Interface.csp_transfer_main_safety_interfaceSPLC40210_sigsafety_group_run_outputstatus_4" Index="#x6000" Sub="#x04">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.csp_transfer_main_safety_emergencysisopen_outputstatus_7" Index="#x6000" Sub="#x05">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply.csp_transfer_main_safety_drives_PS41020sigsafety_group_err_ack_outputstatus_13" Index="#x6000" Sub="#x06">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply.csp_transfer_main_safety_drives_PS41020sigsafety_group_run_outputstatus_14" Index="#x6000" Sub="#x07">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply.csp_transfer_main_safety_drives_PS41020sisopen_outputstatus_15" Index="#x6000" Sub="#x08">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41100.ErrorAcknowledgement_18" Index="#x6000" Sub="#x09">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41100.Run_19" Index="#x6000" Sub="#x0a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41100.csp_transfer_main_safety_drives_SD41100chA_smes_sisopen_outputstatus_22" Index="#x6000" Sub="#x0b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41100.csp_transfer_main_safety_drives_SD41100chB_smes_sisopen_outputstatus_23" Index="#x6000" Sub="#x0c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesCommonConfiguration.ErrorAcknowledgement_25" Index="#x6000" Sub="#x0d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesCommonConfiguration.Run_26" Index="#x6000" Sub="#x0e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="DrivesCommonConfiguration.csp_transfer_main_safety_drives_commonConfigurationrack_smes_sisopen_outputstatus_27" Index="#x6000" Sub="#x0f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41200.ErrorAcknowledgement_37" Index="#x6000" Sub="#x10">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41200.Run_38" Index="#x6000" Sub="#x11">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41300.ErrorAcknowledgement_39" Index="#x6000" Sub="#x12">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41300.Run_40" Index="#x6000" Sub="#x13">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41400.ErrorAcknowledgement_41" Index="#x6000" Sub="#x14">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41400.Run_42" Index="#x6000" Sub="#x15">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41500.ErrorAcknowledgement_43" Index="#x6000" Sub="#x16">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41500.Run_44" Index="#x6000" Sub="#x17">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41600.ErrorAcknowledgement_45" Index="#x6000" Sub="#x18">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41600.Run_46" Index="#x6000" Sub="#x19">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41700.ErrorAcknowledgement_47" Index="#x6000" Sub="#x1a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41700.Run_48" Index="#x6000" Sub="#x1b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41200.csp_transfer_main_safety_drives_SD41200chA_smes_sisopen_outputstatus_49" Index="#x6000" Sub="#x1c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41200.csp_transfer_main_safety_drives_SD41200chB_smes_sisopen_outputstatus_51" Index="#x6000" Sub="#x1d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41300.csp_transfer_main_safety_drives_SD41300chA_smes_sisopen_outputstatus_57" Index="#x6000" Sub="#x1e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41300.csp_transfer_main_safety_drives_SD41300chB_smes_sisopen_outputstatus_58" Index="#x6000" Sub="#x1f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41400.csp_transfer_main_safety_drives_SD41400chA_smes_sisopen_outputstatus_65" Index="#x6000" Sub="#x20">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41400.csp_transfer_main_safety_drives_SD41400chB_smes_sisopen_outputstatus_66" Index="#x6000" Sub="#x21">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41500.csp_transfer_main_safety_drives_SD41500chA_smes_sisopen_outputstatus_73" Index="#x6000" Sub="#x22">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41500.csp_transfer_main_safety_drives_SD41500chB_smes_sisopen_outputstatus_74" Index="#x6000" Sub="#x23">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41600.csp_transfer_main_safety_drives_SD41600chA_smes_sisopen_outputstatus_81" Index="#x6000" Sub="#x24">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41600.csp_transfer_main_safety_drives_SD41600chB_smes_sisopen_outputstatus_82" Index="#x6000" Sub="#x25">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41700.csp_transfer_main_safety_drives_SD41700chA_smes_sisopen_outputstatus_89" Index="#x6000" Sub="#x26">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SD41700.csp_transfer_main_safety_drives_SD41700chB_smes_sisopen_outputstatus_90" Index="#x6000" Sub="#x27">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="EmergencyCircuit.csp_transfer_main_safety_emergencydelayed_sisopen_outputstatus_110" Index="#x6000" Sub="#x28">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.ErrorAcknowledgement_112" Index="#x6000" Sub="#x29">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.Run_113" Index="#x6000" Sub="#x2a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardsdelayed_sisopen_outputstatus_119" Index="#x6000" Sub="#x2b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssisopen_outputstatus_120" Index="#x6000" Sub="#x2c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_3unlock_outputstatus_127" Index="#x6000" Sub="#x2d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_5unlock_outputstatus_131" Index="#x6000" Sub="#x2e">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SafetyToken.ErrorAcknowledgement_134" Index="#x6000" Sub="#x2f">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SafetyToken.Run_135" Index="#x6000" Sub="#x30">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="SafetyToken.csp_transfer_main_safety_tokensisopen_outputstatus_138" Index="#x6000" Sub="#x31">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_4unlock_outputstatus_143" Index="#x6000" Sub="#x32">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_6unlock_outputstatus_144" Index="#x6000" Sub="#x33">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_7unlock_outputstatus_154" Index="#x6000" Sub="#x34">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="Guards.csp_transfer_main_safety_guardssio_door_8unlock_outputstatus_155" Index="#x6000" Sub="#x35">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.ErrorAcknowledgement_159" Index="#x6000" Sub="#x36">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Run_160" Index="#x6000" Sub="#x37">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.csp_transfer_main_safety_accUChangesisopen_outputstatus_161" Index="#x6000" Sub="#x38">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info data 1_Slot82_164" Index="#x6000" Sub="#x39">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info data 1_Slot84_165" Index="#x6000" Sub="#x3a">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info data 1_Slot87_166" Index="#x6000" Sub="#x3b">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info data 1_Slot89_167" Index="#x6000" Sub="#x3c">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO.Info data 1_Slot92_168" Index="#x6000" Sub="#x3d">
+					<Type>BIT</Type>
+				</Entry>
+				<Entry>
+					<Type GUID="{18071995-0000-0000-0000-002000000003}">ARRAY [0..2] OF BIT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Connection Info Data" Index="#x1bf9" Flags="#x2011" SyncMan="3">
+				<Entry Name="Interface.SPLC40210Slot66_17 Info Data" Index="#x7000" Sub="#x01">
+					<Type GUID="{8EA147D6-69F3-6C3B-79EE-020724104888}">INFODATA_1525530285</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot60_109 Info Data" Index="#x7000" Sub="#x02">
+					<Type GUID="{96A14884-0391-D304-B951-29DC4C13D4AF}">INFODATA_1916657131</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot61_136 Info Data" Index="#x7000" Sub="#x03">
+					<Type GUID="{96A14884-0391-D304-B951-29DC4C13D4AF}">INFODATA_1916657131</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot68_145 Info Data" Index="#x7000" Sub="#x04">
+					<Type GUID="{8EA147D6-69F3-6C3B-79EE-020724104888}">INFODATA_1525530285</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot70_146 Info Data" Index="#x7000" Sub="#x05">
+					<Type GUID="{8EA147D6-69F3-6C3B-79EE-020724104888}">INFODATA_1525530285</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot72_147 Info Data" Index="#x7000" Sub="#x06">
+					<Type GUID="{8EA147D6-69F3-6C3B-79EE-020724104888}">INFODATA_1525530285</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC40210Slot59_156 Info Data" Index="#x7000" Sub="#x07">
+					<Type GUID="{96A14884-0391-D304-B951-29DC4C13D4AF}">INFODATA_1916657131</Type>
+				</Entry>
+				<Entry Name="Interface.SPLC5000_173 Info Data" Index="#x7000" Sub="#x08">
+					<Type GUID="{B208A071-D569-BBDE-3F1F-5D1BE42630FF}">INFODATA_3795782120</Type>
+				</Entry>
+				<Entry Name="SD41100.SD41100_ChA_33 Info Data" Index="#x7000" Sub="#x09">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41100.SD41100_ChB_34 Info Data" Index="#x7000" Sub="#x0a">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41200.SD41200_ChA_97 Info Data" Index="#x7000" Sub="#x0b">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41200.SD41200_ChB_98 Info Data" Index="#x7000" Sub="#x0c">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41300.SD41300_ChA_99 Info Data" Index="#x7000" Sub="#x0d">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41300.SD41300_ChB_100 Info Data" Index="#x7000" Sub="#x0e">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41400.SD41400_ChA_101 Info Data" Index="#x7000" Sub="#x0f">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41400.SD41400_ChB_102 Info Data" Index="#x7000" Sub="#x10">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41500.SD41500_ChA_103 Info Data" Index="#x7000" Sub="#x11">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41500.SD41500_ChB_104 Info Data" Index="#x7000" Sub="#x12">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41600.SD41600_ChA_105 Info Data" Index="#x7000" Sub="#x13">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41600.SD41600_ChB_106 Info Data" Index="#x7000" Sub="#x14">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41700.SD41700_ChA_107 Info Data" Index="#x7000" Sub="#x15">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+				<Entry Name="SD41700.SD41700_ChB_108 Info Data" Index="#x7000" Sub="#x16">
+					<Type GUID="{D7B5D7FB-E30E-4B3F-83B0-37652F501BEB}">INFODATA_260366207</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="TwinSAFE Group Info Data" Index="#x1bfa" Flags="#x2011" SyncMan="3">
+				<Entry Name="EmergencyCircuit Info Data" Index="#x7000" Sub="#x01">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="Interface Info Data" Index="#x7000" Sub="#x02">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="DrivesRackPowerSupply Info Data" Index="#x7000" Sub="#x03">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD41100 Info Data" Index="#x7000" Sub="#x04">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="DrivesCommonConfiguration Info Data" Index="#x7000" Sub="#x05">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD41200 Info Data" Index="#x7000" Sub="#x06">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD41300 Info Data" Index="#x7000" Sub="#x07">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD41400 Info Data" Index="#x7000" Sub="#x08">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD41500 Info Data" Index="#x7000" Sub="#x09">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD41600 Info Data" Index="#x7000" Sub="#x0a">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SD41700 Info Data" Index="#x7000" Sub="#x0b">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="Guards Info Data" Index="#x7000" Sub="#x0c">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="SafetyToken Info Data" Index="#x7000" Sub="#x0d">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+				<Entry Name="AccUChange_STO Info Data" Index="#x7000" Sub="#x0e">
+					<Type GUID="{0869750D-7AF7-4EE5-B88B-FA9315197E10}">INFODATA_GRP_3</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="Device Info Data" Index="#x1bfe" Flags="#x2011" SyncMan="3">
+				<Entry Name="Project CRC" Index="#x7000" Sub="#x01">
+					<Type>WORD</Type>
+				</Entry>
+				<Entry Name="Serial Number" Index="#x7000" Sub="#x02">
+					<Type>UDINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="FSLOGIC Inputs" Index="#x1bff" Flags="#x0011" SyncMan="3">
+				<Entry Name="Safe Logic State" Index="#xf100" Sub="#x01">
+					<Type>USINT</Type>
+				</Entry>
+				<Entry Name="Cycle Counter" Index="#xf100" Sub="#x02">
+					<Type>USINT</Type>
+				</Entry>
+			</Pdo>
+			<Pdo Name="FSLOGIC Outputs" Index="#x17ff" InOut="1" Flags="#x0011" SyncMan="2">
+				<Entry>
+					<Type GUID="{18071995-0000-0000-0000-002000000010}">ARRAY [0..1] OF BYTE</Type>
+				</Entry>
+			</Pdo>
+			<CoeProfile ProfileNo="5001"/>
+		</EtherCAT>
+	</Box>
+</TcSmItem>

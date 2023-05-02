@@ -1,0 +1,205 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_closing_ls" Id="{ee0c5e0c-23e7-48f7-b6ea-36497a98446a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_closing_ls
+VAR
+		
+	prc:											process;
+	prc_path:										STRING;
+	
+	phase_upper:									BOOL;
+	phase_lower:									BOOL;
+	phase_horizontal:								BOOL;
+	
+	horizontal_first:								BOOL;
+	horizontal_second:								BOOL;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(* CLEARS PHASING SEQUENCE DUE TO AXES CAM ENGAGED *)
+IF 	axis_is_cam_engaged(csp_case_closing_ls_horizontal.axis)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	phase_horizontal := FALSE;
+END_IF
+
+IF 	axis_is_cam_engaged(csp_case_closing_ls_upper.axis)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	phase_upper := FALSE;
+END_IF
+
+IF 	axis_is_cam_engaged(csp_case_closing_ls_lower.axis)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	phase_lower := FALSE;
+END_IF
+
+IF (
+	axis_is_cam_engaged(csp_case_closing_ls_horizontal.axis)
+	AND axis_is_cam_engaged(csp_case_closing_ls_upper.axis)
+	AND axis_is_cam_engaged(csp_case_closing_ls_lower.axis)
+	)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	horizontal_first := FALSE;
+	horizontal_second := FALSE;
+END_IF
+
+
+(* HORIZONTAL NEEDS TO PHASE - CHECK IF UPPER AND LOWER MOVE FIRST OR HORIZONTAL FIRST *)
+IF	NOT axis_is_cam_engaged(csp_case_closing_ls_horizontal.axis)
+	AND NOT csp_case_closing_ls_horizontal.phase_done
+	AND (motorization_manager_is_starting(csp_main_motorization_manager.motm) OR jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual))
+THEN	
+	(* CALCULATED HORIZONTAL TO MOVE IN - MOVE UPPER AND LOWER FIRST *)
+	IF csp_case_closing_ls_horizontal.axis_calculated_cam_slave_position_deg >= axis_get_actual_modulo_position(csp_case_closing_ls_horizontal.axis)
+	THEN
+		horizontal_second := TRUE;
+	(* CALCULATED HORIZONTAL TO MOVE OUT - MOVE HORIZONTAL FIRST *)
+	ELSE
+		horizontal_first := TRUE;
+	END_IF
+END_IF
+
+(* PHASE HORIZONTAL THEN UPPER AND LOWER *)
+IF 	horizontal_first
+	AND (motorization_manager_is_starting(csp_main_motorization_manager.motm) OR jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual))
+THEN
+	phase_horizontal := TRUE;
+	IF csp_case_closing_ls_horizontal.phase_done
+	THEN
+		phase_upper := TRUE;
+		phase_lower := TRUE;
+	END_IF
+END_IF
+
+(* PHASE UPPER AND LOWER THEN HORIZONTAL *)
+IF horizontal_second
+	AND (motorization_manager_is_starting(csp_main_motorization_manager.motm) OR jog_manager_is_jog_axis_active(JOG_LIST_CSP_CASE_VIRTUAL, csp_main_jogManager.jog_manager_virtual))
+THEN
+	phase_upper := TRUE;
+	phase_lower := TRUE;
+	IF 	csp_case_closing_ls_upper.phase_done
+		AND csp_case_closing_ls_lower.phase_done
+	THEN
+		phase_horizontal := TRUE;
+	END_IF
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{7a92c8e4-aa85-44f8-895a-db910c058234}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{031a4aaa-ef0c-4ad8-ae02-652accb50109}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{bbb3f1ed-4f04-4390-98a4-b71ee95c6320}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{6f793900-c927-47d7-b3b0-127418e86b88}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_closing_ls.prc', 
+		process						:= csp_case_closing.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{ec316068-d878-47d5-ae42-ebb5431c7876}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{11ac91d4-8872-448d-af21-75830e0667c1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{c1ea1f45-f54e-45b7-abb1-58ff8563829a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{0fe7cee5-14eb-46fc-9da2-db87ae34e14b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

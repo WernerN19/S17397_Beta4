@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="_csp_transfer_lowest" Id="{a30b2934-82f5-458b-a7df-52f99e6c5a5e}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_transfer_lowest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_csp_transfer_accumulator_lowest();
+
+_csp_transfer_crosspusher_lowest();
+
+_csp_transfer_main_lowest();
+
+_csp_transfer_infeed_lowest();
+
+_csp_transfer_upstacker_lowest();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

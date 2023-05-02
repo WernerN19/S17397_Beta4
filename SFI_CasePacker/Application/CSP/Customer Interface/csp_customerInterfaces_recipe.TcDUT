@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_customerInterfaces_recipe" Id="{bd256481-6321-4a56-be84-84b745e66baf}">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+Machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/03/27 	0000.00	 	CEC 			Creation of the PRG
+
+**********************************************************************************************************)
+
+TYPE csp_customerInterfaces_recipe :
+STRUCT
+	
+	Filler:								STRING;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Filler recipe ID [future use]; $*)
+	Cartoner:							STRING;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Cartoner recipe ID [future use]; $*)
+	CasePacker:							STRING;				(*$H_RW	act_when := IMMEDIATE ;
+															desc := Case packer recipe ID [future use]; $*)
+															
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

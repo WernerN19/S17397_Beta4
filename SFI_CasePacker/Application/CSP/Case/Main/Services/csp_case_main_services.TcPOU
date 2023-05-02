@@ -1,0 +1,296 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_main_services" Id="{3fa48483-d8dc-0039-19f0-9ffca63d5fcd}" SpecialFunc="None">
+    <Declaration><![CDATA[(********************* G.D S.p.A. - Technical Department *****************************
+
+Date			Version		Author			Description             
+----------      -------		-----------		----------------------------------------------
+2015/06/30		0000.00		M.Grasso		Initial Release
+
+DESCRIPTION:	
+
+NOTES:        		 
+
+**************************************************************************************)
+(*$R process_ref := prc; $*)
+
+PROGRAM csp_case_main_services
+VAR
+	prc:								process;
+	prc_path:							STRING;
+	
+	reset_output_test:					digital_output;
+	
+	lights_on_do:						digital_output;
+	lights_toggle:						BOOL:=FALSE;(*$P $*)
+	dry_cycle_mode:						BOOL:=FALSE; (*$P $*)
+
+	dry_cycle_visu_nvr:            		INT; (*$H_R $*)
+	dry_cycle_label_ON_visu_nvr:   		INT; (*$H_R $*)
+	dry_cycle_label_OFF_visu_nvr:  		INT; (*$H_R $*)
+	
+	upstacker_test_visu_nvr:            INT; (*$H_R $*)
+	upstacker_test_label_ON_visu_nvr:   INT; (*$H_R $*)
+	upstacker_test_label_OFF_visu_nvr:  INT; (*$H_R $*)
+	
+	cartoner_runout_visu_nvr:           INT; (*$H_R $*)
+	end_production_visu_nvr:            INT; (*$H_R $*)
+	cartoner_runout_true_cbtn:			command_button;
+	cartoner_runout_false_cbtn:			command_button;
+	end_production_true_cbtn:			command_button;
+	end_production_false_cbtn:			command_button;
+	end_production:						BOOL := FALSE;
+	empty_cmd_rtrig:					R_TRIG;
+	end_production_rtrig:				R_TRIG;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+_objects_manager();
+
+IF g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode (CONVERSION_this := prc) OF
+
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+_set_runtime_properties();
+_visiblity_manager();
+(*************************************************************************************
+**************************************************************************************)
+(*BODY*)
+
+IF descriptor_get_reset_edge(prc.descriptor)
+THEN
+	digital_output_set(reset_output_test);
+ELSE
+	digital_output_reset(reset_output_test);
+END_IF
+
+IF	csp_main.i_end_job_request
+THEN	
+	end_production := FALSE;
+END_IF
+
+(* LIGHTS ON *)
+IF lights_toggle
+THEN
+	digital_output_set(lights_on_do);
+ELSE
+	digital_output_reset(lights_on_do);
+END_IF
+
+IF command_button_is_pressed(cartoner_runout_true_cbtn)
+THEN
+	parameter_overwrite_set_bool_value(TRUE,csp_main_motorization.empty_command_overwrite);
+END_IF
+
+IF command_button_is_pressed(end_production_true_cbtn)
+THEN
+	end_production := TRUE;
+END_IF
+
+empty_cmd_rtrig(CLK:=csp_main_motorization.empty_command);
+end_production_rtrig(CLK:=csp_main_interface.Cartoner_RunOutRequest);
+
+(*************************************************************************************
+**************************************************************************************)
+
+_handle_messages();
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{49c07450-8c52-03eb-3617-f789e7201e7c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{ec18a04c-e28a-02ee-2315-9fb102d099f7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{759ae957-4259-0c52-2c3b-313ca518571d}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(CONVERSION_this := prc)
+THEN
+    process_apply_mode_req_first_step(CONVERSION_this := prc);
+    CASE process_get_mode(CONVERSION_this := prc) OF
+        MODE_TO_ABSENT:
+            ;
+        MODE_TO_INACTIVE:
+            ;
+        MODE_TO_TEST:
+            ;
+        MODE_TO_OPERATIONAL:
+            ;
+    END_CASE
+    process_apply_mode_req_second_step(CONVERSION_this := prc);
+END_IF;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{80a81bc9-610c-04fa-21dc-1e10b092147a}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+    sub_process_init(
+	    object_name 	:= 'csp_case_main_services.prc',
+        process			:= csp_case_main.prc,
+        CONVERSION_this			:= prc);
+
+	prc_path 			:= process_get_path(prc);
+
+	digital_output_init(
+		object_name		:= CONCAT(prc_path, '_reset_output_test'),
+		polarity_direct	:= TRUE,
+		process			:= prc,
+		CONVERSION_this			:= reset_output_test);
+		
+	digital_output_init(
+		object_name				:= CONCAT(prc_path, '_lights_on_do'),
+		polarity_direct			:= TRUE,
+		process					:= prc,
+		CONVERSION_this			:= lights_on_do);
+
+	command_button_init(
+		object_name				:= CONCAT(prc_path, '_cartoner_runout_true_cbtn'),
+		process					:= prc,
+		CONVERSION_this			:= cartoner_runout_true_cbtn);
+	
+	command_button_init(
+		object_name				:= CONCAT(prc_path, '_cartoner_runout_false_cbtn'),
+		process					:= prc,
+		CONVERSION_this			:= cartoner_runout_false_cbtn);
+		
+	command_button_init(
+		object_name				:= CONCAT(prc_path, '_end_production_true_cbtn'),
+		process					:= prc,
+		CONVERSION_this			:= end_production_true_cbtn);
+		
+	command_button_init(
+		object_name				:= CONCAT(prc_path, '_end_production_false_cbtn'),
+		process					:= prc,
+		CONVERSION_this			:= end_production_false_cbtn);
+		
+	end_production_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+	command_button_set_status(HMI_OBJECT_STATUS_INVISIBLE,end_production_true_cbtn);
+	command_button_set_status(HMI_OBJECT_STATUS_INVISIBLE,end_production_false_cbtn);
+	cartoner_runout_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+	command_button_set_status(HMI_OBJECT_STATUS_INVISIBLE,cartoner_runout_true_cbtn);
+	command_button_set_status(HMI_OBJECT_STATUS_INVISIBLE,cartoner_runout_false_cbtn);
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	command_button_cycle(cartoner_runout_true_cbtn);	
+	command_button_cycle(cartoner_runout_false_cbtn);
+	command_button_cycle(end_production_true_cbtn);
+	command_button_cycle(end_production_false_cbtn);
+
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{fb7655c7-4a9a-09cf-00b8-aecf8b0d5ec5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{e0c988ac-dda0-0989-3522-da99ea5102d7}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{902b50ee-8822-0fc8-2a36-3401f8bfc662}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_visiblity_manager" Id="{4693d263-9537-080d-0914-a9624ab64097}">
+      <Implementation>
+        <ST><![CDATA[IF csp.o_machine_is_stopped
+THEN
+	dry_cycle_visu_nvr := HMI_OBJECT_STATUS_ON;
+	upstacker_test_visu_nvr := HMI_OBJECT_STATUS_ON;
+ELSE
+	dry_cycle_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+	upstacker_test_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+END_IF
+
+IF NOT csp.o_machine_is_stopped
+THEN
+    IF dry_cycle_mode
+    THEN
+        dry_cycle_label_ON_visu_nvr := HMI_OBJECT_STATUS_ON;
+        dry_cycle_label_OFF_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+    ELSE
+        dry_cycle_label_ON_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+        dry_cycle_label_OFF_visu_nvr := HMI_OBJECT_STATUS_ON;
+    END_IF
+   
+    IF csp_transfer_upstacker_sensors.debug_active
+    THEN
+        upstacker_test_label_ON_visu_nvr := HMI_OBJECT_STATUS_ON;
+        upstacker_test_label_OFF_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+    ELSE
+        upstacker_test_label_ON_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+        upstacker_test_label_OFF_visu_nvr := HMI_OBJECT_STATUS_ON;
+    END_IF
+ELSE
+    dry_cycle_label_ON_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+    dry_cycle_label_OFF_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+    upstacker_test_label_ON_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+    upstacker_test_label_OFF_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+END_IF
+
+IF end_production_rtrig.Q
+THEN
+	cartoner_runout_visu_nvr := HMI_OBJECT_STATUS_ON;
+	command_button_set_status(HMI_OBJECT_STATUS_ON,cartoner_runout_true_cbtn);
+	command_button_set_status(HMI_OBJECT_STATUS_ON,cartoner_runout_false_cbtn);
+END_IF
+
+IF empty_cmd_rtrig.Q
+THEN
+	end_production_visu_nvr := HMI_OBJECT_STATUS_ON;
+	command_button_set_status(HMI_OBJECT_STATUS_ON,end_production_true_cbtn);
+	command_button_set_status(HMI_OBJECT_STATUS_ON,end_production_false_cbtn);
+END_IF
+
+IF command_button_is_pressed(cartoner_runout_true_cbtn) 
+	OR command_button_is_pressed(cartoner_runout_false_cbtn)
+THEN
+		cartoner_runout_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+		command_button_set_status(HMI_OBJECT_STATUS_INVISIBLE,cartoner_runout_true_cbtn);
+		command_button_set_status(HMI_OBJECT_STATUS_INVISIBLE,cartoner_runout_false_cbtn);
+END_IF
+
+
+IF command_button_is_pressed(end_production_true_cbtn) 
+	OR command_button_is_pressed(end_production_false_cbtn)
+THEN
+		end_production_visu_nvr := HMI_OBJECT_STATUS_INVISIBLE;
+		command_button_set_status(HMI_OBJECT_STATUS_INVISIBLE,end_production_true_cbtn);
+		command_button_set_status(HMI_OBJECT_STATUS_INVISIBLE,end_production_false_cbtn);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{8afe7c6c-586e-0bcc-21af-b90d0b46a4e4}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

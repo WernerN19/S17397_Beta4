@@ -1,0 +1,473 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_services_towerLamp" Id="{5dad30ef-d321-43bb-918f-78f5c9bac805}" SpecialFunc="None">
+    <Declaration><![CDATA[(********************* G.D S.p.A. - Technical Department *****************************
+
+Date			Version		Author			Description             
+----------      -------		-----------		----------------------------------------------
+2015/12/23		0000.00		M.Grasso		Initial Release
+
+DESCRIPTION:	
+
+NOTES:        		 
+
+**************************************************************************************)
+(*$R process_ref := prc; $*)
+
+PROGRAM csp_main_services_towerLamp
+VAR
+	prc:								process;
+	prc_path:							STRING;
+	
+	tower_lamp:							signaling_device;
+	
+	blue_lamp:							lamp;
+	green_lamp:							lamp;
+	yellow_lamp:						lamp;
+	red_lamp:							lamp;
+	
+	
+    green_lt:                    	    BYTE := 1;
+    blue_lt:                        	BYTE := 4;
+    red_lt:                        		BYTE := 2;
+   	yellow_lt:                        	BYTE := 3;
+	
+	
+	
+	buzzer_status_bool AT %Q*:			boolean;
+	buzzer_lmp:							lamp;
+	buzzer_volume AT %Q*: 				BYTE := 10; (*RANGE: 0-255, Buzzer Volume*)
+	buzzer_do:							digital_output;
+	buzzer_volume_des	: 				BYTE:=255;
+
+	buzzer_motcond:						motorization_conditioner;
+	buzzer_tmr:							timer;
+	buzzer_time_ms:						INT:=1500;
+	time_is_expired_rtrig:				R_TRIG;
+
+	buzzer_req_bool_or:					boolean_or;
+	
+	buzzer_test_mode:					BOOL:=FALSE;
+	
+	TEST_signaling:						BOOL;
+
+	count: 								INT := 0;
+	buzzer_req_bool: 					BOOL;
+	buzzer_filt: 						filter;
+	buzzer_req_act: 					BOOL := FALSE;
+	buzzer_req_act_old: 				BOOL := FALSE;
+	Test_red_lt: 						BOOL := FALSE;
+	Test_green_lt: 						BOOL := FALSE;
+	Test_red_lt_flash: 					BOOL;
+	
+	
+	(* REJECT PRESENT BUZZER VAR *)
+	reject_present:						BOOL;
+	reject_vol_up:						BOOL := TRUE;
+	
+	reject_rtrig:						R_trig;	
+	Reject_Acknowledged: 				BOOL := FALSE; (*$P $*)
+	
+	reject_status_flt: 					filter;
+	flt_timer_off_on: 					DINT := 10000; (*$P min := 0; max := 60000; step := 1; unit :=  ms; desc := Timer OFF to ON; $*)
+	flt_timer_on_off: 					DINT := 200; (*$P min := 0; max := 10000; step := 1; unit :=  ms; desc := Timer ON to OFF; $*)
+	
+	reject_present_filtered: 			BOOL := FALSE;
+	reject_ack_overwrite:				parameter_overwrite;
+	
+	Alarm_duration: TON;
+	error_alarm_start: BOOL;
+	error_alarm_complete: BOOL;
+
+END_VAR
+
+VAR_OUTPUT
+	o_sim_buzzer_do_field_status:		BOOL;
+	o_sim_blue_do_field_status:			BOOL;
+	o_sim_green_field_status:			BOOL;
+	o_sim_yellow_do_field_status:		BOOL;
+	o_sim_red_do_field_status:			BOOL;
+END_VAR
+
+VAR_INPUT
+	buzzer_request_ext: 				BOOL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+_sim_update();
+_objects_manager();
+
+IF g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode (CONVERSION_this := prc) OF
+
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		//pwm_stop(FALSE, buzzer_pwm);
+		RETURN;
+
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+_set_runtime_properties();
+
+(*************************************************************************************
+**************************************************************************************)
+(* BODY *)
+
+time_is_expired_rtrig(CLK := timer_is_expired(buzzer_tmr));
+
+IF machine_has_message_typology_on(MESSAGE_TYPOLOGY_OBLIGATION , csp.mch) OR csp_case_feed_magazine_level.level_status> CSP_CASE_FEED_MAGAZINE_LEVEL_STATUS_LOW (*AMR 10012021*)
+THEN
+	tower_lamp.iol_slave_pdo_output.seg_2_color := blue_lt;
+	lamp_on(blue_lamp);
+ELSE
+	tower_lamp.iol_slave_pdo_output.seg_2_color := 0;
+	lamp_off(blue_lamp);
+END_IF
+
+IF machine_is_running(csp.mch) 
+    OR
+    machine_get_status(csp.mch)= MACHINE_STATUS_RUNNING
+    OR
+    Test_green_lt
+THEN
+    tower_lamp.iol_slave_pdo_output.seg_1_color := green_lt;
+    
+    ELSE
+    tower_lamp.iol_slave_pdo_output.seg_1_color := 0;
+END_IF
+
+IF csp_main_motorization.held_BIT
+OR csp_main_accuChange.accU_axis_moving
+OR message_is_on(csp_case_discharge_reject_sensors.downstream_backup_di_dchk.alarm_asm.message)
+THEN
+    tower_lamp.iol_slave_pdo_output.seg_1_blink := TRUE;
+    ELSE
+    tower_lamp.iol_slave_pdo_output.seg_1_blink := FALSE;
+END_IF
+
+IF  machine_has_message_typology_on(MESSAGE_TYPOLOGY_ABNORMAL , csp.mch) 
+    OR 
+    machine_has_message_typology_on(MESSAGE_TYPOLOGY_EMERGENCY , csp.mch)
+    OR
+    machine_get_status(csp.mch)= MACHINE_STATUS_STOPPED
+    OR 
+    NOT machine_is_running(csp.mch)
+    OR    
+    Test_red_lt
+	THEN
+    tower_lamp.iol_slave_pdo_output.seg_3_color := red_lt;
+    
+ELSE
+    tower_lamp.iol_slave_pdo_output.seg_3_color := 0;    
+    
+END_IF
+
+IF machine_is_stop_emergency_active(csp.mch) 
+    AND NOT machine_is_running(csp.mch)
+    OR    
+    Test_red_lt_flash
+THEN
+    tower_lamp.iol_slave_pdo_output.seg_3_blink := TRUE; 
+    
+ELSE
+    tower_lamp.iol_slave_pdo_output.seg_3_blink := FALSE;    
+    
+END_IF
+
+(*IF machine_is_stopping(csp.mch)
+	AND NOT timer_is_expired(stop_timer)
+	THEN
+	
+END_IF
+*)
+
+IF 	boolean_or_get_status(buzzer_req_bool_or)
+	OR
+	buzzer_test_mode
+	OR
+	machine_is_running_edge(csp.mch)
+	OR
+	buzzer_request_ext
+		
+THEN
+	buzzer_req_bool := TRUE;
+	buzzer_test_mode := FALSE;
+	buzzer_request_ext := False;
+ELSE
+	buzzer_req_bool := FALSE;
+END_IF
+
+IF filter_is_on(buzzer_filt)
+	THEN
+		buzzer_req_act := TRUE;
+	ELSE
+		buzzer_req_act := FALSE;
+END_IF
+
+(* BUZZER HORN CONTROL ON/OFF *)
+IF buzzer_req_act
+OR (filter_is_on(reject_status_flt) AND machine_is_running(csp.mch) AND NOT Reject_Acknowledged)
+OR filter_is_on(csp_main_accuchange.horn_on_filter)
+OR error_alarm_start AND NOT error_alarm_complete
+	THEN
+		digital_output_set(buzzer_do);
+ELSE
+	digital_output_reset(buzzer_do);
+END_IF
+
+
+Alarm_duration(IN:= error_alarm_start , PT:=T#3S , Q=> error_alarm_complete , ET=> );
+
+IF machine_is_stopped(csp.mch)
+	THEN
+	error_alarm_start := TRUE;
+	ELSE
+	error_alarm_start := FALSE;
+END_IF
+
+IF buzzer_req_act = FALSE AND buzzer_req_act_old = TRUE
+	THEN
+		motorization_conditioner_start_done(buzzer_motcond);
+END_IF
+
+buzzer_req_act_old := buzzer_req_act;
+
+buzzer_volume := buzzer_volume_des;
+
+
+
+(* REJECT PRESENT BUZZER LOGIC *)
+IF message_is_on(csp_case_discharge_reject_sensors.reject_present_di_dchk.alarm_asm.message)
+OR message_is_on(csp_transfer_crosspusher_reject.reject_present_check.alarm_asm.message)
+OR message_is_on(csp_transfer_infeed_reject.bin_full_dchk.alarm_asm.message)
+OR message_is_on(csp_case_discharge_reject_sensors.downstream_backup_di_dchk.alarm_asm.message)//added horn for discharge backup 
+OR message_is_on(csp_case_feed_magazine_level_zonelow.magazine_level_zone_low_wem)
+	THEN
+		reject_present := TRUE;
+ELSE
+	reject_present := FALSE;
+END_IF
+
+IF reject_present
+AND filter_is_off(reject_status_flt) 
+	THEN
+		reject_present_filtered := TRUE;
+END_IF
+
+IF filter_is_on(reject_status_flt)
+	THEN
+		reject_present_filtered := FALSE;
+END_IF
+
+filter_set_delays(
+	delay_off_on			:= flt_timer_off_on,
+	delay_on_off			:= flt_timer_on_off,
+	CONVERSION_this			:= reject_status_flt);
+
+
+reject_rtrig(clk := reject_present);
+
+IF reject_rtrig.Q
+	THEN
+		parameter_overwrite_set_bool_value(FALSE, reject_ack_overwrite);
+END_IF
+
+
+
+(*IF TEST_signaling
+    THEN
+	    tower_lamp.iol_slave_pdo_output.seg_1_color := green_lt;
+        tower_lamp.iol_slave_pdo_output.seg_2_color := red_lt;
+        tower_lamp.iol_slave_pdo_output.seg_3_color := blue_lt;
+       
+ELSE
+	tower_lamp.iol_slave_pdo_output.seg_1_color := 0; 
+	tower_lamp.iol_slave_pdo_output.seg_2_color := 0; 
+	tower_lamp.iol_slave_pdo_output.seg_3_color := 0; 
+	
+END_IF
+*)
+(*************************************************************************************
+**************************************************************************************)
+
+_handle_messages();
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{412e5e22-717e-49bc-ae46-6179b2c0cd38}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{9a2a3791-44f1-4981-afff-405a3f6d1188}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{d2303e8b-9097-4be7-a5a6-713655cf3731}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(CONVERSION_this := prc)
+THEN
+    process_apply_mode_req_first_step(CONVERSION_this := prc);
+    CASE process_get_mode(CONVERSION_this := prc) OF
+        MODE_TO_ABSENT:
+            ;
+        MODE_TO_INACTIVE:
+            ;
+        MODE_TO_TEST:
+            ;
+        MODE_TO_OPERATIONAL:
+            ;
+    END_CASE
+    process_apply_mode_req_second_step(CONVERSION_this := prc);
+END_IF;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{55ba9709-455d-4d07-955d-f3160a528100}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+    sub_process_init(
+        object_name 				:= 'csp_main_services_towerLamp.prc',
+        process						:= csp_main_services.prc,
+        CONVERSION_this				:= prc);
+
+	prc_path 						:= process_get_path(prc);
+
+	digital_output_init(
+		object_name 				:= CONCAT(prc_path, '_buzzer_do'),
+		polarity_direct				:= TRUE,
+		process 					:= prc,
+		CONVERSION_this 			:= buzzer_do);
+		
+	lamp_init(
+		object_name 				:= CONCAT(prc_path, '_buzzer_lmp'),
+		process 					:= prc,
+		dout						:= buzzer_do,
+		CONVERSION_this 			:= buzzer_lmp);
+	
+	filter_init(
+		object_name := CONCAT(prc_path, '_buzzer_filt'),
+		delay_off_on := 0,
+		delay_on_off := 3000, //Marco: it's equal to the half of the desired buzzer timer (i.e. desired 1.5s --> delay = 3 s)
+		process := prc,
+		CONVERSION_this := buzzer_filt);
+	
+		(* BUZZER CONDITIONER *)
+	motorization_conditioner_init(
+		object_name					:= CONCAT(prc_path, '_buzzer_motcond'),
+		velocity_limit				:= 0.0,
+		velocity_limit_active		:= FALSE,
+		idle_handshake_active		:= FALSE,
+		execute_handshake_active	:= TRUE,
+		hold_handshake_active		:= FALSE,
+		suspend_handshake_active	:= FALSE,
+		complete_handshake_active	:= FALSE,
+		abort_handshake_active		:= FALSE,
+		stop_handshake_active		:= FALSE,
+		origin						:= MOTORIZATION_CONDITIONER_ORIGIN_INTERNAL,
+		manager						:= csp_main_motorization_manager.motm,
+		process						:= prc,
+		CONVERSION_this				:= buzzer_motcond);
+
+	boolean_or_init(
+		object_name 				:= CONCAT(prc_path, '_buzzer_req_bool_or'),
+		process 					:= prc,
+		CONVERSION_this 			:= buzzer_req_bool_or);
+	
+	(* boolean_init(            
+		object_name					:= CONCAT(prc_path, '_buzzer_status_bool'), 
+		process						:= prc, 
+		CONVERSION_this				:= buzzer_status_bool);
+		
+	signaling_device_configure_buzzer_behaviour(
+		working_mode:= SIGNALING_DEVICE_BUZZER_WORKING_MODE_STATE_ON_OFF, 
+		custom_pwm_period_ms:= 0, 
+		buzzer_time_to_exec_from_starting:=3000 , 
+		buzzer_time_to_exec_from_unholding:= 300, 
+		CONVERSION_this:=tower_lamp );
+
+	timer_init(
+		object_name					:= CONCAT(prc_path, '_buzzer_tmr'),
+		process						:= prc,
+	    CONVERSION_this				:= buzzer_tmr);
+
+
+		*)	
+		
+	signaling_device_iol_balluff_init(
+		object_name 				:= CONCAT(prc_path, '_tower_lamp'),
+		master_channel 				:= 1,
+		blue_light_enable 			:= TRUE,
+		white_light_enable 			:= TRUE,
+		io_link_master 				:= csp_main_services.iol_master_el6224_IO6100,
+		machine 					:= csp.mch,
+		buzzer 						:= buzzer_lmp,
+		process 					:= prc,
+		CONVERSION_this 			:= tower_lamp);
+	
+	filter_init(
+		object_name 				:= CONCAT(prc_path, '_reject_status_flt'),
+		delay_off_on				:= flt_timer_off_on,
+		delay_on_off 				:= flt_timer_on_off,
+		process			 			:= prc,
+		CONVERSION_this 			:= reject_status_flt);	
+	
+	parameter_overwrite_bool_init(
+		object_name								:= CONCAT(prc_path, '_reject_ack_overwrite'),
+		parameter								:= Reject_Acknowledged,
+		process									:= prc,
+		CONVERSION_this							:= reject_ack_overwrite);
+	
+	
+END_IF;
+
+IF	objects_running()
+THEN
+	process_cycle(prc);
+	lamp_cycle(buzzer_lmp);
+	
+	filter_cycle(input:= buzzer_req_bool, buzzer_filt);
+	filter_cycle(input:= reject_present_filtered,	CONVERSION_this := reject_status_flt);	
+		
+	signaling_device_cycle(tower_lamp);
+	motorization_conditioner_cycle(buzzer_motcond);
+END_IF;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{57948fcd-3444-4e7d-a6f0-8d549f05fbc9}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{b4e39199-e592-47ab-b113-9f44aa69940d}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{ff4b312c-2fcd-45d1-9673-eec4a5186be0}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_sim_update" Id="{d0b8a937-30cd-4892-b0b3-32f319ec7491}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{b3df3ab3-5e59-40d6-8509-5b1a08d1709e}">
+      <Implementation>
+        <ST><![CDATA[(* SIMULATION *)
+;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

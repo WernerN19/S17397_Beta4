@@ -1,0 +1,92 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_csp_transfer_crosspusher_reject" Id="{0cf8fe08-4f31-45ad-9c74-868176647cd5}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(********************* G.D S.p.A. - Technical Department ***********************************
+This program has been generated automatically from Application Designer DE&F
+********************************************************************************************)
+PROGRAM dbg_csp_transfer_crosspusher_reject
+VAR
+  backup_di_shd : digital_input_shadow;
+  backup_di_dchk_shd : digital_check_shadow;
+  extend_do_shd : digital_output_shadow;
+  present_di_shd : digital_input_shadow;
+  reject_present_check_shd : digital_check_shadow;
+  retracted_di_shd : digital_input_shadow;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_objects_manager();
+
+IF	g_application_status <> APPLICATION_STATUS_RUNNING
+THEN
+	RETURN;
+END_IF
+
+CASE process_get_mode(CONVERSION_this := dbg_root.prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		RETURN;
+END_CASE
+
+
+]]></ST>
+    </Implementation>
+    <Action Name="_objects_manager" Id="{780d85ca-f3e2-433d-ba2a-9dbd814bc171}">
+      <Implementation>
+        <ST><![CDATA[IF	objects_initialization()
+THEN
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_crosspusher_reject.backup_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= backup_di_shd);
+
+	digital_check_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_crosspusher_reject.backup_di_dchk, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= backup_di_dchk_shd);
+
+	digital_output_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_crosspusher_reject.extend_do, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= extend_do_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_crosspusher_reject.present_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= present_di_shd);
+
+	digital_check_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_crosspusher_reject.reject_present_check, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= reject_present_check_shd);
+
+	digital_input_shadow_init(
+		sim_mode:= SHADOW_SIMULATION_MODE_AUTOMATIC, 
+		father:= csp_transfer_crosspusher_reject.retracted_di, 
+		process:= dbg_root.prc, 
+		CONVERSION_this:= retracted_di_shd);
+
+	RETURN;
+END_IF
+
+IF	objects_running()
+THEN
+	digital_input_shadow_cycle(backup_di_shd);
+	digital_check_shadow_cycle(backup_di_dchk_shd);
+	digital_output_shadow_cycle(extend_do_shd);
+	digital_input_shadow_cycle(present_di_shd);
+	digital_check_shadow_cycle(reject_present_check_shd);
+	digital_input_shadow_cycle(retracted_di_shd);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

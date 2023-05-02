@@ -1,0 +1,205 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp" Id="{d530c59c-15e9-4637-a9bb-a092b1b191e5}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+
+PROGRAM csp
+VAR
+	mch:						machine;
+	reset_timer:				timer;
+	start_timer:				timer;
+	
+		
+	restart_bit: 				BOOL;
+	TC_Restart1:				TC_Restart;
+	DriveCommFailureTON: 		TON;
+	DriveCommFailure:			BOOL := FALSE;
+	DriveCommFailurePT: 		TIME := T#1M;
+	DriveCommFailed_RestartPC: 	BOOL := FALSE;
+	FB_EcSetMasterState1:		FB_EcSetMasterState;
+
+END_VAR
+
+VAR_INPUT
+	i_reset_button:			BOOL;
+	i_start_button:			BOOL;
+END_VAR
+
+VAR_OUTPUT
+	o_machine_is_ready:		BOOL;
+	o_machine_is_running:	BOOL;
+	o_machine_is_stopped:	BOOL;
+	o_machine_is_emergency_stopped:	BOOL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(* MACHINE COMMANDS *)
+
+IF 	(i_reset_button
+	OR
+	csp_case_main_services_pushbuttons.reset_pressed
+	OR
+	csp_transfer_main_services_pushbuttons.reset_pressed) // 8/28
+	AND
+	machine_is_stopped(mch)
+	AND
+	csp_main_services_pushbuttons.reset_delay_ton_complete1 //timer_is_expired(csp_main_services_pushbuttons.reset_tmr)
+THEN
+	machine_reset(mch);
+	
+END_IF
+
+IF 	i_start_button
+	AND
+	csp_main_services_pushbuttons.start_ton.Q
+	AND
+	machine_is_ready(mch)
+THEN
+	machine_start(mch);
+END_IF
+
+IF 	hmi_is_connected(mch)
+	AND 
+	(
+		(* If any of the drives/motors are in a faulted Ethercat State with 460V on, restart Twincat to re-establish comms
+			Fix for an operator powering off 460V and back on without cycling 24V after. Correct power cycle is 460V then 24V disconnect *)
+		(	
+			(* Check to see if IO Data Invalid *)
+			csp_case_feed_arm_elbow.axis.ax_ref.Status.IoDataInvalid
+			AND
+			(* Check to see if the drive status has an Ethercat Fault *)
+			csp_case_main_drives.SD8200_drv.status = SOE_DRIVE_STATUS_NET_FAULT
+			AND
+			(* Link_state_is_ok is TRUE when 460V is present *)
+			csp_case_main_drives.SD8200_drv.net_ethercat_slave^.link_state_is_ok
+		)
+		OR
+		(	
+			(* Check to see if IO Data Invalid *)
+			csp_case_transport_os_leading.axis.ax_ref.Status.IoDataInvalid
+			AND
+			(* Check to see if the drive status has an Ethercat Fault *)
+			csp_case_main_drives.SD2100_drv.status = SOE_DRIVE_STATUS_NET_FAULT
+			AND
+			(* Link_state_is_ok is TRUE when 460V is present *)
+			csp_case_main_drives.SD2100_drv.net_ethercat_slave^.link_state_is_ok
+		)
+		OR
+		(	
+			(* Check to see if IO Data Invalid *)
+			csp_case_fc_ls_upper_follower.axis.ax_ref.Status.IoDataInvalid
+			AND
+			(* Check to see if the drive status has an Ethercat Fault *)
+			csp_case_main_drives.SD10300_drv.status = SOE_DRIVE_STATUS_NET_FAULT
+			AND
+			(* Link_state_is_ok is TRUE when 460V is present *)
+			csp_case_main_drives.SD10300_drv.net_ethercat_slave^.link_state_is_ok
+		)
+	)
+THEN
+	DriveCommFailure := TRUE;
+ELSE
+	DriveCommFailure := FALSE;
+END_IF
+
+DriveCommFailureTON(IN:= DriveCommFailure , PT:=DriveCommFailurePT , Q=> DriveCommFailed_RestartPC , ET=> );		
+
+TC_Restart1(
+	NETID := '',
+	RESTART := DriveCommFailed_RestartPC,
+	TMOUT := T#10S);
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{8bf59098-ffb1-441a-a7e8-7e9548ee5968}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{39cb8df0-9777-497d-aaac-94eaa69b35f5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{43a85413-9e10-4690-833f-ba5d83d4cdb5}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{2f987e19-4f6c-424e-9c8f-bda79fe44943}">
+      <Implementation>
+        <ST><![CDATA[IF 	NOT objects_running()
+THEN
+	csp_interface_configuration(
+		motman					:= csp_main_motorization_manager.motm,
+		machine					:= csp.mch,
+		CONVERSION_this			:= csp_sw_configurator.csp_INTERFACE);
+END_IF
+
+IF 	objects_initialization()
+THEN
+	machine_init(
+		object_name				:= 'csp.mch', 
+		name_to_hmi				:= 'Case Packer', 
+		CONVERSION_this			:= mch);
+END_IF
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{5d63b0fe-a1dc-4d35-bf1f-b87340001f81}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{3c79d71d-2636-4b4f-9503-a6ca19abc77e}">
+      <Implementation>
+        <ST><![CDATA[i_reset_button	:= csp_main.o_reset_button;
+i_start_button	:= csp_main.o_start_button;;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{29f21027-4a42-4c8e-8f4d-6f564cdface0}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{3bb8df0f-9564-4fa4-a7e1-5be656c6288c}">
+      <Implementation>
+        <ST><![CDATA[o_machine_is_running	:= machine_is_execute(mch) OR motorization_manager_is_held(csp_main_motorization_manager.motm);
+o_machine_is_ready		:= machine_is_ready(mch);
+o_machine_is_stopped	:= machine_is_stopped(csp.mch);
+o_machine_is_emergency_stopped	:= machine_is_stop_emergency_active(csp.mch);]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

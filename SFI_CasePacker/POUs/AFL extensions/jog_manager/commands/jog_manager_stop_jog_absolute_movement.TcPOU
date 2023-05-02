@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_stop_jog_absolute_movement" Id="{0620fdfd-1d4c-40b1-8780-e339d1accc17}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Stop the jog absolute movement <b><i>this</i></b>.
+	The method returns <i>TRUE</i> if the command is accepted, otherwise it returns <i>FALSE</i>.
+$*)
+FUNCTION jog_manager_stop_jog_absolute_movement : BOOL
+VAR_IN_OUT
+    CONVERSION_this:		jog_manager;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	NOT (descriptor_mode_is_operational(CONVERSION_this.descriptor)
+		(*OR
+		descriptor_mode_is_test(CONVERSION_this.descriptor)*))	
+THEN
+	jog_manager_stop_jog_absolute_movement := FALSE;				(* command rejected *)
+ 	RETURN;
+END_IF
+
+CONVERSION_this.operational_command := JOG_MANAGER_STOP_ABSOLUTE_MOVEMENT;
+jog_manager_stop_jog_absolute_movement := TRUE;						(* command accepted *)]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_main_phaseManager_warning_set_snapshot" Id="{e17056a7-6b61-064b-0402-4f69c19bc175}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+WU phase manager snapshot set function
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/06/19 	0000.00	 	G.Cera 			Creation of the PRG
+
+**********************************************************************************************************)
+
+FUNCTION csp_main_phaseManager_warning_set_snapshot : VOID
+VAR_INPUT
+    errorID_1:				DINT;			(* Field for specify the faults code or enter
+								   				more message info *)
+    errorID_2:				DINT;			(* Field for specify the faults code or enter
+								   				more message info *)
+    errorID_3:				DINT;			(* Field for specify the faults code or enter
+								   				more message info *)
+	reason:					STRING := '';
+
+	maintenance_job_active:	BOOL;
+		
+END_VAR
+
+VAR_IN_OUT
+    CONVERSION_this:		csp_main_phaseManager_warning_snapshot;
+								(* csp_main_phaseManager_snapshot snapshot reference *)
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	message_set(
+		errorID_1		:= errorID_1, 
+		errorID_2		:= errorID_2, 
+		errorID_3		:= errorID_3, 
+		CONVERSION_this	:= CONVERSION_this.message)
+THEN
+	CONVERSION_this.w_reason 					:= reason;
+	CONVERSION_this.maintenance_job_active	:= maintenance_job_active;
+END_IF]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

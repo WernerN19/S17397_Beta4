@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="jog_manager_element" Id="{9cc42f4f-77f1-433e-91d4-450b1dea27df}">
+    <Declaration><![CDATA[TYPE jog_manager_element : 
+STRUCT
+	axis:					POINTER TO axis;
+	master_axis:			BOOL := FALSE;	
+	jog_type:				jog_manager_type := JOG_TYPE_NONE;	
+	sw_limit_positive:		LREAL := 0.0; //No check if both zero!
+	sw_limit_negative:		LREAL := 0.0;
+	all_slave_axis_engaged:	BOOL := FALSE;	
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

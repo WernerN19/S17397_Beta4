@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="csp_main_motorization_set_snapshot" Id="{6b3e7996-2130-4ea9-b3c4-e34a144a3f1d}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main motorization manager snapshot set function
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+
+FUNCTION csp_main_motorization_set_snapshot : VOID
+VAR_INPUT
+    errorID_1:				DINT;			(* Field for specify the faults code or enter
+								   				more message info *)
+    errorID_2:				DINT;			(* Field for specify the faults code or enter
+								   				more message info *)
+    errorID_3:				DINT;			(* Field for specify the faults code or enter
+								   				more message info *)
+	reason:					STRING := '';
+	connection_status:		INT;
+END_VAR
+
+VAR_IN_OUT
+    CONVERSION_this:		csp_main_motorization_snapshot;
+								(* wu_main_motorization_manager_snapshot snapshot reference *)
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF	message_set(
+		errorID_1		:= errorID_1, 
+		errorID_2		:= errorID_2, 
+		errorID_3		:= errorID_3, 
+		CONVERSION_this	:= CONVERSION_this.message)
+THEN
+	CONVERSION_this.reason 				:= reason;
+	CONVERSION_this.connection_status	:= connection_status;
+end_if]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,112 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="jog_manager_add_axis" Id="{5565762b-613e-4c00-8c04-a6e28df4802a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	Adds the <a href="#axis_object"><i>axis_input</i></a> that performs 
+	the jog command to the instance specified by the parameter <i><b>this</i></b>.
+	<p>
+	This function should be called at startup only.<br/>	
+	Against errors on the input parameters the cpu is stopped, in this case the cause <br/>
+	can be inspected in the global struct <i>framework.abort_error</i>: <br/>
+	<br/>
+    <li> <b>ERRORID_1 = 2</b>: <b><i>this</i></b> index outside boud </li>
+    <li> <b>ERRORID_1 = 3</b>: <b><i>this</i></b> instance, index already defined </li>
+	</p>
+$*)
+FUNCTION jog_manager_add_axis: VOID
+VAR_INPUT
+	list_index:			UINT;
+						(*$ list index inside the jog_manager structure $*)
+	master_axis:		BOOL;
+						(*$ axis is master axis of some slaves $*)
+	jog_type:			jog_manager_type;
+						(*$ jog type allowed $*)
+	sw_limit_positive:	LREAL;
+						(*$ positive sw limit $*)
+	sw_limit_negative:	LREAL;
+						(*$ negative sw limit $*)
+END_VAR
+VAR_IN_OUT		
+	axis:				axis;				(*$ <a href="#axis_object"><i>axis</i></a> membership $*)	
+	CONVERSION_this:	jog_manager;		(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF 	(list_index <= JOG_MANAGER_JOG_LIST_NONE)
+	OR
+	(list_index > JOG_MANAGER_JOG_LIST_MAX)
+THEN
+ 	abort(
+		object_name := CONVERSION_this.object_name,
+        errorID_1 := 2,
+        errorID_2 := 0,
+        errorID_3 := 0,
+        error_str_1 := CONCAT(CONVERSION_this.object_name, ' list_index outside jog_manager boud'),
+		error_str_2 := 'jog_manager_add_axis'
+        );
+    RETURN;
+END_IF
+
+IF 	CONVERSION_this.axis_list[list_index].axis = ADR(axis)
+THEN
+	RETURN;
+END_IF
+
+IF 	jog_manager_is_not_initialized(CONVERSION_this)
+   	OR
+   	axis_is_not_initialized(axis)
+THEN
+	IF 	framework_initialization()
+	THEN
+		RETURN;
+	END_IF
+END_IF
+
+IF 	jog_manager_is_not_initialized(CONVERSION_this)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(CONVERSION_this), 
+		object_size := SIZEOF(CONVERSION_this),
+		abort := TRUE,
+		error_str_1 := 'object not initialized', 
+		error_str_2 := 'jog_manager_add_axis'
+	);
+    RETURN;
+END_IF
+
+IF 	axis_is_not_initialized(axis)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(axis), 
+		object_size := SIZEOF(axis),
+		abort := TRUE, 
+		error_str_1 := 'object not initialized', 
+		error_str_2 := CONCAT('Please check jog_manager_add_axis of ',CONVERSION_this.object_name)				
+	);
+    RETURN;
+END_IF
+
+IF 	(CONVERSION_this.axis_list[list_index].axis <> G_framework.NULL)
+	AND
+	(CONVERSION_this.axis_list[list_index].axis <> ADR(axis))
+THEN
+    abort(
+		object_name := CONVERSION_this.object_name,
+        errorID_1 := 3,
+        errorID_2 := list_index,
+        errorID_3 := 0,
+        error_str_1 := CONCAT(CONVERSION_this.object_name, ' jog_manager has already axis in list'),
+		error_str_2 := 'jog_manager_add_axis'
+        );
+    RETURN;
+END_IF
+
+CONVERSION_this.axis_list[list_index].axis := ADR(axis);
+CONVERSION_this.axis_list[list_index].master_axis := master_axis;
+CONVERSION_this.axis_list[list_index].jog_type := jog_type;
+CONVERSION_this.axis_list[list_index].sw_limit_positive := sw_limit_positive;
+CONVERSION_this.axis_list[list_index].sw_limit_negative := sw_limit_negative;
+
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

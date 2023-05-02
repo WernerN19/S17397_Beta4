@@ -1,0 +1,328 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_infeed_accumulation_level" Id="{7290619b-979a-4aa0-a89a-7c1409b156ff}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_infeed_accumulation_level
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	level_status:									csp_transfer_infeed_accumulation_level_enum; (*$M $*)
+	level_status_old:								csp_transfer_infeed_accumulation_level_enum;
+	level_status_update:							BOOL;
+	level:											BYTE; (*$M $*)
+	
+	jam_wsm:										message;
+	jam_tmr:										timer;
+	incoherence_wsm:								message;
+	incoherence_bool:								BOOL;
+	fault_bool:										BOOL:=FALSE;
+	
+	running_mm_per_ms:								LREAL;
+	one_carton_in_ms:								DINT;
+	carton_tolerance_perc:							LREAL := 25;
+	
+	stop_upstream_belts:							BOOL;
+	product_starved_motcond:						motorization_conditioner;
+	unsuspend_conditions:							BOOL;
+	
+END_VAR
+
+VAR CONSTANT
+
+	LEVEL_STATUS_UNDERMIN_LEVEL:					BYTE := 2#00000000;
+	LEVEL_STATUS_MIN_LEVEL:							BYTE := 2#00000001;
+	LEVEL_STATUS_LOW_LEVEL:							BYTE := 2#00000011;
+	LEVEL_STATUS_NORMAL_LEVEL:						BYTE := 2#00000111;
+	LEVEL_STATUS_MAX_LEVEL:							BYTE := 2#00001111;
+	
+END_VAR
+
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+(************************************************************************)
+level.0 := csp_transfer_infeed_accumulation_level_min.di_accumulation;
+
+level.1 := csp_transfer_infeed_accumulation_level_low.di_accumulation
+			AND csp_transfer_infeed_accumulation_level_min.di_accumulation;
+
+level.2 := csp_transfer_infeed_accumulation_level_normal.di_accumulation
+			AND csp_transfer_infeed_accumulation_level_low.di_accumulation
+			AND csp_transfer_infeed_accumulation_level_min.di_accumulation;
+
+level.3 := csp_transfer_infeed_accumulation_level_max.di_accumulation;
+
+		
+IF level = LEVEL_STATUS_UNDERMIN_LEVEL
+THEN
+	level_status := CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_UNDER_MIN;
+	level_status_update:=TRUE;
+ELSIF level = LEVEL_STATUS_MIN_LEVEL
+THEN
+	level_status := CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_MIN;
+	level_status_update:=TRUE;
+ELSIF level = LEVEL_STATUS_LOW_LEVEL
+THEN
+	level_status := CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_LOW;
+	level_status_update:=TRUE;
+ELSIF level = LEVEL_STATUS_NORMAL_LEVEL
+THEN
+	level_status := CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_NORMAL;
+	level_status_update:=TRUE;
+ELSIF level = LEVEL_STATUS_MAX_LEVEL
+THEN
+	level_status := CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_JAM;
+	level_status_update := TRUE;
+ELSE
+	incoherence_bool := TRUE;
+	level_status_update := FALSE;
+	level_status := CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_INCOHERENT;
+	process_message_set(errorID_1:= 0, errorID_2 := 0, errorID_3 :=0, CONVERSION_this:=incoherence_wsm);
+END_IF
+
+
+(* STOP METERING AND WATERFALL BELTS *)
+IF level_status = CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_JAM
+THEN
+	stop_upstream_belts := TRUE;
+(* START METERING BELT DUE TO REACHING NORMAL PRIME AGAIN *)
+ELSE 
+	timer_restart(one_carton_in_ms*3, jam_tmr); // 3 times the normal filter time
+	
+	IF level_status < CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_JAM
+		AND stop_upstream_belts
+	THEN
+		stop_upstream_belts := FALSE;
+	END_IF
+END_IF
+
+IF 	level_status_old = CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_JAM 
+	AND level_status <> CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_JAM
+THEN
+	process_message_reset(CONVERSION_this:= jam_wsm);	
+END_IF
+
+level_status_old := level_status;
+
+IF 	level_status_update 
+	AND incoherence_bool = TRUE
+THEN
+	process_message_reset(CONVERSION_this := incoherence_wsm);
+	level_status := CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_IDLE;
+	incoherence_bool := FALSE;
+END_IF
+
+(* AUTO CALCULATE THE TIME FOR A CARTON TO MOVE IN MS FROM MMPM *)
+running_mm_per_ms := (csp_transfer_infeed.waterfall_accum_running_velocity_mmpm / 60000) // mm per ms
+					 * 
+					 ( 1 + csp_transfer_infeed_accumulation_belt.override_percentage_par / 100); // override % of accumulation belt
+
+one_carton_in_ms := LREAL_TO_DINT(
+					(SEL(csp_main_brand.Rollover_Carton,	// determines if W or L is the side on the belt
+						csp_main_brand.carton_dimension.carton_size_W_mm, 
+						csp_main_brand.carton_dimension.carton_size_L_mm)
+					/
+					MAX(0.01, running_mm_per_ms))
+					*
+					( 1 + carton_tolerance_perc / 100)
+					);
+
+IF 	level_status <= CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_MIN
+	AND csp_case_loader.case_at_loader
+	AND NOT axis_is_moving(csp_transfer_upstacker_virtualMaster.axis)
+	AND NOT axis_is_moving(csp_case_transport_virtualMaster.axis)
+	AND NOT axis_is_moving(csp_case_loader_virtualMaster.axis)
+	AND NOT csp_transfer_upstacker.stack_at_loader
+	AND NOT csp_transfer_upstacker.stack_made
+	AND NOT csp_transfer_upstacker.stack_on_way_to_loader
+	AND csp_transfer_upstacker_virtualMaster.active_cam = DWELL_CAM
+	AND csp_transfer_crosspusher_vertical.active_cam = DWELL_CAM
+	AND NOT csp_main_motorization.empty_command
+	AND NOT csp_case_main_services.dry_cycle_mode 
+	AND NOT unsuspend_conditions
+	AND csp_main_motorization_manager.debug_Enable_new_conditioners (* Selector on HMI while still being tested *)
+THEN
+	motorization_conditioner_suspend(product_starved_motcond);
+END_IF
+
+IF level_status > CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_MIN
+	OR
+		(
+			csp_transfer_upstacker.stack_made
+		OR
+			csp_transfer_upstacker.stack_at_loader
+		)
+THEN
+	unsuspend_conditions := TRUE;
+	motorization_conditioner_unsuspend(product_starved_motcond);
+ELSE
+	unsuspend_conditions := FALSE;
+END_IF
+
+
+(************************************************************************)
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{1ca45488-4a7f-4da4-b222-87033aa352ad}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{98bf2a78-7670-40fd-b4b8-423b5eb54d51}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{2f50bc75-da2b-483b-b9dd-cefd17a99562}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{234a1f29-2e90-45cb-b373-4aa3c5e8029f}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_infeed_accumulation_level.prc', 
+		process						:= csp_transfer_infeed_accumulation.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	timer_init(
+		object_name:= CONCAT(prc_path, '_jam_tmr'),
+ 		process:= prc,
+		CONVERSION_this:= jam_tmr);
+	
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_jam_wsm'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_NORMAL_STOP, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= jam_wsm);
+		
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_incoherence_wsm'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_NO_STOP, 
+		typology:= MESSAGE_TYPOLOGY_OBLIGATION, 
+		process:= prc, 
+		CONVERSION_this:= incoherence_wsm);
+		
+		
+	motorization_conditioner_init(
+		object_name := CONCAT(prc_path, '_product_starved_motcond'),
+		velocity_limit := 0,
+		velocity_limit_active := FALSE,
+		idle_handshake_active := FALSE,
+		execute_handshake_active := FALSE,
+		hold_handshake_active := FALSE,
+		suspend_handshake_active := FALSE,
+		complete_handshake_active := FALSE,
+		abort_handshake_active := FALSE,
+		stop_handshake_active := FALSE,
+		origin := MOTORIZATION_CONDITIONER_ORIGIN_EXTERNAL_UP,
+		manager := csp_main_motorization_manager.motm,
+		process := prc,
+		CONVERSION_this := product_starved_motcond);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	motorization_conditioner_cycle(product_starved_motcond);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{840baf8e-6270-4d82-b09d-1e517cede5ea}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{786748f5-a7f5-445a-9766-9c2a0f96e479}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{1f83a7f1-f9ea-40ec-948e-e3c61cd2cc92}">
+      <Implementation>
+        <ST><![CDATA[IF 	level_status = CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_JAM 
+	OR
+	level_status = CSP_TRANSFER_INFEED_ACCUMULATION_LEVEL_STATUS_INCOHERENT
+THEN
+	fault_bool:=TRUE;
+ELSE
+	fault_bool:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{ae1a3887-0b75-4912-80fd-4e23b28eeff3}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

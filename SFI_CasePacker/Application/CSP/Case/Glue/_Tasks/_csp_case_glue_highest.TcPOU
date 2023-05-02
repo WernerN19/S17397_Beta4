@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_case_glue_highest" Id="{b7c10a0c-cf36-410f-9948-215b52ac7719}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_case_glue_highest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[csp_case_glue();
+csp_case_glue_hotMelt();
+
+
+(* CASE *)
+	(* GLUE *)
+		(* LS *)
+			(* GUNS *)
+			csp_case_glue_ls_guns();
+		(* OS *)
+			(* ACC-U-CHANGE*)
+			(* GUNS *)
+			csp_case_glue_os_guns();
+		
+		(* SENSORS *)
+		csp_case_glue_sensors();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

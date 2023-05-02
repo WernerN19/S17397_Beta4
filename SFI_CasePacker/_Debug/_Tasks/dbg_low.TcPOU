@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="dbg_low" Id="{8bbc1649-e16f-490f-9288-0bf4f107b29e}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM dbg_low
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT framework_is_local_simulated()
+THEN
+	RETURN;	
+END_IF
+dbg_csp_main_jogmanager();
+dbg_csp_transfer_main_safety_drives_commonconfiguration();
+dbg_csp_transfer_infeed_accu_depth();
+dbg_csp_transfer_infeed_accu_waterfalladjust();
+dbg_csp_transfer_infeed_accumulation_belt();
+dbg_csp_transfer_infeed_accumulation_level_low();
+dbg_csp_transfer_infeed_accumulation_level_max();
+dbg_csp_transfer_infeed_accumulation_level_min();
+dbg_csp_transfer_infeed_accumulation_level_normal();
+dbg_csp_transfer_infeed_metering_belt();
+dbg_csp_transfer_infeed_metering_jam();
+dbg_csp_transfer_infeed_waterfall_belt();
+dbg_csp_transfer_main_safety_accuchange();
+dbg_csp_transfer_main_safety_drives_ps41020();
+dbg_csp_transfer_main_safety_drives_sd41100();
+dbg_csp_transfer_main_safety_drives_sd41200();
+dbg_csp_transfer_main_safety_drives_sd41300();
+dbg_csp_transfer_main_safety_drives_sd41400();
+dbg_csp_transfer_main_safety_drives_sd41500();
+dbg_csp_transfer_main_safety_drives_sd41600();
+dbg_csp_transfer_main_safety_drives_sd41700();
+dbg_csp_transfer_main_safety_emergency();
+dbg_csp_transfer_main_safety_guards();
+dbg_csp_transfer_main_safety_token();
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,467 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_infeed_reject_pusher" Id="{5b4d8b67-d169-4c31-b724-29b7b7a1902d}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_transfer_infeed_reject_pusher
+VAR
+	
+	prc:												process;
+	prc_path:											STRING;
+	
+	fsm_enable_condition:								BOOL := FALSE;
+	fsm_next_status:									csp_transfer_infeed_reject_pusher_status_enum;
+	fsm_status:											csp_transfer_infeed_reject_pusher_status_enum;
+	
+	axis: 												axis;
+
+	disable_req:										BOOL:=FALSE;
+	debug_state_machine:								BOOL:=FALSE;
+	debug_state_machine_one_step:						BOOL:=FALSE;
+	pusher_cam_engaged:									BOOL:=FALSE;
+	
+	cam_id:												DINT  := TRANSFER_INFEED_REJECT_RUN_CAM;
+	slave_scaling_mm:									LREAL := 330; (*$P $*)
+	master_scaling_deg:									LREAL := 1;
+	slave_offset:										LREAL := 10; (*$P $*)
+	
+
+	reject_velocity:									LREAL := 900; (*$P $*)
+	
+	axis_not_moved_dchk:								digital_check;
+	axis_moving_bool:									boolean; 
+	torque_limit:										INT := 2000;    (*$P $*)
+	torque_limit_old:									INT;	
+	in_accu_safe_pos:                                   BOOL := FALSE;
+    accu_tolerance:                                     INT := 5;
+    accu_safe_pos:                                      INT;	(*$P $*)
+	servo_on_condition: 								BOOL;
+	enable_delay: 										TON;
+	Torque_force_constant: 								LREAL := 0.47;
+END_VAR
+
+VAR CONSTANT
+	(*BELT Info*)
+	MIN_VELOCITY_HZ:									LREAL := 0;
+	MAX_VELOCITY_HZ:									LREAL := 15000;
+	MAX_ACCELERATION_HZpSEC:							LREAL := 2500;
+	MAX_DECELERATION_HZpSEC:							LREAL := 2500;
+	MAX_JERK_HZpSEC2:									LREAL := 25000;
+	RUNNING_ACCELERATION_MMMpSEC2:						LREAL := 2500;
+	RUNNING_DECELERATION_MMpSEC2:						LREAL := 2500;
+	MAX_FOLLOWING_ERROR_MM:								LREAL := 100;
+	
+	RUNNING_JERK_MMpSEC3:								LREAL := 1000000;
+	MOTOR_MAX_VELOCITY_DEGPS:							LREAL := 9600;
+	MOTOR_MAX_ACCELERATION_DEGPS2:						LREAL := 4800;
+	MOTOR_MAX_DECELERATION_DEGPS2:						LREAL := 4800;
+	MOTOR_MAX_JERK_DEGPS3:								LREAL := 100000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:						LREAL := 100;
+
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+axis.actual_torque := (axis.actual_current * Torque_force_constant)/1000;
+
+//Checks if axis position is within the acc-u-change safe position
+IF ABS(axis.actual_position - accu_safe_pos)  < accu_tolerance
+	OR (360 - axis.actual_position) < accu_tolerance
+THEN
+	in_accu_safe_pos := TRUE;
+ELSE
+	in_accu_safe_pos := FALSE;   
+END_IF
+
+IF 	csp_transfer_infeed_reject_highLoad.reject_run 
+	AND axis_is_standstill(axis)
+THEN	
+	boolean_set(axis_moving_bool);
+ELSE
+	boolean_reset(axis_moving_bool);
+END_IF
+	
+IF torque_limit <> Torque_limit_old
+THEN
+	IF soe_drive_channel_write_parameter(
+		channel:=csp_transfer_infeed_reject_pusher.axis.soe_drive_channel, 
+		idn:= S_0_IDN + 92, 
+		data_element:=soe_drive_element_value , 
+		data_source:= ADR(torque_limit), 
+		data_lenght:= SIZEOF(torque_limit), 
+		CONVERSION_this:= csp_transfer_infeed_reject_pusher.axis.soe_drive^)= SOE_DRIVE_RETURN_VALUE_DONE
+	THEN
+		Torque_limit_old := torque_limit;
+	END_IF
+END_IF
+
+(*FSM Control*)
+fsm_enable_condition := axis_is_ok(FALSE, axis)
+						AND
+						process_is_ready(prc)
+						AND
+						servo_on_condition
+						AND
+						process_subtree_is_ready(prc)
+						AND
+						csp_transfer_infeed_reject_virtualMaster.ready_for_cam;
+
+IF	(NOT fsm_enable_condition
+	OR
+	disable_req)
+	AND
+	fsm_status <> CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_DISABLED
+	AND
+	fsm_status < CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_STOP_REQUEST
+THEN
+	fsm_status	:=	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_STOP_REQUEST;
+END_IF
+
+
+CASE fsm_status OF
+	
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_NOT_INITIALIZED:
+	
+        IF	axis_is_ok(return_when_absent := TRUE, CONVERSION_this := axis)
+        THEN
+            fsm_next_status := CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_DISABLED;
+        END_IF
+
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_DISABLED:
+
+		IF	fsm_enable_condition
+		THEN
+			fsm_next_status := CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_ENABLE_REQUEST;
+		END_IF;
+
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_ENABLE_REQUEST:
+	
+		axis_enable(axis);
+		IF axis_is_standstill(axis)
+		THEN
+			fsm_next_status	:=	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_ENABLED;
+		END_IF;		
+
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_ENABLED:
+
+		fsm_next_status	:=	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_HOME_REQUEST;
+
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_HOME_REQUEST: 
+
+		fsm_next_status	:=	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_HOME_DONE;
+
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_HOMING:
+
+		axis.home.done := TRUE;
+
+		IF axis_home_done(axis)
+		THEN
+			fsm_next_status	:=	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_HOME_DONE;
+		END_IF
+
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_HOME_DONE:
+	
+		fsm_next_status	:=CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_PHASE_REQUEST;
+
+			
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_PHASE_REQUEST:
+
+		IF	axis_is_standstill(axis)
+		THEN
+
+		 axis_move_absolute(
+			position 		:= slave_offset,(*axis_calculated_cam_slave_position_deg,*)
+			velocity 		:= MAX_VELOCITY_HZ/2,
+			direction		:= AXIS_SHORTEST_WAY,
+			acceleration 	:= MAX_ACCELERATION_HZpSEC,
+			deceleration 	:= MAX_DECELERATION_HZpSEC,
+			jerk 			:= MAX_JERK_HZpSEC2, 
+			buffer_mode 	:= AXIS_BUFFER_MODE_BUFFERED,
+			CONVERSION_this 			:= axis
+			); 
+			
+		END_IF
+
+		IF axis_is_absolute_moving(axis)
+		THEN
+			fsm_next_status	:=	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_PHASING;
+		END_IF
+
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_PHASING:
+
+		IF axis_is_standstill(axis)
+		THEN
+			fsm_next_status	:=	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_PHASED;
+		END_IF
+
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_PHASED:
+
+		fsm_next_status := CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_CAM_ENGAGED_REQ;
+
+
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_CAM_ENGAGED_REQ:
+	
+		boolean_set(axis_moving_bool);
+		
+		axis_engage_cam(
+			cam_id 				:= cam_id,
+			master_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE,
+			slave_engage_mode 	:= AXIS_CAM_ENGAGE_ABSOLUTE, 
+			activation_mode 	:= AXIS_CAM_ACTIVATION_IMMEDIATELY,
+			activation_position	:= 0,
+			master_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			slave_scaling_mode	:= AXIS_CAM_SCALING_MODE_USER_DEFINED,
+			master_offset 		:= 0,
+			slave_offset 		:= slave_offset,
+			master_scaling 		:= master_scaling_deg,
+			slave_scaling 		:= slave_scaling_mm,
+			interpolation_type 	:= AXIS_CAM_INTERPOLATION_SYSTEM_DEFAULT,
+			master 				:= csp_transfer_infeed_reject_virtualMaster.axis,
+			CONVERSION_this 	:= axis);	
+				
+		IF	axis_is_cam_engaged(axis)
+		THEN
+			
+	   		fsm_next_status := CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_CAM_ENGAGED;
+		END_IF;
+		
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_AXIS_ENGAGE_VERIFY :
+	
+		;
+		
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_CAM_ENGAGED:
+	
+		fsm_next_status := CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_RUNNING;
+
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_RUNNING:
+
+		;
+		
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_STOP_REQUEST:
+	
+		axis_stop(
+		    deceleration 	:= MAX_DECELERATION_HZpSEC,
+		    jerk 			:= MAX_JERK_HZpSEC2,
+		    CONVERSION_this 			:= axis);
+
+		IF 	axis_is_standstill(axis)
+			OR
+			NOT axis_is_ok(FALSE, axis)
+			OR
+			axis_is_disabled(axis)
+		THEN
+			fsm_next_status := CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_DISABLE_REQUEST;
+			
+		END_IF
+
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_DISABLE_REQUEST:
+	
+   		axis_disable(axis);
+		fsm_next_status := CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_DISABLING;
+
+		
+	CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_DISABLING:
+	
+        IF	axis_is_disabled(axis)
+        THEN
+            fsm_next_status := CSP_TRANSFER_INFEED_REJECT_PUSHER_STATUS_DISABLED;
+        END_IF;
+
+END_CASE;
+
+IF NOT debug_state_machine
+	OR
+	debug_state_machine_one_step
+THEN
+	fsm_status := fsm_next_status;
+	debug_state_machine_one_step := FALSE;
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{53ac7fd2-184e-45ab-abf4-25236cf3e704}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{e71ca75c-5588-4983-8282-8c1c64a54975}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{812b66af-9679-4e5e-a5c5-3a3984838a24}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{79d29eca-c20b-4287-9338-96be5cb98d67}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name								:= 'csp_transfer_infeed_reject_pusher.prc', 
+		process									:= csp_transfer_infeed_reject.prc, 
+		CONVERSION_this							:= prc);
+		
+	prc_path 									:= process_get_path(prc);
+	
+	axis_init(
+		object_name								:= CONCAT(prc_path, '_axis'), 
+		axis_type								:= AXIS_TYPE_SERVO, 
+		encoder_scaling_factor					:= G_SERVO_ENCODER_SCALING_FACTOR_DEGPINC,
+		modulo									:= G_NO_MODULO_DEG, 
+		process									:= prc, 
+		CONVERSION_this							:= axis);
+		
+	axis_init_absolute_encoder_preset(	
+		position								:=	0,
+		CONVERSION_this							:=	axis);
+	
+	axis_set_max_dynamic(
+		reference_velocity						:=	MOTOR_MAX_VELOCITY_DEGPS,
+		velocity								:=	MOTOR_MAX_VELOCITY_DEGPS,
+		acceleration							:=	MOTOR_MAX_ACCELERATION_DEGPS2,
+		deceleration							:=	MOTOR_MAX_DECELERATION_DEGPS2,
+		jerk									:=	MOTOR_MAX_JERK_DEGPS3,
+		following_error							:=	MOTOR_MAX_FOLLOWING_ERROR_DEG,
+		CONVERSION_this							:=	axis);
+	
+	axis_add_soe_drive(
+		channel									:=	SOE_DRIVE_CHANNEL_B,
+		soe_drive								:=	csp_transfer_main_drives.SD41100_drv,
+		CONVERSION_this							:=	axis);
+		
+		
+	digital_check_and_message_init(
+		object_name:= CONCAT(prc_path, '_axis_not_moved_dchk'), 
+		alarm_if_input_off:= FALSE, 
+		alarm_delay:= 1000, 
+		enabled_at_powerup:= TRUE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= axis_not_moved_dchk);	
+	
+	boolean_init(
+		object_name								:= CONCAT(prc_path, '_axis_moving_bool'), 
+		process									:= prc, 
+		CONVERSION_this							:=axis_moving_bool);
+		
+	digital_check_add_boolean(
+		boolean									:= axis_moving_bool, 
+		CONVERSION_this							:= axis_not_moved_dchk);
+		
+	IF csp_main_configurator.Physical_hw
+		THEN
+			axis_add_safety_integrated_series(
+				safety_integrated_series 		:= csp_transfer_main_safety_drives_SD41100.chB_smes_sis,
+				CONVERSION_this					:= axis);
+	END_IF	
+
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	axis_cycle(axis);
+	digital_check_cycle(axis_not_moved_dchk);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{37a3dd98-fb40-4425-b4ed-61ac745bfa04}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{6416d10a-0ede-4456-bb47-404fb5cb79b9}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{71833001-db72-4828-9105-59fe08a66405}">
+      <Implementation>
+        <ST><![CDATA[IF fsm_status = CSP_TRANSFER_INFEED_REJECT_STATUS_RUNNING
+THEN
+	pusher_cam_engaged := TRUE;
+ELSE
+	pusher_cam_engaged := FALSE;
+	
+END_IF
+
+enable_delay(IN:=axis_is_ready_to_enable(axis) , PT:=T#2S , Q=> servo_on_condition , ET=> );]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{da8e01f8-644d-491f-8e0e-522ab87f8bdb}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

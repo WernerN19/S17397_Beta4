@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_transfer_accumulator_highest" Id="{477f636e-31d8-4b32-b0ef-ada8d6499204}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_transfer_accumulator_highest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[csp_transfer_accumulator();
+(* TRANSFER *)
+	(* ACCUMULATOR *)
+		(* ACCU-U-CHANGE*)
+		csp_transfer_accumulator_accU();
+		(* FINGER *)
+		csp_transfer_accumulator_finger();
+		(* LIFT *)
+		csp_transfer_accumulator_lift();
+		(* BELT *)
+		csp_transfer_accumulator_virtualMaster();
+		csp_transfer_accumulator_belt();
+]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

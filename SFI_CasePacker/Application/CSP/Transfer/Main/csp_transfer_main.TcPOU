@@ -1,0 +1,186 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_main" Id="{e32de422-5101-453e-ba9d-494f5b7f78f0}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_transfer_main
+VAR
+	prc:												process;
+	prc_path:											STRING;
+	
+	temperature_fault_di:								digital_input;
+	temperature_fault_dchk:								digital_check;
+	
+END_VAR
+
+VAR_INPUT
+	i_cabinet_is_running:								BOOL;
+	
+END_VAR
+
+VAR_OUTPUT
+	o_reset_button:										BOOL;
+	o_start_button:										BOOL;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+
+
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{032d7d1f-0da5-4103-9237-3a80a0e587bf}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{467a1de7-4f55-43dc-9e1f-a3ee499c4efd}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{7b70dd33-799c-448a-9dcf-ac5422ac6a58}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{9857f90e-a906-40c3-b963-0a9fd8a9e509}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_main.prc', 
+		process						:= csp_transfer.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_temperature_fault_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= temperature_fault_di);
+		
+	digital_check_init(
+		object_name					:= CONCAT(prc_path, '_temperature_fault_dchk'),
+		alarm_if_input_off			:= FALSE,
+		alarm_delay					:= 1000,
+		enabled_at_powerup			:= TRUE,
+		process						:= prc,
+		CONVERSION_this				:= temperature_fault_dchk);
+
+	digital_check_add_di(
+		di							:= temperature_fault_di,
+		CONVERSION_this				:= temperature_fault_dchk);
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	digital_check_cycle(temperature_fault_dchk);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{0745e55c-dacd-412d-9658-5f99551a1720}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{aa8fdd83-9937-4672-98a4-196275a6c112}">
+      <Implementation>
+        <ST><![CDATA[//i_cabinet_is_running					:= cb.o_machine_is_running; (*MARCO*)
+//i_machine_motor_axis_ref				:= ADR(csp_main_motorization_virtualManager.virtual_master_test); //TODO: this will need an update
+(*
+i_carton_closing_shift_is_empty			:= csp_cartonClosing_shiftRegister.is_empty;
+i_carton_filling_shift_is_empty			:= wu_cartonFilling_shiftRegister.is_empty;
+i_carton_forming_shift_is_empty			:= wu_cartonForming_shiftRegister.is_empty;
+i_carton_pickup_shift_is_empty			:= wu_cartonPickup_shiftRegister.is_empty;
+i_cups_feeding_shift_is_empty			:= wu_cupsFeeding_shiftRegister.is_empty;
+i_exit_shift_is_empty					:= wu_exit_shiftRegister.is_empty;
+i_twisted_cups_shift_is_empty			:= wu_twistedCups_shiftRegister.is_empty;
+
+i_machine_motor_axis_ref				:= ADR(wu_cartonForming_motorization.axis);
+i_drums_motor_axis_ref					:= ADR(wu_cartonPickup_drums_motorization.axis);
+
+i_R1_robot_source_shift_ref				:= ADR(wu_cupsFeeding_shiftRegister.outer_sr); 
+i_R2_robot_source_shift_ref				:= ADR(wu_cupsFeeding_shiftRegister.inner_sr);
+
+i_twisted_cups_inner_shift_ref			:= ADR(wu_twistedCups_shiftRegister.inner_sr);
+i_twisted_cups_outer_shift_ref			:= ADR(wu_twistedCups_shiftRegister.outer_sr);
+
+i_carton_filling_shift_ref				:= ADR(wu_cartonFilling_shiftRegister.sr);
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{42ae1ff5-4ae8-4fa2-ade3-b46c4a07a873}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{cc043813-ca1c-451f-acfb-b27ca9f68514}">
+      <Implementation>
+        <ST><![CDATA[o_reset_button	:= csp_transfer_main_services_pushbuttons.reset_pressed;
+o_start_button	:= csp_transfer_main_services_pushbuttons.start_pressed;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

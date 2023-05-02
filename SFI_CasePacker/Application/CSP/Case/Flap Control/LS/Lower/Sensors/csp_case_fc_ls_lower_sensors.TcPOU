@@ -1,0 +1,347 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_fc_ls_lower_sensors" Id="{6fb8578a-8c3f-4a83-8a38-ddfcec3af34b}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_fc_ls_lower_sensors
+VAR
+	
+	prc:											process;
+	prc_path:										STRING;
+	
+	flap_chksect:									check_section;
+	flap_inchoerence_chksect:						check_section;
+	
+	bad_count:										INT;
+	consecutive_reject_aem:							message;
+	
+	check_request_rtrig:							R_TRIG;
+	check_request:									BOOL;
+	
+	consecutive_blocked_aem:						message;
+	blocked_latch:									BOOL;
+	consecutive_blocked_count:						INT;
+	max_LS_lower_sensor_fail_nvr:					INT :=2 ; (*$P min:=2; max:=30; $*)
+END_VAR
+VAR_INPUT
+	flap_di:										digital_input;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+    
+check_section_message_disable(flap_chksect);
+
+check_section_set_check_window_phases_value(
+    begin_phase         :=  csp_case_flapControl.Flap_check_begin_phase,
+    end_phase           :=  csp_case_flapControl.Flap_check_end_phase,
+    conversion_THIS     :=  flap_chksect);
+	
+IF 	csp_case_main_services.dry_cycle_mode
+	OR csp_main_motorization.empty_command
+THEN
+	check_section_disable(flap_chksect);
+ELSE
+	check_section_enable(flap_chksect);
+END_IF
+
+check_request_rtrig(CLK := csp_case_feed_virtualMaster.follower_check_request);
+check_request := check_request_rtrig.Q;
+
+(* TRACKS IF PE WAS BAD DURING REJECT *)
+IF 	phase_window_falling_edge(csp_case_transport_virtualMaster.major_flap_phwin)
+	OR
+	(
+		//csp_case_feed_virtualMaster.follower_check_request
+		check_request
+		AND csp_case_transport.flap_control_axes_standstill
+		AND csp_case_transport.Followers_Extended
+		AND csp_case_transport.Spreaders_Extended
+	)
+	AND NOT digital_input_is_active(flap_di)
+THEN
+	bad_count :=  bad_count + 1;
+END_IF
+
+IF 	csp_case_transport_virtualMaster.PE_check
+	OR machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+	OR csp_main_motorization.empty_command
+THEN
+	bad_count := 0;
+	process_message_reset(consecutive_reject_aem);
+END_IF
+
+IF 	bad_count >= max_LS_lower_sensor_fail_nvr
+	AND NOT csp_main_motorization.empty_command
+THEN
+	process_message_set(1, 1, 1, consecutive_reject_aem);
+END_IF
+
+
+(* TO MONITOR CONSECUTIVE BLOCKED PE *)
+IF 	phase_window_position_is_in_window(csp_case_transport_virtualMaster.axis.actual_position, csp_case_flapControl.consecutive_blocked_phwin)
+	AND digital_input_is_active(flap_di)
+THEN
+	blocked_latch := TRUE;
+END_IF
+
+IF 	blocked_latch
+	AND phase_window_falling_edge(csp_case_flapControl.consecutive_blocked_phwin)
+THEN
+	consecutive_blocked_count := consecutive_blocked_count + 1;
+END_IF
+
+(* CLEARS COUNT IF EVER NOT BLOCKED *)
+IF	NOT digital_input_is_active(flap_di)
+THEN
+	blocked_latch := FALSE;
+	consecutive_blocked_count := 0;
+END_IF
+
+(* TURNS ON MESSAGE IF CONSECUTIVE *)
+IF 	consecutive_blocked_count >= max_LS_lower_sensor_fail_nvr
+THEN
+	process_message_set(1, 1, 1, consecutive_blocked_aem);
+END_IF
+
+IF 	machine_is_stopped(csp.mch)
+	OR machine_is_stop_emergency_active(csp.mch)
+THEN
+	process_message_reset(consecutive_blocked_aem);
+	blocked_latch := FALSE;
+	consecutive_blocked_count := 0;
+END_IF
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{01f40722-d05f-4ba5-ab15-992fbd994dc8}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{d36a0cf9-1d21-4073-a49c-d2f153daea02}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{325215e9-640b-4588-a651-3ca8e9804118}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{585dc5f0-bbc4-43fd-8383-7f7899ce0fc8}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_fc_ls_lower_sensors.prc', 
+		process						:= csp_case_fc_ls_lower.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	(* INPUTS *)
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_flap_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= flap_di);
+       
+ 	check_section_window_mode_init(
+        object_name:= CONCAT(prc_path, '_flap_chksect'),
+        check_enable:= TRUE,
+        event_to_check:= CHECK_SECTION_EVENT_INPUT_ON,
+        execution_mode:=  CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED,
+        diagnostic_enable:= FALSE,
+        status_bits_to_be_true:= common_global_variables.NONE,//ITEM_CASE_FEED,
+        status_bits_to_be_false:= common_global_variables.NONE,
+        _step_status_conditioning_execution:= FALSE,
+        status_bits_to_set:= common_global_variables.NONE,//ITEM_HAS_LS_LOWER_FLAP,
+        status_bits_to_reset:= common_global_variables.NONE,
+        reject_bit_to_set:= 0,
+        _step:= 25,
+        first_step_to_write_offset:= 0,
+        number_of_steps_to_write:= 1,
+        begin_phase:= csp_case_flapControl.Flap_check_begin_phase,
+        end_phase:= csp_case_flapControl.Flap_check_end_phase,
+        max_consecutive_failed_checks:= 3,
+        max_failed_checks_percentage:= 100,
+        products_for_failed_checks_percentage:= 10,
+        shift_register:= csp_case_main_statistics.sr ,
+        process:= prc,
+        CONVERSION_this:= flap_chksect );
+		
+	check_section_add_di_input(
+		di_input := flap_di,
+		CONVERSION_this:= flap_chksect);
+	
+	message_configure(
+        individual_reset                    := FALSE,
+        machine_reaction                    := MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology                            := MESSAGE_TYPOLOGY_ABNORMAL,
+        CONVERSION_this                     := flap_chksect.too_many_failed_checks_aem.message );	
+	
+ 	check_section_window_mode_init(
+		object_name:= CONCAT(prc_path, '_flap_inchoerence_chksect'),
+		check_enable:= TRUE, 
+		event_to_check:= CHECK_SECTION_EVENT_INPUT_ALWAYS_ON, 
+		execution_mode:= CHECK_SECTION_EXECUTION_WHEN_EVENT_OCCURRED, 
+		diagnostic_enable:= FALSE, 
+		status_bits_to_be_true:= 0, 
+		status_bits_to_be_false:= 0, 
+		_step_status_conditioning_execution:= FALSE, 
+		status_bits_to_set:= 0, 
+		status_bits_to_reset:= 0, 
+		reject_bit_to_set:= 0, 
+		_step:= 25, 
+		first_step_to_write_offset:= 0, 
+		number_of_steps_to_write:= 1, 
+		begin_phase:= 175, 
+		end_phase:= 180, 
+		max_consecutive_failed_checks:= 3, 
+		max_failed_checks_percentage:= 100, 
+		products_for_failed_checks_percentage:= 100, 
+		shift_register:= csp_case_main_statistics.sr , 
+		process:= prc, 
+		CONVERSION_this:= flap_inchoerence_chksect );
+
+	check_section_add_di_input(
+		di_input := flap_di,
+		CONVERSION_this:= flap_inchoerence_chksect);
+		
+	message_configure(
+        individual_reset                    := FALSE,
+        machine_reaction                    := MACHINE_REACTION_STOP_IN_PHASE_ONE,
+        typology                            := MESSAGE_TYPOLOGY_ABNORMAL,
+        CONVERSION_this                     := flap_inchoerence_chksect.too_many_failed_checks_aem.message );	
+	
+		
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_consecutive_reject_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= consecutive_reject_aem);
+		
+	process_message_init(
+		object_name:= CONCAT(prc_path, '_consecutive_blocked_aem'), 
+		behaviour:= MESSAGE_BEHAVIOUR_STATE, 
+		reset_timeout:= 0, 
+		disableable:= FALSE, 
+		individual_reset:= FALSE, 
+		machine_reaction:= MACHINE_REACTION_STOP_IN_PHASE_ONE, 
+		typology:= MESSAGE_TYPOLOGY_ABNORMAL, 
+		process:= prc, 
+		CONVERSION_this:= consecutive_blocked_aem);
+		
+END_IF
+
+
+IF objects_running()
+THEN
+    process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{b3840a90-4b1f-416a-bfef-00f4bd789c6a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{9ad8f8e1-a12c-4266-8196-07ee3f521c21}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{890b1053-d141-43ef-849e-f747e7276d7f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{d415c714-599d-4f1a-9a6e-9109761e2e37}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="csp_case_fc_ls_lower_sensors">
+      <LineId Id="3" Count="103" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_fc_ls_lower_sensors._handle_messages">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_fc_ls_lower_sensors._handle_process_test">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_fc_ls_lower_sensors._mode_manager">
+      <LineId Id="2" Count="13" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_fc_ls_lower_sensors._object_manager">
+      <LineId Id="104" Count="112" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_fc_ls_lower_sensors._read_process_image">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_fc_ls_lower_sensors._read_var_input">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_fc_ls_lower_sensors._set_runtime_properties">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="csp_case_fc_ls_lower_sensors._write_output">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

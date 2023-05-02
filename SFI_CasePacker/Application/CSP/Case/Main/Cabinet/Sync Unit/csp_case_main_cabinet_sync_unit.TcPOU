@@ -1,0 +1,377 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="csp_case_main_cabinet_sync_unit" Id="{cd95b881-2572-4761-8deb-229795248d46}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2020/07/08 	0000.00	 	N.Diskin		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R
+	process_ref := prc;
+$*)
+PROGRAM csp_case_main_cabinet_sync_unit
+VAR_IN_OUT
+	parent_prc:											process;
+	cabinet_ethercat_master:							net_ethercat_master;
+END_VAR
+VAR
+	prc:												process;
+	prc_path:											STRING;
+	
+	manager_sum:										sync_unit_manager;
+	
+	su_SD2100:											sync_unit;
+	su_SD2200:											sync_unit;
+	su_SD2300:											sync_unit;
+	su_SD2400:											sync_unit;
+	su_SD2500:											sync_unit;
+	su_SD12000:											sync_unit;
+	su_SD8000:											sync_unit;
+	su_SD8100:											sync_unit;
+	su_SD8200:											sync_unit;
+	su_SD8300:											sync_unit;
+	su_SD8400:											sync_unit;
+	su_SD8500:											sync_unit;
+	su_SD8600:											sync_unit;
+	su_SD10000:											sync_unit;
+	su_SD10100:											sync_unit;
+	su_SD10200:											sync_unit;
+	su_SD10300:											sync_unit;
+	su_SD10400:											sync_unit;
+	su_SD11000:											sync_unit;
+	su_SD15000:											sync_unit;
+	su_SD26000:											sync_unit;
+	su_SD26100:											sync_unit;
+	
+	su_IO61000_inputs:									sync_unit;
+	su_IO61000_outputs:									sync_unit;
+	
+	su_IO61600_inputs:									sync_unit;
+	su_IO61600_outputs:									sync_unit;
+
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) of
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{279b3f3a-d118-47f7-9108-71e73f88511f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{2d7347bd-de13-47f5-a3be-4047ff79d2bf}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{37fd788f-b455-49eb-b47a-686152dc903e}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{a2cebaad-1893-4c5c-9ad2-1807bea9944a}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_main_cabinet_sync_unit.prc', 
+		process						:= parent_prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+
+	
+	sync_unit_manager_init(
+		object_name := CONCAT(prc_path, '_manager_sum'),
+		net_ethercat_master := cabinet_ethercat_master,
+		process := prc,
+		CONVERSION_this:= manager_sum);
+	
+	(* SD2100 *)	
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD2100'),
+		device_name := 'SD2100',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD2100);
+		
+	(* SD2200 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD2200'),
+		device_name := 'SD2200',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD2200);
+		
+	(* SD2300 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD2300'),
+		device_name := 'SD2300',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD2300);
+		
+	(* SD2400 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD2400'),
+		device_name := 'SD2400',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD2400);
+		
+	(* SD2500 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD2500'),
+		device_name := 'SD2500',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD2500);
+		
+	(* SD12000 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD12000'),
+		device_name := 'SD12000',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD12000);
+
+	(* SD8000 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD8000'),
+		device_name := 'SDSD8000',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD8000);
+		
+	(* SD8100 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD8100'),
+		device_name := 'SD8100',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD8100);
+		
+	(* SD8200 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD8200'),
+		device_name := 'SD8200',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD8200);
+		
+	(* SD8300 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD8300'),
+		device_name := 'SD8300',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD8300);
+		
+	(* SD8400 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD8400'),
+		device_name := 'SD8400',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD8400);
+		
+	(* SD8500 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD8500'),
+		device_name := 'SD8500',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD8500);
+		
+	(* SD8600 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD8600'),
+		device_name := 'SDSD8600',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD8600);
+		
+	(* SD10000 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD10000'),
+		device_name := 'SD10000',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD10000);	
+		
+	(* SD10100 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD10100'),
+		device_name := 'SD10100',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD10100);
+		
+	(* SD10200 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD10200'),
+		device_name := 'SD10200',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD10200);	
+		
+	(* SD10300 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD10300'),
+		device_name := 'SD10300',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD10300);
+		
+	(* SD10400 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD10400'),
+		device_name := 'SD10400',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD10400);	
+		
+	(* SD11000 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD11000'),
+		device_name := 'SD11000',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD11000);
+		
+	(* SD15000 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD15000'),
+		device_name := 'SD15000',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD15000);	
+		
+	(* SD26000 *)
+		sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD26000'),
+		device_name := 'SD26000',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD26000);
+		
+	(* SD26100 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_SD26100'),
+		device_name := 'SD26100',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_SD26100);
+	
+	(* IO61000 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_IO61000_inputs'),
+		device_name := 'IO61000_inputs',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_IO61000_inputs);
+		
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_IO61000_outputs'),
+		device_name := 'IO61000_outputs',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_IO61000_outputs);
+	
+	(* IO61600 *)
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_IO61600_inputs'),
+		device_name := 'IO61600_inputs',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_IO61600_inputs);
+		
+	sync_unit_init(
+		object_name := CONCAT(prc_path, '_su_IO61600_outputs'),
+		device_name := 'IO61600_outputs',
+		process := prc,
+		manager := manager_sum,
+		CONVERSION_this := su_IO61600_outputs);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	sync_unit_manager_cycle(CONVERSION_this := manager_sum);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{35ba7c20-68cd-4ee7-b080-5a95c9da190c}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{ec5242be-ec89-4e0d-90f9-d5062ddf65ef}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{056568cb-1065-41f2-9d55-5f53d7f443a8}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{3d21f049-ae86-42c9-9935-228ae2bbddf3}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

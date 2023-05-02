@@ -1,0 +1,186 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_feed_magazine_os_pusher" Id="{76fc27cc-5d6d-482c-a26b-9d0349e40369}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_feed_magazine_os_pusher
+VAR
+		
+	prc:											process;
+	prc_path:										STRING;
+	
+	retract_do:										digital_output;
+	retracted_di:									digital_input;
+	sact:											digital_actuator;
+	
+	incoherence_dchk:								digital_check;
+	incoherence_bool:								boolean;
+
+	Pusher_clear:									BOOL;
+	
+END_VAR
+
+VAR CONSTANT
+	MOVE_TIMEOUT_MS:								UDINT := 500;
+	INCOHERENCE_TIMEOUT_MS:							UDINT := 500;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		_handle_process_test();
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF csp_case_feed_magazine.AML_Load_Request
+	OR csp_case_feed_magazine.magazine_disengage_enable
+	THEN
+	digital_actuator_activate(sact);	
+ELSE
+	digital_actuator_deactivate(sact);	
+END_IF
+
+IF NOT csp_main_accuChange.machine_size_complete
+THEN
+	digital_actuator_message_disable(sact);
+ELSE
+	digital_actuator_message_enable(sact);
+END_IF
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{27bbbe6d-31e9-4ca9-b825-7a1af5e1a6b1}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{e0550eb5-69aa-4b22-87b5-f19ba60ba5a4}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{47102202-e7aa-4b37-a5ab-d49407ce8328}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{e511066e-d29e-475f-883d-529d718976b6}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_feed_magazine_os_pusher.prc', 
+		process						:= csp_case_feed_magazine_os.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+	
+	digital_output_init(
+		object_name 			:= CONCAT(prc_path, '_extend_do'),
+		polarity_direct 		:= TRUE,
+		process 				:= prc,
+		CONVERSION_this 		:= retract_do);
+		
+	(* INPUTS *) 
+	digital_input_init(
+		object_name					:= CONCAT(prc_path, '_retracted_di'), 
+		polarity_direct				:= TRUE, 
+		process						:= prc, 
+		CONVERSION_this				:= retracted_di);
+		
+
+	digital_actuator_init(
+		object_name := CONCAT(prc_path, '_sact'),
+		_type := DIGITAL_ACTUATOR_TYPE_IN_Ax,
+		fault_reaction := DIGITAL_ACTUATOR_FAULT_REACTION_HOLD,
+		active_time := csp_case_feed_magazine.pusher_time_to_retract_timeout,
+		inactive_time := 20000,
+		dout := retract_do,
+		process := prc,
+		CONVERSION_this:= sact);
+		
+	digital_actuator_add_di_active(
+        di_active := retracted_di,
+        CONVERSION_this:= sact);		
+	
+
+	
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	digital_actuator_cycle(sact);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{94358137-b075-4de9-9946-a830f6b2f691}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{07d630d3-8df3-4f51-8cf7-8501cbf1e5d4}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{01244126-8bc4-4743-b1db-d5768f86fb7a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{cec19441-fc7c-4fea-9b2a-18c196f9cfbd}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

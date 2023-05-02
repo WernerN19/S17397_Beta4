@@ -1,0 +1,425 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_transfer_main_drives" Id="{cc50caed-5860-4ae5-8f0b-4f67e9420ce9}" SpecialFunc="None">
+    <Declaration><![CDATA[
+(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/24 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R 
+	process_ref:= prc; 
+$*)
+PROGRAM csp_transfer_main_drives
+VAR
+	prc:						process;
+	prc_path:					STRING;	
+	
+	PS41020_ps:					power_supply;
+	
+	SD41100_drv:				soe_drive;
+	SD41200_drv:				soe_drive; (*Double channel*) 
+	SD41300_drv:				soe_drive;
+	SD41400_drv:				soe_drive;
+	SD41500_drv:				soe_drive;
+	SD41600_drv:				soe_drive;
+	SD41700_drv:				soe_drive;
+	
+END_VAR
+
+VAR CONSTANT
+	INCOHERENCE_TIMEOUT_MS:		DINT := 2000;
+END_VAR
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_objects_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+CASE process_get_mode(prc) OF
+	MODE_ABSENT,
+	MODE_INACTIVE:
+		RETURN;
+	MODE_TEST:
+		;
+END_CASE
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{681f36d9-b9c5-476d-afd6-b44e4aedef66}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{00129ad9-7960-433d-b094-49729587d8a9}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{98e54ac9-1589-4740-ad2d-91fdc00ed946}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_objects_manager" Id="{962d4c74-16fd-4a30-b08f-58d14ad80bf8}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_transfer_main_drives.prc', 
+		process						:= csp_transfer_main.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+
+	(* PS41020 POWER SUPPLY *)
+	power_supply_init(
+		object_name					:= CONCAT(prc_path, '_PS41020_ps'), 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		process						:= prc, 
+		CONVERSION_this				:= PS41020_ps);
+		
+	power_supply_add_safety_integrated_series(
+		safety_integrated_series	:= csp_transfer_main_safety_drives_PS41020.sis, 
+		CONVERSION_this				:= PS41020_ps);		
+
+		(* SD41100 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD41100_drv'), 
+		device_name					:= 'SD41100', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_transfer_accumulator_lift', 
+		channel_b_name				:= 'csp_transfer_infeed_reject_pusher', 
+		ethercat_master				:= csp_main.cabinet_transfer_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD41100_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS41020_ps, 
+		CONVERSION_this				:= SD41100_drv);
+		
+		(* SD41200 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD41200_drv'), 
+		device_name					:= 'SD41200', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_transfer_accumulator_finger_os', 
+		channel_b_name				:= 'csp_transfer_accumulator_finger_ls', 
+		ethercat_master				:= csp_main.cabinet_transfer_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD41200_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS41020_ps, 
+		CONVERSION_this				:= SD41200_drv);
+		
+		(* SD41300 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD41300_drv'), 
+		device_name					:= 'SD41300', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_transfer_upstacker_upstream', 
+		channel_b_name				:= 'csp_transfer_accumulator_belt', 
+		ethercat_master				:= csp_main.cabinet_transfer_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD41300_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS41020_ps, 
+		CONVERSION_this				:= SD41300_drv);
+		
+			(* SD41400 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD41400_drv'), 
+		device_name					:= 'SD41400', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_transfer_upstacker_downstream', 
+		channel_b_name				:= 'csp_transfer_crosspusher_horizontal', 
+		ethercat_master				:= csp_main.cabinet_transfer_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD41400_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS41020_ps, 
+		CONVERSION_this				:= SD41400_drv);
+		
+			(* SD41500 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD41500_drv'), 
+		device_name					:= 'SD41500', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_transfer_crosspusher_follower', 
+		channel_b_name				:= 'csp_transfer_crosspusher_vertical', 
+		ethercat_master				:= csp_main.cabinet_transfer_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD41500_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS41020_ps, 
+		CONVERSION_this				:= SD41500_drv);
+		
+		(* SD41600 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD41600_drv'), 
+		device_name					:= 'SD41600', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_transfer_infeed_metering_belt', 
+		channel_b_name				:= 'csp_transfer_infeed_waterfall_belt', 
+		ethercat_master				:= csp_main.cabinet_transfer_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD41600_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS41020_ps, 
+		CONVERSION_this				:= SD41600_drv);
+		
+		(* SD41700 *)
+	soe_drive_double_channel_init(
+		object_name					:= CONCAT(prc_path, '_SD41700_drv'), 
+		device_name					:= 'SD41700', 
+		vendor						:= DRIVE_BOSCH_REXROTH, 
+		standalone					:= FALSE, 
+		channel_a_name				:= 'csp_transfer_infeed_accumulation_belt', 
+		channel_b_name				:= '', 
+		ethercat_master				:= csp_main.cabinet_transfer_ethercat_master, 
+		process						:= prc, 
+		CONVERSION_this				:= SD41700_drv);	
+		
+	soe_drive_add_power_supply(
+		power_supply				:= PS41020_ps, 
+		CONVERSION_this				:= SD41700_drv);
+		
+			(* SD41100 *)
+	IF 	SD41100_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41100_drv_ChA, 
+			group						:= csp_transfer_main_safety_drives_SD41100.sig, 
+			CONVERSION_this				:= SD41100_drv);
+	END_IF
+		
+	IF 	SD41100_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41100_drv_ChB, 
+			group						:= csp_transfer_main_safety_drives_SD41100.sig, 
+			CONVERSION_this				:= SD41100_drv);
+	END_IF
+		
+		(* SD41200 *)
+	IF 	SD41200_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41200_drv_ChA, 
+			group						:= csp_transfer_main_safety_drives_SD41200.sig, 
+			CONVERSION_this				:= SD41200_drv);
+	END_IF
+		
+	IF 	SD41200_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41200_drv_ChB, 
+			group						:= csp_transfer_main_safety_drives_SD41200.sig, 
+			CONVERSION_this				:= SD41200_drv);
+	END_IF
+	
+		(* SD41300 *)
+	IF 	SD41300_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41300_drv_ChA, 
+			group						:= csp_transfer_main_safety_drives_SD41300.sig, 
+			CONVERSION_this				:= SD41300_drv);
+	END_IF
+		
+	IF 	SD41300_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41300_drv_ChB, 
+			group						:= csp_transfer_main_safety_drives_SD41300.sig, 
+			CONVERSION_this				:= SD41300_drv);
+	END_IF
+	
+			(* SD41400 *)
+	IF 	SD41400_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41400_drv_ChA, 
+			group						:= csp_transfer_main_safety_drives_SD41400.sig, 
+			CONVERSION_this				:= SD41400_drv);
+	END_IF
+		
+	IF 	SD41400_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41400_drv_ChB, 
+			group						:= csp_transfer_main_safety_drives_SD41400.sig, 
+			CONVERSION_this				:= SD41400_drv);
+	END_IF
+	
+				(* SD41500 *)
+	IF 	SD41500_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41500_drv_ChA, 
+			group						:= csp_transfer_main_safety_drives_SD41500.sig, 
+			CONVERSION_this				:= SD41500_drv);
+	END_IF
+		
+	IF 	SD41500_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41500_drv_ChB, 
+			group						:= csp_transfer_main_safety_drives_SD41500.sig, 
+			CONVERSION_this				:= SD41500_drv);
+	END_IF
+	
+					(* SD41600 *)
+	IF 	SD41600_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41600_drv_ChA, 
+			group						:= csp_transfer_main_safety_drives_SD41600.sig, 
+			CONVERSION_this				:= SD41600_drv);
+	END_IF
+		
+	IF 	SD41600_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41600_drv_ChB, 
+			group						:= csp_transfer_main_safety_drives_SD41600.sig, 
+			CONVERSION_this				:= SD41600_drv);
+	END_IF
+	
+						(* SD41700 *)
+	IF 	SD41700_drv.channel_a.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_A, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41700_drv_ChA, 
+			group						:= csp_transfer_main_safety_drives_SD41700.sig, 
+			CONVERSION_this				:= SD41700_drv);
+	END_IF
+		
+	IF 	SD41700_drv.channel_B.has_channel
+	THEN	
+		soe_drive_enable_fsoe(
+			handler						:= BOSCH_DRIVE_CHANNEL_B, 
+			incoherence_timeout			:= INCOHERENCE_TIMEOUT_MS, 
+			connection_interface		:= csp_transfer_main_safety_interface._SD41700_drv_ChB, 
+			group						:= csp_transfer_main_safety_drives_SD41700.sig, 
+			CONVERSION_this				:= SD41700_drv);
+	END_IF
+		
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+	
+	power_supply_cycle(PS41020_ps);
+
+	soe_drive_cycle(SD41100_drv);
+	soe_drive_cycle(SD41200_drv);
+	soe_drive_cycle(SD41300_drv);
+	soe_drive_cycle(SD41400_drv);
+	soe_drive_cycle(SD41500_drv);
+	soe_drive_cycle(SD41600_drv);
+	soe_drive_cycle(SD41700_drv);	
+
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{0dea2b95-d1c2-420e-bb2a-23d9255bca54}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{3fdf9c55-8f8e-435f-8974-a2c7861def7f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{d3edd9d2-984d-45c2-b1df-97cac759f83f}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{7f44ce27-564e-48f1-8c73-6dcb44ecec35}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

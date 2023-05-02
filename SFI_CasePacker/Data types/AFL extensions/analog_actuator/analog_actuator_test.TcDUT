@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="analog_actuator_test" Id="{bf2cf8ae-3415-4c65-8671-c5adf075459b}">
+    <Declaration><![CDATA[(*$T desc := Test structure; $*)
+TYPE
+analog_actuator_test:	STRUCT
+	command:			analog_actuator_test_command_enum := ANALOG_ACTUATOR_TEST_CMD_IDLE;
+															(*$H_W desc := Command (the variable
+															  is written by HMI)..; $*)
+	command_info:		ARRAY[0..ANALOG_ACTUATOR_MAX_TEST_COMMANDS] OF test_command_info;
+															(*$ Structure that informs the HMI
+																of the availability of every single
+																command and its operational state $*)
+    physical_value:		REAL := 0.0;						(*$P min := APPL; max := APPL; step := 0.1;
+																 unit := APPL; desc := Analog output physical
+																 actual forcing value ; $*)
+	
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

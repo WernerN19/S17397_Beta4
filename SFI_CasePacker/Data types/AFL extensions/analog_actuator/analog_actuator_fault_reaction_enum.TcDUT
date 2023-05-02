@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <DUT Name="analog_actuator_fault_reaction_enum" Id="{6d0c09b6-e9f8-4e87-8ef3-d1ce0f194412}">
+    <Declaration><![CDATA[TYPE
+	analog_actuator_fault_reaction_enum: (
+	ANALOG_ACTUATOR_FAULT_REACTION_DEACTIVATING	:= 0,	(*$ When faulted the analog_actuator sets the
+																<a href="#digital_output_object"><i>output</i></a>
+																consistently with a deactivate command $*)
+	ANALOG_ACTUATOR_FAULT_REACTION_HOLD			:= 1,	(*$ When faulted the analog_actuator sets the
+																<a href="#digital_output_object"><i>output</i></a>
+																consistently with the current command $*)
+	ANALOG_ACTUATOR_FAULT_REACTION_IGNORE		:= 2	(*$ No automatic internal reaction, the application handle the fault condition of analog_actuator $*)
+) := ANALOG_ACTUATOR_FAULT_REACTION_DEACTIVATING;
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

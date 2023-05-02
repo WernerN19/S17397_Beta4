@@ -1,0 +1,214 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="csp_case_transport" Id="{2b08288c-c111-45b2-b21e-1dd276dbef0c}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp machine declaration
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/04/05 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+(*$R process_ref := prc; $*)
+PROGRAM csp_case_transport
+VAR
+	
+	 prc:                                            process;
+    prc_path:                                        STRING;
+    flap_dectect_sr:                                 INT:=25;
+    case_at_loading_sr:                              INT:=26;
+    transport_request:                               BOOL;
+    //recovery_cycle:                                bool:= false;
+    product_loaded:                                  BOOL;
+	
+	
+	test_10: 										BOOL := FALSE;
+	Followers_Extended: 							BOOL := FALSE;
+	Followers_Spreaders_At_Starting_position: 		BOOL := FALSE;
+	flap_control_axes_standstill: 					BOOL := FALSE;
+	Spreaders_Extended: 							BOOL := false;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[_read_var_input();
+
+_object_manager();
+
+IF NOT objects_running()
+THEN
+	RETURN;	
+END_IF
+
+_read_process_image();
+
+_mode_manager();
+
+_set_runtime_properties();
+
+(********************************* BODY *********************************)
+IF (shift_register_step_has_status_item(
+	step_id := case_at_loading_sr,
+	status_bits_to_be_true := ITEM_HAS_LS_LOWER_FLAP + ITEM_HAS_LS_UPPER_FLAP + ITEM_HAS_OS_LOWER_FLAP + ITEM_HAS_OS_UPPER_FLAP,
+	status_bits_to_be_false := 0,
+	CONVERSION_this :=csp_case_main_statistics.sr)
+	AND
+	NOT test_10)
+THEN            
+	transport_request :=FALSE;
+ELSIF NOT csp_case_transport_virtualMaster.stop_for_reject 
+THEN  
+	transport_request :=TRUE;       
+END_IF
+
+IF (NOT csp_case_loader_virtualMaster.product_loaded
+	OR NOT csp_case_loader_virtualMaster.At_Reject_product_loaded)
+THEN
+	test_10 := TRUE; //no product is loaded
+ELSE
+		test_10 := FALSE; // product is loaded
+END_IF
+
+(* Axes engaged for jog management *)
+jog_manager_set_all_slave_axis_engaged(
+	index					:= JOG_LIST_CSP_CASE_TRANSPORT_VIRTUAL, 
+	all_slave_axis_engaged	:= 	axis_is_cam_engaged(csp_case_transport_os_trailing.axis)
+							AND axis_is_cam_engaged(csp_case_transport_os_leading.axis)
+							AND axis_is_cam_engaged(csp_case_transport_ls_trailing.axis)
+							AND axis_is_cam_engaged(csp_case_transport_ls_leading.axis)
+							//AND axis_is_cam_engaged(csp_case_tr_squaring_ls_leading.axis)
+							AND axis_is_cam_engaged(csp_case_tr_squaring_ls_trailing.axis)
+							AND axis_is_cam_engaged(csp_case_tr_squaring_os_leading.axis)
+							AND axis_is_cam_engaged(csp_case_tr_squaring_os_trailing.axis)
+							AND axis_is_cam_engaged(csp_case_closing_os_horizontal.axis)
+							AND axis_is_cam_engaged(csp_case_closing_os_upper.axis)
+							AND axis_is_cam_engaged(csp_case_closing_os_lower.axis)
+							AND axis_is_cam_engaged(csp_case_closing_ls_horizontal.axis)
+							AND axis_is_cam_engaged(csp_case_closing_ls_upper.axis)
+							AND axis_is_cam_engaged(csp_case_closing_ls_lower.axis),						 	
+	CONVERSION_this			:= csp_main_jogManager.jog_manager_virtual);
+	
+IF 	csp_case_fc_os_upper_follower.At_extended_position
+	AND csp_case_fc_os_lower_follower.At_extended_position
+	AND csp_case_fc_ls_upper_follower.At_extended_position
+	AND csp_case_fc_ls_lower_follower.At_extended_position
+THEN
+	Followers_Extended := TRUE;
+ELSE
+	Followers_Extended := FALSE;	
+END_IF
+
+IF 	csp_case_fc_os_upper_spreader.At_extended_position
+	AND csp_case_fc_os_lower_spreader.At_extended_position
+	AND csp_case_fc_ls_upper_spreader.At_extended_position
+	AND csp_case_fc_ls_lower_spreader.At_extended_position
+THEN
+	Spreaders_Extended := TRUE;
+ELSE
+	Spreaders_Extended := FALSE;	
+END_IF
+
+IF 	csp_case_fc_os_upper_follower.At_home_position
+	AND csp_case_fc_os_lower_follower.At_home_position
+	AND csp_case_fc_ls_upper_follower.At_home_position
+	AND csp_case_fc_ls_lower_follower.At_home_position
+	AND csp_case_fc_os_upper_spreader.At_home_position
+	AND csp_case_fc_os_lower_spreader.At_home_position
+	AND csp_case_fc_ls_upper_spreader.At_home_position
+	AND csp_case_fc_ls_lower_spreader.At_home_position
+THEN
+	Followers_Spreaders_At_Starting_position := TRUE;
+ELSE
+	Followers_Spreaders_At_Starting_position := FALSE;
+END_IF
+
+IF 
+axis_is_standstill(csp_case_fc_os_upper_spreader.axis) AND axis_is_standstill(csp_case_fc_os_upper_follower.axis)
+AND axis_is_standstill(csp_case_fc_os_lower_spreader.axis) AND axis_is_standstill(csp_case_fc_os_lower_follower.axis)
+AND axis_is_standstill(csp_case_fc_ls_lower_spreader.axis) AND axis_is_standstill(csp_case_fc_ls_lower_follower.axis)	
+AND axis_is_standstill(csp_case_fc_ls_upper_spreader.axis) AND axis_is_standstill(csp_case_fc_ls_upper_follower.axis)
+THEN
+	flap_control_axes_standstill := TRUE;
+ELSE
+	flap_control_axes_standstill := FALSE;
+END_IF
+	
+(************************************************************************)
+
+_handle_messages();
+
+_write_output();]]></ST>
+    </Implementation>
+    <Action Name="_handle_messages" Id="{ee1e5119-2c56-4035-8382-7587ab72ed42}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_handle_process_test" Id="{e81aa8c9-ef0d-4811-aadd-07e2dcb75d65}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_mode_manager" Id="{41111528-8ad4-4d98-94f4-f3f5addd5a52}">
+      <Implementation>
+        <ST><![CDATA[IF process_mode_req_is_pending(prc)
+THEN
+    process_apply_mode_req_first_step(prc);
+    CASE process_get_mode(prc) OF
+        MODE_TO_ABSENT:
+			;
+        MODE_TO_INACTIVE:
+			;
+        MODE_TO_TEST:
+			;
+        MODE_TO_OPERATIONAL:
+			;
+    END_CASE
+    process_apply_mode_req_second_step(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_object_manager" Id="{7f891843-ad92-4bb1-94e9-b66bd7342fbc}">
+      <Implementation>
+        <ST><![CDATA[IF objects_initialization()
+THEN
+	sub_process_init(
+		object_name					:= 'csp_case_transport.prc', 
+		process						:= csp_case.prc, 
+		CONVERSION_this				:= prc);
+		
+	prc_path 						:= process_get_path(prc);
+END_IF
+
+IF objects_running()
+THEN
+	process_cycle(prc);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_process_image" Id="{75ff1f3b-bb74-4061-bc43-c75769b2e95a}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_read_var_input" Id="{1c55c588-3c6a-4ea1-9bf8-bf7a362cea01}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_set_runtime_properties" Id="{a0a62744-90bc-4ead-b81b-11351a6cdaac}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="_write_output" Id="{9491f47a-3c37-4fca-a3cc-ae50b496ba2b}">
+      <Implementation>
+        <ST><![CDATA[;]]></ST>
+      </Implementation>
+    </Action>
+  </POU>
+</TcPlcObject>

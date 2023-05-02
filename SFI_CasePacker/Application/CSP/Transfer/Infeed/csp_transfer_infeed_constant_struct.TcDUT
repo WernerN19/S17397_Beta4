@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <DUT Name="csp_transfer_infeed_constant_struct" Id="{d02ea39f-b750-4a32-af03-311873c53210}">
+    <Declaration><![CDATA[TYPE csp_transfer_infeed_constant_struct :
+STRUCT
+	(*BELT Info*)
+	MIN_VELOCITY_HZ:							LREAL := 0;
+	MAX_VELOCITY_HZ:							LREAL := 15000;
+	MAX_ACCELERATION_HZpSEC:					LREAL := 2500;
+	MAX_DECELERATION_HZpSEC:					LREAL := 2500;
+	MAX_JERK_HZpSEC2:							LREAL := 25000;
+	RUNNING_ACCELERATION_MMMpSEC2:				LREAL := 2500;
+	RUNNING_DECELERATION_MMpSEC2:				LREAL := 2500;
+	MAX_FOLLOWING_ERROR_MM:						LREAL := 100;
+	
+	RUNNING_JERK_MMpSEC3:						LREAL := 1000000;
+	MOTOR_MAX_VELOCITY_DEGPS:					LREAL := 9600;
+	MOTOR_MAX_ACCELERATION_DEGPS2:				LREAL := 4800;
+	MOTOR_MAX_DECELERATION_DEGPS2:				LREAL := 4800;
+	MOTOR_MAX_JERK_DEGPS3:						LREAL := 100000000; 
+	MOTOR_MAX_FOLLOWING_ERROR_DEG:				LREAL := 2;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,119 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4022.12">
+  <POU Name="analog_actuator_add_ai_feedback" Id="{bde56c47-3475-48f5-be24-73c6b5139425}" SpecialFunc="None">
+    <Declaration><![CDATA[(*$
+	The method adds the <a href="#analog_input_object"><i>analog_input</i></a> that performs 
+	the active feedback to the instance specified by the parameter <i><b>this</b></i>.<br/>
+	<p>
+	This function should be called at startup only.<br/>	
+	Against errors on the input parameters the cpu is stopped, in this case the cause <br/>
+	can be inspected in the global struct <i>framework.abort_error</i>: <br/>
+	<br/>
+	<ul>
+    <li> ERRORID_1 = 9: <b><i>this</i></b> instance has already an active digital_input </li>
+    <li> ERRORID_1 = 12: <b><i>this</i></b> instance is a real value check type </li>
+	</ul>
+	</p>
+$*)
+FUNCTION analog_actuator_add_ai_feedback : VOID
+VAR_INPUT
+	achk_diagnosis_max_value:		REAL;
+	(*$ Value over which auto-diagnosis message is triggered; $*)
+	achk_diagnosis_min_value:		REAL;
+	(*$ Value under which auto-diagnosis message is triggered; $*)
+	achk_offset:					REAL;
+	(*$ Offset added (subtracted if polarity_direct is FALSE) to the other limits.
+		Ex. if offset = 0 and max_value =100, out_of_upper_range is triggered if value>100
+		if offset = 10 and max_value =100, out_of_upper_range is triggered if value>110 $*)
+	achk_hysteresis:				UDINT;
+	(*$ Hysteresis on max or min value. If max value is reached, 
+		the related message can be reset only if the measured signal goes down below 
+		(max value - (max value-min value)*hysteresis/100). The same for min value.; $*)
+	achk_filter_on_max_value:	UDINT;
+								(*$ Filter on max level reached; $*)
+	achk_filter_on_min_value:	UDINT;
+								(*$ Filter on min level reached; $*)
+END_VAR
+VAR_IN_OUT
+	ai:				analog_input;
+	(*$ <a href="#analog_input_object"><i>Analog_input</i></a> that has to be added $*)
+	process:		process;			(*$ <a href="#process_object"><i>process</i></a> membership $*)
+	CONVERSION_this:			analog_actuator;	(*$ Instance to which the method applies $*)
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF analog_actuator_is_not_initialized(CONVERSION_this)
+   OR
+   analog_input_is_not_initialized(ai)
+THEN
+	IF framework_initialization()
+	THEN
+		RETURN;
+	END_IF
+END_IF
+
+IF analog_actuator_is_not_initialized(CONVERSION_this)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(CONVERSION_this), 
+		object_size := SIZEOF(CONVERSION_this), 
+		abort := TRUE,
+		error_str_1 := 'object not initialized',
+		error_str_2 := 'analog_actuator_add_ai_feedback'
+	);
+    RETURN;
+END_IF
+
+IF analog_input_is_not_initialized(ai)
+THEN
+	framework_object_not_initialized_get_name(
+		object_address := ADR(ai), 
+		object_size := SIZEOF(ai),
+		abort := TRUE,
+		error_str_1 := 'object not initialized', 
+		error_str_2 := CONCAT('Please check analog_actuator_add_ai_feedback of ',CONVERSION_this.object_name)
+	);
+    RETURN;
+END_IF
+
+
+IF (CONVERSION_this.ai_feedback<>NULL
+	AND
+	CONVERSION_this.ai_feedback<>ADR(ai))
+THEN
+	abort(
+		object_name := CONVERSION_this.object_name,
+		errorID_1 := 9,
+		errorID_2 := 0,
+		errorID_3 := 0,
+		error_str_1 := CONCAT(CONVERSION_this.object_name, ' ai already used'),
+		error_str_2 := ''
+		);
+    RETURN;
+END_IF
+
+CONVERSION_this.ai_feedback := ADR(ai);
+CONVERSION_this.has_ai_feedback := TRUE;
+
+(* todo: to define how to init analog check*)
+analog_check_init(
+	object_name 		:= CONCAT(CONVERSION_this.object_name,'_feedback_achk'),
+	enabled_at_powerup 	:= TRUE,
+	signal_type 		:= ANALOG_CHECK_PHYSICAL_VALUE,
+	polarity_direct 	:= TRUE,
+	diagnosis_max_value := achk_diagnosis_max_value,
+	max_value 			:= achk_diagnosis_max_value,
+	min_value 			:= achk_diagnosis_min_value,
+	diagnosis_min_value := achk_diagnosis_min_value,
+	offset 				:= achk_offset,
+	hysteresis 			:= achk_hysteresis,
+	filter_on_max_value := achk_filter_on_max_value,
+	filter_on_min_value := achk_filter_on_min_value,
+	process 			:= process,
+	CONVERSION_this				:= CONVERSION_this.feedback_achk);
+
+analog_check_add_ai(
+	ai 					:= ai,
+	CONVERSION_this 				:= CONVERSION_this.feedback_achk);]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.3">
+  <POU Name="_csp_transfer_highest" Id="{d8c8c50c-149d-4270-acaa-63b1d72c19a4}" SpecialFunc="None">
+    <Declaration><![CDATA[(*********************************** G.D S.p.A. - Technical Department ***********************************
+============= PROGRAM INFO ============
+FOLDER:             TBD
+MACHINES INVOLVED:  TBD 
+
+============= DESCRIPTION =============
+csp main interface program
+
+============= REVISIONS ===============
+Date		Version	 	Author      	Description             
+----------	-------		------------  	--------------------------------------------
+2019/09/27 	0000.00	 	M.Grasso		Creation of the PRG
+
+**********************************************************************************************************)
+PROGRAM _csp_transfer_highest
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[csp_transfer();
+
+(* SWAPPED CROSSPUSHER AND ACCUMULATOR BECAUSE ACCUMULATOR LOOKS AT CROSSPUSHER NEXT CAM *)
+
+
+
+_csp_transfer_upstacker_highest();
+
+
+_csp_transfer_crosspusher_highest();
+
+_csp_transfer_accumulator_highest();
+
+
+_csp_transfer_main_highest();
+
+_csp_transfer_infeed_highest();
+
+csp_transfer_virtualMaster();]]></ST>
+    </Implementation>
+  </POU>
+</TcPlcObject>
